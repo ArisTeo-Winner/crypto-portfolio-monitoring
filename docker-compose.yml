@@ -8,8 +8,8 @@ services:
    - 8080:8080
   environment:
    - DATABASE_URL=jdbc:postgresql://java_db:5432/crypto_portafolio
-   - DATABASE_USERNAME=postgres
-   - DATABASE_PASSWORD=Rammstein
+   - DATABASE_USERNAME=USERNAME
+   - DATABASE_PASSWORD=PASSWORD
   depends_on:
    - java_db
  java_db:
