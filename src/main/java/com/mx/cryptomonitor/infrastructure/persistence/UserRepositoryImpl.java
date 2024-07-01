@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.infrastructure.persistence;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 
 import org.springframework.data.domain.Example;
@@ -67,7 +68,7 @@ public class UserRepositoryImpl implements UserRepository{
 	}
 
 	@Override
-	public void deleteAllByIdInBatch(Iterable<Long> ids) {
+	public void deleteAllByIdInBatch(Iterable<UUID> ids) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -79,19 +80,19 @@ public class UserRepositoryImpl implements UserRepository{
 	}
 
 	@Override
-	public User getOne(Long id) {
+	public User getOne(UUID id) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public User getById(Long id) {
+	public User getById(UUID id) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public User getReferenceById(Long id) {
+	public User getReferenceById(UUID id) {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -121,19 +122,19 @@ public class UserRepositoryImpl implements UserRepository{
 	}
 
 	@Override
-	public List<User> findAllById(Iterable<Long> ids) {
+	public List<User> findAllById(Iterable<UUID> ids) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Optional<User> findById(Long id) {
+	public Optional<User> findById(UUID id) {
 		// TODO Auto-generated method stub
 		return Optional.empty();
 	}
 
 	@Override
-	public boolean existsById(Long id) {
+	public boolean existsById(UUID id) {
 		// TODO Auto-generated method stub
 		return false;
 	}
@@ -145,7 +146,7 @@ public class UserRepositoryImpl implements UserRepository{
 	}
 
 	@Override
-	public void deleteById(Long id) {
+	public void deleteById(UUID id) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -157,7 +158,7 @@ public class UserRepositoryImpl implements UserRepository{
 	}
 
 	@Override
-	public void deleteAllById(Iterable<? extends Long> ids) {
+	public void deleteAllById(Iterable<? extends UUID> ids) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -215,6 +216,13 @@ public class UserRepositoryImpl implements UserRepository{
 		// TODO Auto-generated method stub
 		return null;
 	}
+
+	@Override
+	public Optional<User> findByUsername(String username) {
+		// TODO Auto-generated method stub
+		return Optional.empty();
+	}
+
 
 	
 

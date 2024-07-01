@@ -23,24 +23,38 @@ public class UserService {
 		return userRepository.findAll();
 	}
 	
+	public Optional<User> findByUsername(String username){
+		return userRepository.findByUsername(username);
+	}
+	
 	public Optional<User> findByEmail(String email){
 		return userRepository.findByEmail(email);
 	}
 	
-	public User save(User user) {
-		
-		user.setSalt(generateSalt());
-		user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash() + generateSalt()));
-		return userRepository.save(user);
-	}
+
+    public User save(User user) {
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email already in use");
+        }
+
+        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Username already in use");
+        }
+
+        String salt = generateSalt();
+        user.setSalt(salt);
+        user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash() + salt));
+        return userRepository.save(user);
+    }
+
 	
 	public String generateSalt() {
 		return Long.toHexString(Double.doubleToLongBits(Math.random()));
 	}
 	
 	public boolean verifyPassword(User user, String password) {
-		String encodedPassword = passwordEncoder.encode(password+user.getSalt());
-		return encodedPassword.matches(password + user.getPasswordHash());
+		//String encodedPassword = passwordEncoder.encode(password+user.getSalt());
+		return passwordEncoder.matches(password + user.getSalt(), user.getPasswordHash());
 	}
 	
 	
