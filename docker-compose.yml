@@ -18,6 +18,6 @@ services:
   ports:
    - 5432:5432
   environment:
-   POSTGRES_USER: postgres
-   POSTGRES_PASSWORD: Rammstein
+   POSTGRES_USER: USERNAME
+   POSTGRES_PASSWORD: PASSWORD
    POSTGRES_DB: crypto_portafolio
