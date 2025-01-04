@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.domain.services;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -57,7 +58,7 @@ public class UserService {
 		return passwordEncoder.matches(password + user.getSalt(), user.getPasswordHash());
 	}
 	
-	
+
 	/*public User save(User user) {
 		return userRepository.save(user);
 	}*/
