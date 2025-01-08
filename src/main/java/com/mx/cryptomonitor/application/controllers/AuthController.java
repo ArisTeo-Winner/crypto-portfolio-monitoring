@@ -1,24 +1,18 @@
 package com.mx.cryptomonitor.application.controllers;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
+
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.services.UserService;
-import com.mx.cryptomonitor.infrastructure.security.JwtTokenUtil;
-import com.mx.cryptomonitor.shared.dto.JwtResponse;
+
 import com.mx.cryptomonitor.shared.dto.LoginRequest;
 
 @RestController

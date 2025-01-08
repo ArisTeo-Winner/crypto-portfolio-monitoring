@@ -18,16 +18,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.security.web.firewall.StrictHttpFirewall;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-
-import static org.springframework.security.config.Customizer.withDefaults;
-
 
 @Configuration
 public class SecurityConfig {
 
     private final JwtUserDetailsService userDetailsService;
-    private final PasswordEncoder passwordEncoder;
     
     @Autowired
     private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
@@ -36,11 +31,15 @@ public class SecurityConfig {
     @Lazy
     private JwtRequestFilter jwtRequestFilter;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
+    
     public SecurityConfig(JwtUserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
         this.userDetailsService = userDetailsService;
         this.passwordEncoder = passwordEncoder;
     }
+    
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
@@ -61,6 +60,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(authorizeRequests ->
                 authorizeRequests
                     .requestMatchers("/auth/**", "/users/register", "/users/login").permitAll()
+                    .requestMatchers("/users/{email}").authenticated() // Requiere autenticación
                     .anyRequest().authenticated()
             )
             .exceptionHandling(exception ->

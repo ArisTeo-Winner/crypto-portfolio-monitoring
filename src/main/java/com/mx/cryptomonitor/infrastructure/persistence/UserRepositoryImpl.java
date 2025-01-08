@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
@@ -24,7 +25,7 @@ public class UserRepositoryImpl implements UserRepository{
 	@PersistenceContext
 	private EntityManager entityManager;
 
-	@Override
+	@Transactional
 	public Optional<User> findByEmail(String email) {
 		// TODO Auto-generated method stub
 		return entityManager.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
