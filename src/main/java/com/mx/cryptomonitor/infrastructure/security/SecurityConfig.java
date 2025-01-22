@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -59,8 +60,8 @@ public class SecurityConfig {
         http.csrf().disable()
             .authorizeHttpRequests(authorizeRequests ->
                 authorizeRequests
-                    .requestMatchers("/auth/**", "/users/register", "/users/login").permitAll()
-                    .requestMatchers("/users/{email}").authenticated() // Requiere autenticación
+                    .requestMatchers("/users/{id}/test","/users/register","/users/login").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,"/auth/**","/users/{id}","/users/{email}","/users","/users/profile").authenticated() // Requiere autenticación
                     .anyRequest().authenticated()
             )
             .exceptionHandling(exception ->

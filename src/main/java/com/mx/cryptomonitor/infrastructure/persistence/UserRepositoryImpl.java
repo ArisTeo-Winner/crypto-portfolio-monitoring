@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,39 +17,50 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
+import com.mx.cryptomonitor.domain.services.UserService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 
 @Repository
-public class UserRepositoryImpl implements UserRepository{
-	
+public class UserRepositoryImpl implements UserRepository {
+
+	private static final Logger logger = LoggerFactory.getLogger(UserService.class);
+
 	@PersistenceContext
 	private EntityManager entityManager;
 
+	
+	public List<User> findAll() {
+
+		logger.info("=== Ejecutando método findAll() desde UserRepositoryImpl ===");
+
+		return entityManager.createQuery("SELECT u FROM User u", User.class).getResultList();
+
+	}
+	
 	@Transactional
 	public Optional<User> findByEmail(String email) {
 		// TODO Auto-generated method stub
 		return entityManager.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
-							.setParameter("email", email)
-							.getResultStream()
-							.findFirst();
+				.setParameter("email", email).getResultStream().findFirst();
 	}
 
 	@Override
-    public User save(User user) {
-        if (user.getId() == null) {
-            entityManager.persist(user);
-            return user;
-        } else {
-            return entityManager.merge(user);
-        }
-    }
+	public User save(User user) {
+		if (user.getId() == null) {
+			entityManager.persist(user);
+			return user;
+		} else {
+			return entityManager.merge(user);
+		}
+	}
 
 	@Override
 	public void flush() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
@@ -65,19 +78,19 @@ public class UserRepositoryImpl implements UserRepository{
 	@Override
 	public void deleteAllInBatch(Iterable<User> entities) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void deleteAllByIdInBatch(Iterable<UUID> ids) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void deleteAllInBatch() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
@@ -117,12 +130,6 @@ public class UserRepositoryImpl implements UserRepository{
 	}
 
 	@Override
-	public List<User> findAll() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
 	public List<User> findAllById(Iterable<UUID> ids) {
 		// TODO Auto-generated method stub
 		return null;
@@ -130,9 +137,15 @@ public class UserRepositoryImpl implements UserRepository{
 
 	@Override
 	public Optional<User> findById(UUID id) {
-		// TODO Auto-generated method stub
-		return Optional.empty();
+		
+		logger.info("=== Ejecutando método findById() desde UserRepositoryImpl ===");
+
+		
+	    return entityManager.find(User.class, id) != null ?
+	           Optional.of(entityManager.find(User.class, id)) : Optional.empty();
 	}
+
+
 
 	@Override
 	public boolean existsById(UUID id) {
@@ -149,31 +162,38 @@ public class UserRepositoryImpl implements UserRepository{
 	@Override
 	public void deleteById(UUID id) {
 		// TODO Auto-generated method stub
-		
+
+		Query query = entityManager.createQuery("DELETE FROM User u WHERE u.id = :id");
+		query.setParameter("id", id);
+		int rowsDeleted = query.executeUpdate();
+		if (rowsDeleted == 0 ) {
+			throw new IllegalArgumentException("User with id "+id+" does not exist");
+			
+		}
 	}
 
 	@Override
 	public void delete(User entity) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void deleteAllById(Iterable<? extends UUID> ids) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void deleteAll(Iterable<? extends User> entities) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void deleteAll() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
@@ -224,7 +244,5 @@ public class UserRepositoryImpl implements UserRepository{
 		return Optional.empty();
 	}
 
-
-	
 
 }

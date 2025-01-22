@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -13,8 +16,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-
-
 @Entity
 @Table(name = "users")
 @Data
@@ -23,7 +24,8 @@ import lombok.*;
 @Builder
 public class User {
 	
-    @Id
+ 
+	@Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
@@ -39,12 +41,25 @@ public class User {
 
     private String salt;
 
+    @JsonProperty("firstName")
+    @Column(name = "first_name")
     private String firstName;
+    
+    @JsonProperty("lastName")
+    @Column(name = "last_name")
     private String lastName;
+    
+    @JsonProperty("phoneNumber")
+    @Column(name = "phone_number")
     private String phoneNumber;
     private String address;
     private String city;
+    
+    @JsonProperty("state")
     private String state;
+    
+    @JsonProperty("postalCode")
+    @Column(name = "postal_code")
     private String postalCode;
     private String country;
     private LocalDate dateOfBirth;
@@ -55,5 +70,8 @@ public class User {
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();
     private LocalDateTime lastLogin;
-	
+    
+	   public User(String string, String string2) {
+		// TODO Auto-generated constructor stub
+	}
 }
