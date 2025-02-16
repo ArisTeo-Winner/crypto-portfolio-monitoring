@@ -60,8 +60,20 @@ public class SecurityConfig {
         http.csrf().disable()
             .authorizeHttpRequests(authorizeRequests ->
                 authorizeRequests
-                    .requestMatchers("/users/{id}/test","/users/register","/users/login").permitAll()
-                    .requestMatchers(HttpMethod.DELETE,"/auth/**","/users/{id}","/users/{email}","/users","/users/profile").authenticated() // Requiere autenticación
+                    .requestMatchers(
+                    		"/api/v1/auth/login",
+                    		"/api/v1/users/{id}/test",
+                    		"/api/v1/users/register",
+                    		"/api/v1/users/login",
+                    		"/api/v1/portfolio/transactions",
+                    		"/api/v1/marketdata/stock",
+                    		"/api/v1/marketdata/historical/{symbol}/{date}").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,
+                    		"/api/v1/auth/**",
+                    		"/api/v1/users/{id}",
+                    		"/api/v1/users/{email}",
+                    		"/api/v1/users",
+                    		"/api/v1/users/profile").authenticated() // Requiere autenticación
                     .anyRequest().authenticated()
             )
             .exceptionHandling(exception ->

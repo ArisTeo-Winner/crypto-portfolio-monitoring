@@ -39,8 +39,6 @@ public class User {
     @NotBlank(message = "Password is mandatory")
     private String passwordHash;
 
-    private String salt;
-
     @JsonProperty("firstName")
     @Column(name = "first_name")
     private String firstName;

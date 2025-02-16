@@ -16,10 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.services.UserService;
-import com.mx.cryptomonitor.shared.dto.LoginRequest;
+import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/v1/auth")
 public class AuthController {
 	
 	@Autowired
@@ -35,7 +35,7 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
+                    new UsernamePasswordAuthenticationToken(loginRequest.email(), loginRequest.password())
             );
             return ResponseEntity.ok("Login successful");
         } catch (AuthenticationException e) {
@@ -43,10 +43,5 @@ public class AuthController {
         }
     }
     
-    @GetMapping("/{email}")
-    public ResponseEntity<User> getUserByEmail(@PathVariable String email) {
-        return userService.findByEmail(email)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
+
 }

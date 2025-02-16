@@ -21,14 +21,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mx.cryptomonitor.application.dtos.UserDTO;
+import com.mx.cryptomonitor.application.mappers.UserMapper;
 import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
 import com.mx.cryptomonitor.domain.services.UserService;
+import com.mx.cryptomonitor.shared.dto.response.UserResponse;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -43,24 +47,28 @@ class UserServiceTest {
 
 	@Mock
 	private UserRepository userRepository;
+	
+	@Mock
+	private BCryptPasswordEncoder passwordEncoder;
+	
+    @Mock
+    private UserMapper userMapper;
 
+	
+	
     @InjectMocks
     private UserService userService;
     
-    @AfterEach
-    void tearDown() {
-        userRepository.deleteAll();
-    }
-
+ 
     private UUID userId;
 
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        userId = UUID.fromString("bc1c7eb7-1814-43e7-a46d-00ff0d1676ad");
+        userId = UUID.fromString("9cd1ba3b-3676-4e52-8373-c7cd68492c71");
 
-        userService = new UserService(userRepository);
+        userService = new UserService(userRepository, passwordEncoder, userMapper);
         
     }
 
@@ -121,6 +129,97 @@ class UserServiceTest {
     }
     
 
+    @Test
+    public void testSaveUser() {
+        User user = new User();
+        user.setEmail("test@example.com");
+        user.setUsername("testuser");
+        user.setPasswordHash("password");
+        
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.empty());
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(user.getPasswordHash())).thenReturn("encodedPassword");
+        when(userRepository.save(user)).thenReturn(user);
 
+        User savedUser = userService.save(user);
+
+        assertNotNull(savedUser);
+        assertEquals("encodedPassword", savedUser.getPasswordHash());
+        verify(userRepository, times(1)).save(user);
+    }
+    
+ 
+ 
+    @Test
+    public void testFindByEmail_Success() {
+        // Configurar datos de prueba
+        User user = new User();
+        user.setUsername("Alan_doe");
+        user.setEmail("alan@example.com");
+        user.setActive(true);
+
+        UserResponse userResponse = new UserResponse(
+            "Alan_doe", "alan@example.com", null, null, null, null, null, null, null, null, null, true, null
+        );
+
+        // Configurar comportamientos simulados
+        when(userRepository.findByEmail("alan@example.com")).thenReturn(Optional.of(user));
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        // Ejecutar el método a probar
+        Optional<UserResponse> result = userService.findByEmail("alan@example.com");
+
+        // Verificar resultados
+        assertTrue(result.isPresent());
+        assertEquals("Alan_doe", result.get().username());
+        assertEquals("alan@example.com", result.get().email());
+
+        // Verificar interacciones con los mocks
+        verify(userRepository, times(1)).findByEmail("alan@example.com");
+        verify(userMapper, times(1)).toResponse(user);
+    }
+
+
+    @Test
+    public void testGetAllUsers_Success() {
+        // Configurar datos de prueba
+        User user1 = new User();
+        user1.setUsername("Alan_doe");
+        user1.setEmail("alan@example.com");
+        user1.setActive(true);
+
+        User user2 = new User();
+        user2.setUsername("Jane_doe");
+        user2.setEmail("jane@example.com");
+        user2.setActive(true);
+
+        List<User> users = List.of(user1, user2);
+
+        UserResponse userResponse1 = new UserResponse(
+            "Alan_doe", "alan@example.com", null, null, null, null, null, null, null, null, null, true, null
+        );
+
+        UserResponse userResponse2 = new UserResponse(
+            "Jane_doe", "jane@example.com", null, null, null, null, null, null, null, null, null, true, null
+        );
+
+        // Configurar comportamientos simulados
+        when(userRepository.findAll()).thenReturn(users);
+        when(userMapper.toResponse(user1)).thenReturn(userResponse1);
+        when(userMapper.toResponse(user2)).thenReturn(userResponse2);
+
+        // Ejecutar el método a probar
+        List<UserResponse> result = userService.getAllUsers();
+
+        // Verificar resultados
+        assertEquals(2, result.size());
+        assertEquals("Alan_doe", result.get(0).username());
+        assertEquals("jane@example.com", result.get(1).email());
+
+        // Verificar interacciones con los mocks
+        verify(userRepository, times(1)).findAll();
+        verify(userMapper, times(1)).toResponse(user1);
+        verify(userMapper, times(1)).toResponse(user2);
+    }
 
 }

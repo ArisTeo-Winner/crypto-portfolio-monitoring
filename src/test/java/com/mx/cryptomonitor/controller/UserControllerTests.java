@@ -1,165 +1,173 @@
 package com.mx.cryptomonitor.controller;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.application.controllers.UserController;
+import com.mx.cryptomonitor.application.mappers.UserMapper;
 import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
 import com.mx.cryptomonitor.domain.services.UserService;
+import com.mx.cryptomonitor.infrastructure.security.AuthenticationService;
+import com.mx.cryptomonitor.infrastructure.security.JwtAuthenticationEntryPoint;
+import com.mx.cryptomonitor.infrastructure.security.JwtTokenUtil;
+import com.mx.cryptomonitor.infrastructure.security.JwtUserDetailsService;
+import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
+import com.mx.cryptomonitor.shared.dto.request.UserRegistrationRequest;
+import com.mx.cryptomonitor.shared.dto.response.UserResponse;
 
 @ExtendWith(MockitoExtension.class)
+@WebMvcTest(controllers = UserController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 class UserControllerTests {
 	
-	private static final Logger logger = LoggerFactory.getLogger(UserControllerTests.class);
+    @Autowired
+    private MockMvc mockMvc;
 
+    @MockBean
+    private AuthenticationManager authenticationManager; // Simula AuthenticationManager
 
-    @Mock
+    @MockBean
+    private JwtTokenUtil jwtTokenUtil; // Simula JwtTokenUtil si se utiliza en el controlador
+
+    @MockBean
+    private JwtUserDetailsService jwtUserDetailsService; // Simula JwtUserDetailsService
+    
+    @MockBean
+    private AuthenticationService authenticationService;
+
+    @MockBean
+    private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint; // Simula el EntryPoint JWT
+
+    
+    @MockBean
     private UserService userService;
 
-    @InjectMocks
-    private UserController controller;
+    @MockBean
+    private UserRepository userRepository; 
+
+    @Autowired
+    private ObjectMapper objectMapper;
     
     @Mock
-    private UserRepository userRepository;
+    private UserMapper userMapper;
+
     
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
-
-
-
     @Test
-    void testUpdateUserProfile_ValidParameters() {
-    	
-        logger.info("=== Ejecutando testUpdateUserProfile_ValidParameters() de UserControllerTests ===");
-    	
-        // Datos de prueba
-        String email = "johndoe@example.com";
-        User updatedUser = new User();
-        updatedUser.setFirstName("John");
-        updatedUser.setLastName("Doe");
-        updatedUser.setPhoneNumber("+1234567890");
-        updatedUser.setAddress("123 Main St");
-        updatedUser.setCity("New York");
-        updatedUser.setState("NY");
-        updatedUser.setPostalCode("10001");
-        updatedUser.setCountry("USA");
-        updatedUser.setBio("Crypto enthusiast");
+    public void testRegisterUser() throws Exception {
+        // Crear el DTO de solicitud
+        UserRegistrationRequest request = new UserRegistrationRequest(
+            "testuser",
+            "test@example.com",
+            "password123",
+            "John",
+            "Doe",
+            null, // phoneNumber
+            null, // address
+            null, // city
+            null, // state
+            null, // postalCode
+            null, // country
+            null  // dateOfBirth
+        );
 
-        // Usuario actualizado esperado
-        User updatedProfile = new User();
-        updatedProfile.setEmail(email);
-        updatedProfile.setFirstName("John");
-        updatedProfile.setLastName("Doe");
-        updatedProfile.setPhoneNumber("+1234567890");
-        updatedProfile.setAddress("123 Main St");
-        updatedProfile.setCity("New York");
-        updatedProfile.setState("NY");
-        updatedProfile.setPostalCode("10001");
-        updatedProfile.setCountry("USA");
-        updatedProfile.setBio("Crypto enthusiast");
+        // Crear el DTO de respuesta
+        UserResponse response = new UserResponse(
+            "testuser",
+            "test@example.com",
+            "John",
+            "Doe",
+            null, // phoneNumber
+            null, // address
+            null, // city
+            null, // state
+            null, // postalCode
+            null, // country
+            null, // dateOfBirth
+            true,
+            LocalDateTime.now()
+        );
 
-        // Configurar el mock del servicio
-        when(userService.updateUser(eq(email), eq(updatedUser))).thenReturn(updatedProfile);
+        // Simular el comportamiento del servicio
+        when(userService.registerUser(any(UserRegistrationRequest.class))).thenReturn(response);
 
-        // Llamar al controlador
-        ResponseEntity<User> response = controller.updateUserProfile(email, updatedUser);
-
-        // Verificar la respuesta
-        assertEquals(200, response.getStatusCodeValue());
-        assertNotNull(response.getBody());
-        assertEquals("John", response.getBody().getFirstName());
-        assertEquals("Doe", response.getBody().getLastName());
-        assertEquals("+1234567890", response.getBody().getPhoneNumber());
+        // Ejecutar la solicitud
+        mockMvc.perform(post("/api/v1/users/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(new ObjectMapper().writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("testuser"))
+                .andExpect(jsonPath("$.email").value("test@example.com"));
     }
-
-
-
+    
     @Test
-    void testUpdateUserProfile_NullEmail() {
-    	
-        logger.info("=== Ejecutando testUpdateUserProfile_NullEmail() de UserControllerTests ===");
-    	
-        // Datos de prueba
-        String email = null;
-        User updatedUser = new User("Nuevo Nombre", "abc@example.com");
+    public void testGetUserByEmail_Success() throws Exception {
+        // Configurar datos de prueba
+        UserResponse userResponse = new UserResponse(
+            "Alan_doe", "alan@example.com", null, null, null, null, null, null, null, null, null, true, null
+        );
 
-        // Llamar al controlador
-        ResponseEntity<User> response = controller.updateUserProfile(email, updatedUser);
+        // Configurar comportamientos simulados
+        when(userService.findByEmail("alan@example.com")).thenReturn(Optional.of(userResponse));
 
-        // Verificar la respuesta
-        assertEquals(400, response.getStatusCodeValue());
-        assertNull(response.getBody());
+        // Ejecutar la solicitud HTTP
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/users/alan@example.com"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.username").value("Alan_doe"))
+               .andExpect(jsonPath("$.email").value("alan@example.com"));
     }
 
+  
     @Test
-    void testUpdateUserProfile_EmptyEmail() {
-    	
-        logger.info("=== Ejecutando testUpdateUserProfile_EmptyEmail() de UserControllerTests ===");
-    	
-        // Datos de prueba
-        String email = "";
-        User updatedUser = new User("Nuevo Nombre", "abc@example.com");
+    public void testGetAllUsers_Success() throws Exception {
+        // Configurar datos de prueba
+        UserResponse userResponse1 = new UserResponse(
+            "Alan_doe", "alan@example.com", null, null, null, null, null, null, null, null, null, true, null
+        );
 
-        // Llamar al controlador
-        ResponseEntity<User> response = controller.updateUserProfile(email, updatedUser);
+        UserResponse userResponse2 = new UserResponse(
+            "Jane_doe", "jane@example.com", null, null, null, null, null, null, null, null, null, true, null
+        );
 
-        // Verificar la respuesta
-        assertEquals(400, response.getStatusCodeValue());
-        assertNull(response.getBody());
+        List<UserResponse> userResponses = List.of(userResponse1, userResponse2);
+
+        // Configurar comportamientos simulados
+        when(userService.getAllUsers()).thenReturn(userResponses);
+
+        // Ejecutar la solicitud HTTP
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/users"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$[0].username").value("Alan_doe"))
+               .andExpect(jsonPath("$[1].email").value("jane@example.com"));
     }
 
-    @Test
-    void testUpdateUserProfile_NullUser() {
-    	
-        logger.info("=== Ejecutando testUpdateUserProfile_NullUser() de UserControllerTests ===");
-    	
-        // Datos de prueba
-        String email = "johndoe@example.com";
-        User updatedUser = null;
 
-        // Llamar al controlador
-        ResponseEntity<User> response = controller.updateUserProfile(email, updatedUser);
 
-        // Verificar la respuesta
-        assertEquals(400, response.getStatusCodeValue());
-        assertNull(response.getBody());
-    }
-
-    @Test
-    void testUpdateUserProfile_ServiceThrowsException() {
-    	
-        logger.info("=== Ejecutando testUpdateUserProfile_ServiceThrowsException() de UserControllerTests ===");
-    	
-        // Datos de prueba
-        String email = "johndoe@example.com";
-        User updatedUser = new User("Nuevo Nombre", "abc@example.com");
-
-        // Mock del servicio para lanzar excepción
-        when(userService.updateUser(anyString(), any(User.class))).thenThrow(new RuntimeException("Error inesperado"));
-
-        // Llamar al controlador
-        ResponseEntity<User> response = controller.updateUserProfile(email, updatedUser);
-
-        // Verificar la respuesta
-        assertEquals(500, response.getStatusCodeValue());
-        assertNull(response.getBody());
-    }
 }

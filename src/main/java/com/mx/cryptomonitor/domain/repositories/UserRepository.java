@@ -14,8 +14,5 @@ import com.mx.cryptomonitor.domain.models.User;
 public interface UserRepository extends JpaRepository<User, UUID>{
 
 	Optional<User> findByEmail(String email);
-	User save(User user);
 	Optional<User> findByUsername(String username);
-	
-
 }

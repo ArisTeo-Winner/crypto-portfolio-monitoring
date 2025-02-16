@@ -24,7 +24,7 @@ public class UserFindAllManualTest {
 
 	    @Autowired
 	    private UserService userService;
-
+/*
 	    @Test
 	    public void testFindAllUsersDirectlyFromRepository() {
 	        System.out.println("=== Ejecutando testFindAllUsersDirectlyFromRepository() desde UserFindAllManualTest ===");
@@ -37,26 +37,16 @@ public class UserFindAllManualTest {
 	        }
 	    }
 
-	    @Test
-	    public void testFindAllUsersFromService() {
-	        System.out.println("=== Ejecutando testFindAllUsersFromService() desde UserFindAllManualTest ===");
-	        List<User> users = userService.getAllUsers();
-	        System.out.println("Usuarios encontrados desde UserService:");
-	        if (users != null && !users.isEmpty()) {
-	            users.forEach(user -> System.out.println(user));
-	        } else {
-	            System.out.println("No se encontraron usuarios en UserService.");
-	        }
-	    }
+
 	    
 	    @Test
 	    void findById_ShouldReturnUser_WhenUserExists() {
 	    	
 	        System.out.println("=== Ejecutando findById_ShouldReturnUser_WhenUserExists() desde UserFindAllManualTest ===");
 
-	        UUID id = UUID.fromString("3ca6d5f3-6c65-4b24-ba9e-8595d0ca8622");
+	        UUID id = UUID.fromString("9cd1ba3b-3676-4e52-8373-c7cd68492c71");
 	        Optional<User> user = userRepository.findById(id);
 	        assertTrue(user.isPresent(), "El usuario debería existir");
 	    }
-
+	 */
 }

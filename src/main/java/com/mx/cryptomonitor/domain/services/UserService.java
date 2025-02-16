@@ -6,13 +6,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+
+import com.mx.cryptomonitor.application.mappers.UserMapper;
 import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
+import com.mx.cryptomonitor.shared.dto.request.UserRegistrationRequest;
+import com.mx.cryptomonitor.shared.dto.response.UserResponse;
+
 import org.slf4j.LoggerFactory;
 
 
@@ -24,11 +31,16 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private UserMapper userMapper;
+
     
 	private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 	
-	public UserService(UserRepository userRepository ) {
+	public UserService(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder, UserMapper userMapper) {
 		this.userRepository = userRepository;
+		this.passwordEncoder = passwordEncoder;
+		this.userMapper = userMapper;
 	}
 	
     public UserService() {
@@ -36,9 +48,12 @@ public class UserService {
 	}
 
 	// Método para obtener todos los usuarios
-    public List<User> getAllUsers() {
+    public List<UserResponse> getAllUsers() {
         logger.info("=== Ejecutando método getAllUsers() desde UserService ===");
-        return userRepository.findAll();
+        
+        List<User> users = userRepository.findAll();
+        
+        return users.stream().map(userMapper::toResponse).collect(Collectors.toList());
     }
 
     
@@ -60,10 +75,14 @@ public class UserService {
 		logger.info("User with ID {} deleted successfully", id);
 	}
 	
+
     @Transactional
-	public Optional<User> findByEmail(String email){
-		return userRepository.findByEmail(email);
-	}
+    public Optional<UserResponse> findByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .map(userMapper::toResponse);
+    }
+    
+    
 	
     @Transactional
     public User save(User user) {
@@ -80,11 +99,8 @@ public class UserService {
         
         return userRepository.save(user);
     }
+    
 
-	
-	public String generateSalt() {
-		return Long.toHexString(Double.doubleToLongBits(Math.random()));
-	}
 	
 	public boolean validatePassword(String rawPassword, String encodedPassword) {
 	    return passwordEncoder.matches(rawPassword, encodedPassword);
@@ -139,8 +155,35 @@ public class UserService {
 
 
 
+	
+    @Transactional
+    public UserResponse registerUser(UserRegistrationRequest request) {
+        // Verificar si el email o username ya están en uso
+        if (userRepository.findByEmail(request.email()).isPresent()) {
+            throw new IllegalArgumentException("Email already in use");
+        }
+        if (userRepository.findByUsername(request.username()).isPresent()) {
+            throw new IllegalArgumentException("Username already in use");
+        }
+
+        // Convertir UserRegistrationRequest a User
+        User user = userMapper.toEntity(request);
+
+        // Encriptar la contraseña
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+
+        // Guardar el usuario
+        User savedUser = userRepository.save(user);
+
+        // Convertir User a UserResponse
+        return userMapper.toResponse(savedUser);
+    }
+
 	public void setUserRepository(UserRepository userRepository) {
+		// TODO Auto-generated method stub
 	    this.userRepository = userRepository;
+
+		
 	}
 
 
