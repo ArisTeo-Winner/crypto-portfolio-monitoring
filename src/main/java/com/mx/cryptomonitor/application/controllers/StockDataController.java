@@ -28,7 +28,6 @@ public class StockDataController {
 		this.marketDataService = marketDataService;
 		
 	}
-	
 	/**
 	 * Endpoint para obtener el precio de cierre de una acción.
 	 * Ejemplo de uso: GET /api/v1/marketdata/stock?symbol=AMZN
@@ -56,6 +55,8 @@ public class StockDataController {
     /**
      * GET /api/market/stocks/historical/{symbol}/{date}
      * Obtiene el precio histórico de cierre de una acción para la fecha especificada.
+     *
+     *Ej:http://localhost:8080/api/v1/marketdata/historical/AMZN/2025-01-02
      *
      * @param symbol Símbolo de la acción (por ejemplo, "AMZN")
      * @param date   Fecha en formato ISO (yyyy-MM-dd)

@@ -31,8 +31,16 @@ build/
 
 ### VS Code ###
 .vscode/
-
+# Evita subir log
 /logs/
 
+logsTest/
+Query/
+src/test/
+
+# Evita subir credenciales
 src/test/resources/application-test.properties
 src/main/resources/application.properties
+
+#### Variables de Entorno ###
+.env

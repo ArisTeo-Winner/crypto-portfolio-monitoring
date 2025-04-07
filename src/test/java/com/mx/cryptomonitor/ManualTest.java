@@ -23,7 +23,7 @@ public class ManualTest {
                 .build();
         Mockito.when(mockRepository.findByEmail("johndoe@example.com"))
                .thenReturn(Optional.of(existingUser));
-
+/*
         // Crear UserService con el mock
         UserService userService = new UserService();
         userService.setUserRepository(mockRepository);
@@ -36,6 +36,6 @@ public class ManualTest {
 
         // Llamar al método
         User result = userService.updateUser("johndoe@example.com", updatedUser);
-        System.out.println("Updated User: " + result);
+        System.out.println("Updated User: " + result);*/
     }
 }

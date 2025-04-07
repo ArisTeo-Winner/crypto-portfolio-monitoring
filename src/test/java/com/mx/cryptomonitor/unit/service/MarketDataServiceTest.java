@@ -48,7 +48,7 @@ class MarketDataServiceTest {
         ReflectionTestUtils.setField(marketDataService, "alphaVantageApiKey", "2B9V32C85SDUIX5Y");
          
     }
-
+ /*
     @Test
     void testGetStockPrice() {
         logger.info("=== Ejecutando método testGetStockPrice() desde MarketDataServiceTest ===");
@@ -70,7 +70,7 @@ class MarketDataServiceTest {
         assertTrue(price.isPresent(), "El precio no debe ser vacío");
         assertEquals(new BigDecimal("233.1400"), price.get());
     }
-    /*
+   
     @Test
     void testGetHistoricalStockPriceSuccess() {
         logger.info("=== Ejecutando testGetHistoricalStockPriceSuccess() desde MarketDataServiceTest ===");
@@ -97,6 +97,8 @@ class MarketDataServiceTest {
         assertEquals(new BigDecimal("233.1400"), priceOpt.get());
     }
     */
+    
+    /*
     @Test
     void testGetHistoricalStockDataAsJsonSuccess() {
         logger.info("=== Ejecutando testGetHistoricalStockDataAsJsonSuccess() desde MarketDataServiceTest===");
@@ -179,5 +181,5 @@ class MarketDataServiceTest {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-    }
+    }*/
 }

@@ -1,7 +1,9 @@
 package com.mx.cryptomonitor.domain.services;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mx.cryptomonitor.application.mappers.TransactionMapper;
 import com.mx.cryptomonitor.domain.models.Transaction;
 import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
-import com.mx.cryptomonitor.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.shared.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.shared.dto.request.TransactionRequest;
 
@@ -71,13 +72,57 @@ public class TransactionService {
     	
     }
 
-    
+    /**/
     public List<TransactionResponse> getTransactionsByUser(UUID userId) {
         return transactionRepository.findByUserId(userId);
     }
 
     public List<TransactionResponse> getTransactionsByUserAndSymbol(UUID userId, String assetSymbol) {
         return transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol);
+    }
+    public List<TransactionResponse> getTransactionsByUserId(UUID userId, String assetSymbol) {
+        if (assetSymbol == null || assetSymbol.isEmpty()) {
+            return transactionRepository.findByUserId(userId);
+        }
+
+        try {
+            //AssetType type = AssetType.valueOf(assetType.toUpperCase());
+        	return transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Activo inválido: " + assetSymbol);
+        }
+    }
+    
+    public List<TransactionResponse> getTransactionsUser(UUID userId, String assetSymbol, String assetType, String transactionType){
+    	
+    	if (assetSymbol != null && assetSymbol.isEmpty()) assetSymbol = null;
+    	if (assetType != null && assetType.isEmpty()) assetType = null;
+    	if (transactionType != null && transactionType.isEmpty()) transactionType = null;
+    	
+    	if (assetSymbol != null && assetType != null && transactionType !=null) {
+    		
+			List<Transaction> transaction = transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(userId, assetSymbol, assetType, transactionType);
+		
+			return transaction.stream()
+					.map(transactionMapper::toResponse)
+					.collect(Collectors.toList());
+				
+			
+		}
+    	
+    	if (assetSymbol != null) {
+			return transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol);
+		}
+    	if (assetType != null) {
+    		return transactionRepository.findByUserIdAndAssetType(userId, assetType);
+    	}
+    	
+    	if(transactionType != null) {
+    		return transactionRepository.findByUserIdAndTransactionType(userId, transactionType);
+    	}
+    	
+    	return transactionRepository.findByUserId(userId);
+    	
     }
 
 }

@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.mx.cryptomonitor.application.controllers.UserController;
 import com.mx.cryptomonitor.shared.dto.ErrorResponseDTO;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 
@@ -83,4 +85,60 @@ public class CustomExceptionHandler {
         logger.error("Unhandled exception: {}", errorResponse);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
+    
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ErrorResponseDTO> handleSecurityException(SecurityException ex, HttpServletRequest request) {
+        ErrorResponseDTO errorResponse = ErrorResponseDTO.builder()
+        		.timestamp(LocalDateTime.now())
+        		.status(HttpStatus.UNAUTHORIZED.value())
+        		.error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
+        		.errors(List.of(ex.getMessage()))
+        		.path(request.getRequestURI())
+        		.build();
+        
+        
+        return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponseDTO> handleIllegalArgumentException(IllegalArgumentException ex, HttpServletRequest request) {
+        ErrorResponseDTO errorResponse = ErrorResponseDTO.builder()
+        		.timestamp(LocalDateTime.now())
+        		.status(HttpStatus.BAD_REQUEST.value())
+        		.error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+        		.errors(List.of(ex.getMessage()))
+        		.path(request.getRequestURI())
+        		.build();
+        
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+    
+    @ExceptionHandler(SignatureException.class)
+    public ResponseEntity<ErrorResponseDTO> handleSignatureException(SignatureException ex, HttpServletRequest request) {
+        ErrorResponseDTO errorResponse = ErrorResponseDTO.builder()
+        		.timestamp(LocalDateTime.now())
+        		.status(HttpStatus.BAD_REQUEST.value())
+        		.error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+        		.errors(List.of(ex.getMessage(), "Invalid or tampered JWT signature"))
+        		.path(request.getRequestURI())
+        		.build();
+        
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+        
+    }
+    
+    @ExceptionHandler(ExpiredJwtException.class)
+    public ResponseEntity<ErrorResponseDTO> handleExpiredJwtException(ExpiredJwtException ex, HttpServletRequest request){
+        ErrorResponseDTO errorResponse = ErrorResponseDTO.builder()
+        		.timestamp(LocalDateTime.now())
+        		.status(HttpStatus.UNAUTHORIZED.value())
+        		.error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+        		.errors(List.of(ex.getMessage(),"Expired JWT token"))
+        		.path(request.getRequestURI())
+        		.build();
+        
+        return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);    
+        }
+    
+ 
 }

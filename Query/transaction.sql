@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS public.transaction (
     total_value NUMERIC(18, 2) NOT NULL,                        -- Valor total (quantity * price_per_unit)
     transaction_date TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Fecha y hora de la transacción
     fee NUMERIC(18, 2) DEFAULT 0,                               -- Comisión de la transacción
-    price_at_transaction NUMERIC(18, 8),                        -- Precio del activo al momento de la transacción (extraído de la API)
     notes TEXT,                                                 -- Notas opcionales sobre la transacción
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- Registro de creación
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- Registro de actualización

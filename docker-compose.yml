@@ -1,11 +1,13 @@
+version: '3.8'
+
 services:
   java_db:
     image: postgres:12
     container_name: java_db
     environment:
-      POSTGRES_USER: ${PG_USER}
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Rammstein
+      POSTGRES_DB: crypto_portafolio
     ports:
       - "5432:5432"
     networks:
@@ -19,9 +21,9 @@ services:
     depends_on:
       - java_db
     environment:
-      SPRING_DATASOURCE_URL: ${DB_URL}
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://java_db:5432/crypto_portafolio
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: Rammstein
     networks:
       - app_network
     ports:
@@ -32,3 +34,4 @@ networks:
 
 volumes:
   pg_data:
+  redis_data:

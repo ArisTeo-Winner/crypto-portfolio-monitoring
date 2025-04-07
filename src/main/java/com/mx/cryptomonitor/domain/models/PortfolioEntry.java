@@ -16,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -31,8 +32,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class PortfolioEntry {
-	
-	    @Id
+
+		@Id
 	    @GeneratedValue(strategy = GenerationType.UUID) // Generador automático de UUID
 	    @Column(name = "portfolio_entry_id", nullable = false, updatable = false)
 	    private UUID portfolioEntryId; // Coincide con "portfolio_entry_id" en la base de datos
@@ -69,9 +70,11 @@ public class PortfolioEntry {
 	    private LocalDateTime lastUpdated = LocalDateTime.now(); // Última actualización
 
 	    @Column(name = "created_at", nullable = false, updatable = false)
-	    private LocalDateTime createdAt = LocalDateTime.now(); // Fecha de creación
+	    private final LocalDateTime createdAt = LocalDateTime.now(); // Fecha de creación
 
 	    @Column(name = "updated_at", nullable = false)
 	    private LocalDateTime updatedAt = LocalDateTime.now(); // Fecha de última modificación
-
+	    
+	    @Version // Bloqueo optimista para concurrencia
+	    private Long version;
 }

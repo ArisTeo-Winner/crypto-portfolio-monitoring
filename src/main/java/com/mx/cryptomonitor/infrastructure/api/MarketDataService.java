@@ -1,6 +1,10 @@
 package com.mx.cryptomonitor.infrastructure.api;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -20,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.application.controllers.PortfolioController;
 import com.mx.cryptomonitor.infrastructure.exceptions.ExternalApiException;
 import com.mx.cryptomonitor.infrastructure.exceptions.MarketDataException;
@@ -30,75 +37,140 @@ import lombok.Getter;
 @Getter
 @Service
 public class MarketDataService {
-	
+
     private static final Logger logger = LoggerFactory.getLogger(MarketDataService.class);
 
-	
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private final RestTemplate restTemplate;
-    
+
     @Value("${api.coinmarketcap.base-url}")
     private String coinMarketCapBaseUrl;
-    
+
     @Value("${api.coinmarketcap.api-key}")
     private String coinMarketCapApiKey;
 
     @Value("${api.alphavantage.base-url}")
     private String alphaVantageBaseUrl;
 
-	@Value("${api.alphavantage.api-key}")
+    @Value("${api.alphavantage.api-key}")
     private String alphaVantageApiKey;
 
-
-
-	@Autowired
+    @Autowired
     public MarketDataService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
-    
+
     @PostConstruct
     public void init() {
-    	logger.info("📌 API CoinMarketCap Base URL: " + coinMarketCapBaseUrl);
-    	logger.info("📌 API CoinMarketCap Key: " + (coinMarketCapApiKey == null ? "NO CARGADA" : "CARGADA"));
+        logger.info("📌 API CoinMarketCap Base URL: " + coinMarketCapBaseUrl);
+        logger.info("📌 API CoinMarketCap Key: " + (coinMarketCapApiKey == null ? "NO CARGADA" : "CARGADA"));
         logger.info("📌 API AlphaVantage Base URL: {}", alphaVantageBaseUrl);
         logger.info("📌 API AlphaVantage Key: {}", alphaVantageApiKey == null ? "NO CARGADA" : "CARGADA");
     }
 
-    
-    public BigDecimal getCryptoPrice(String symbol) {
-        String url = coinMarketCapBaseUrl + "cryptocurrency/quotes/latest?symbol=" + symbol;
 
-        // Crear headers con la API Key
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-CMC_PRO_API_KEY", coinMarketCapApiKey);
-        headers.set("Accept", "application/json");
+    /**
+     * Obtiene el precio de cierre de una criptomoneda utilizando la API de
+     * CoinMarketCap Pro.
+     * Se espera que la respuesta tenga la siguiente estructura:
+     * {
+     * "status": { ... },
+     * "data": {
+     * "BTC": [ { "quote": { "USD": { "price": 83665.94559433253, ... } }, ... ]
+     * }
+     * }
+     *
+     * La API de CoinMarketCap Pro requiere enviar la API key en el encabezado
+     * "X-CMC_PRO_API_KEY".
+     *
+     * @param symbol Símbolo de la criptomoneda (por ejemplo, "BTC")
+     * @return Optional con el precio de cierre en USD, o Optional.empty() si no se
+     *         encuentran datos.
+     */
+    public Optional<BigDecimal> getCryptoPrice(String symbol) {
 
-        HttpEntity<String> entity = new HttpEntity<>(headers);
+        logger.info("=== Ejecutando método getCryptoPrice() desde MarketDataService ===");
 
-        // Realizar la petición con headers
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
-        
-        // Convertir la respuesta en JSON
-        JSONObject jsonResponse = new JSONObject(response.getBody());
-        
-        // Extraer el precio actual del activo en USD
-        double priceDouble = jsonResponse.getJSONObject("data")
-                .getJSONObject(symbol)
-                .getJSONObject("quote")
-                .getJSONObject("USD")
-                .getDouble("price");
+        if (symbol == null || symbol.trim().isEmpty()) {
+            throw new IllegalArgumentException("El símbolo de la criptomoneda no debe ser nulo ni vacío.");
+        }
 
-        return BigDecimal.valueOf(priceDouble);
+        logger.info("📌 API Key utilizada: {}", coinMarketCapApiKey);
+
+        // Construir la URL de la API.
+        // Ejemplo:
+        // https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?symbol=BTC
+        String url = String.format("%s/v2/cryptocurrency/quotes/latest?symbol=%s", coinMarketCapBaseUrl, symbol);
+        logger.info("🔗 URL generada para criptomoneda: {}", url);
+
+        try {
+            // Configurar los encabezados para enviar la API key
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-CMC_PRO_API_KEY", coinMarketCapApiKey);
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            // Realizar la solicitud GET con exchange para incluir headers
+            ResponseEntity<String> responseEntity = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            String responseBody = responseEntity.getBody();
+            logger.info("📥 Respuesta de la API de CoinMarketCap: {}", responseBody);
+
+            // Convertir la respuesta JSON a un Map
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> responseMap = mapper.readValue(responseBody, Map.class);
+
+            if (responseMap == null || !responseMap.containsKey("data")) {
+                logger.warn("⚠ No se encontró 'data' en la respuesta de CoinMarketCap.");
+                return Optional.empty();
+            }
+            Map<String, Object> data = (Map<String, Object>) responseMap.get("data");
+            // Suponemos que la clave es el símbolo
+            Object tickerDataObj = data.get(symbol.toUpperCase());
+            if (tickerDataObj == null) {
+                logger.warn("⚠ No se encontraron datos para la criptomoneda: {}", symbol);
+                return Optional.empty();
+            }
+            // El tickerData es una lista
+            if (!(tickerDataObj instanceof Iterable)) {
+                logger.warn("⚠ La estructura de datos para la criptomoneda es inesperada.");
+                return Optional.empty();
+            }
+            Iterable<?> tickerData = (Iterable<?>) tickerDataObj;
+            Object firstElement = tickerData.iterator().hasNext() ? tickerData.iterator().next() : null;
+            if (firstElement == null || !(firstElement instanceof Map)) {
+                logger.warn("⚠ No se pudo interpretar la información del ticker.");
+                return Optional.empty();
+            }
+            Map<String, Object> tickerInfo = (Map<String, Object>) firstElement;
+            if (!tickerInfo.containsKey("quote")) {
+                logger.warn("⚠ No se encontró 'quote' en los datos del ticker.");
+                return Optional.empty();
+            }
+            Map<String, Object> quote = (Map<String, Object>) tickerInfo.get("quote");
+            if (!quote.containsKey("USD")) {
+                logger.warn("⚠ No se encontró información en USD para el ticker.");
+                return Optional.empty();
+            }
+            Map<String, Object> usdData = (Map<String, Object>) quote.get("USD");
+            if (!usdData.containsKey("price")) {
+                logger.warn("⚠ No se encontró el precio en los datos USD.");
+                return Optional.empty();
+            }
+            Object priceObj = usdData.get("price");
+            BigDecimal price = new BigDecimal(priceObj.toString());
+            logger.info("✅ Último precio de cierre de {}: {}", symbol, price);
+            return Optional.of(price);
+
+        } catch (RestClientException e) {
+            logger.error("❌ Error al comunicarse con la API de CoinMarketCap: {}", e.getMessage(), e);
+            throw new ExternalApiException("Error al comunicarse con la API de CoinMarketCap", e);
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado en getCryptoPrice(): {}", e.getMessage(), e);
+            throw new MarketDataException("Error inesperado en MarketDataService (crypto)", e);
+        }
     }
-    
-   /* public BigDecimal getCryptoPrice(String symbol) {
-        String url = coinMarketCapBaseUrl + "cryptocurrency/quotes/latest?symbol=" + symbol + "&convert=USD";
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-CMC_PRO_API_KEY", coinMarketCapApiKey);
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-        return extractPrice(response.getBody(), symbol);
-    }
-*/
 
     /**
      * Obtiene el precio de la última transacción de una acción en Alpha Vantage
@@ -107,7 +179,8 @@ public class MarketDataService {
      * @return Optional<BigDecimal> con el precio de cierre más reciente
      */
     public Optional<BigDecimal> getStockPrice(String symbol) {
-        String url = alphaVantageBaseUrl + "/query?function=TIME_SERIES_DAILY&symbol=" + symbol + "&apikey=" + alphaVantageApiKey;
+        String url = alphaVantageBaseUrl + "/query?function=TIME_SERIES_DAILY&symbol=" + symbol + "&apikey="
+                + alphaVantageApiKey;
 
         logger.info("📌 API Key utilizada: {}", alphaVantageApiKey);
         logger.info("🔗 URL generada: {}", url);
@@ -158,70 +231,16 @@ public class MarketDataService {
     }
 
 
-    private BigDecimal extractPrice(Map<String, Object> response, String symbol) {
-        try {
-            Object dataObj = response.get("data");
-            if (!(dataObj instanceof Map)) {
-                throw new IllegalStateException("❌ Formato de respuesta inesperado: 'data' no es un Map.");
-            }
-
-            Map<String, Object> data = (Map<String, Object>) dataObj;
-            Object symbolObj = data.get(symbol);
-            if (!(symbolObj instanceof Map)) {
-                throw new IllegalStateException("❌ Formato de respuesta inesperado: símbolo '" + symbol + "' no es un Map.");
-            }
-
-            Map<String, Object> symbolData = (Map<String, Object>) symbolObj;
-            Object quoteObj = symbolData.get("quote");
-            if (!(quoteObj instanceof Map)) {
-                throw new IllegalStateException("❌ Formato de respuesta inesperado: 'quote' no es un Map.");
-            }
-
-            Map<String, Object> quote = (Map<String, Object>) quoteObj;
-            Object usdObj = quote.get("USD");
-            if (!(usdObj instanceof Map)) {
-                throw new IllegalStateException("❌ Formato de respuesta inesperado: 'USD' no es un Map.");
-            }
-
-            Map<String, Object> usdData = (Map<String, Object>) usdObj;
-            return new BigDecimal(usdData.get("price").toString());
-
-        } catch (Exception e) {
-            throw new RuntimeException("❌ Error al extraer el precio de " + symbol, e);
-        }
-    }
-
-
-    private BigDecimal extractStockPrice(Map<String, Object> response) {
-        return new BigDecimal(((Map<String, Object>) response.get("Global Quote")).get("05. price").toString());
-    }
-    
-
-
-    public BigDecimal getHistoricalPrice(String symbol, LocalDate date) {
-        String url = alphaVantageBaseUrl + "?function=TIME_SERIES_DAILY&symbol=" + symbol + "&apikey=" + alphaVantageApiKey;
-        ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-
-        Map<String, Object> timeSeries = (Map<String, Object>) response.getBody().get("Time Series (Daily)");
-        if (timeSeries == null || timeSeries.isEmpty()) {
-            throw new RuntimeException("❌ No se encontró precio para la fecha: " + date);
-        }
-
-        Map<String, Object> historicalData = (Map<String, Object>) timeSeries.get(date.toString());
-        if (historicalData == null || historicalData.isEmpty() || !historicalData.containsKey("4. close")) {
-            throw new RuntimeException("❌ No se encontró precio para " + symbol + " en " + date);
-        }
-
-        return new BigDecimal(historicalData.get("4. close").toString());
-    }
-    
     /**
-     * Obtiene el precio de cierre histórico de una acción para la fecha especificada.
-     * Se espera que la respuesta de Alpha Vantage contenga la sección "Time Series (Daily)".
+     * Obtiene el precio de cierre histórico de una acción para la fecha
+     * especificada.
+     * Se espera que la respuesta de Alpha Vantage contenga la sección "Time Series
+     * (Daily)".
      *
      * @param symbol Símbolo de la acción (por ejemplo, "AMZN")
      * @param date   Fecha histórica en formato yyyy-MM-dd
-     * @return Optional con el precio de cierre, o Optional.empty() si no se encuentran datos
+     * @return Optional con el precio de cierre, o Optional.empty() si no se
+     *         encuentran datos
      */
     public Optional<BigDecimal> getHistoricalStockPrice(String symbol, LocalDate date) {
         if (symbol == null || symbol.trim().isEmpty()) {
@@ -243,7 +262,7 @@ public class MarketDataService {
                 return Optional.empty();
             }
             Map<String, Object> timeSeries = (Map<String, Object>) response.get("Time Series (Daily)");
-            String dateKey = date.toString();  // Se espera que la clave sea en formato yyyy-MM-dd
+            String dateKey = date.toString(); // Se espera que la clave sea en formato yyyy-MM-dd
             if (!timeSeries.containsKey(dateKey)) {
                 logger.warn("⚠ No se encontraron datos para la fecha: {}", dateKey);
                 return Optional.empty();
@@ -265,7 +284,7 @@ public class MarketDataService {
             throw new MarketDataException("Error inesperado en MarketDataService (historical)", e);
         }
     }
-        
+
     public Optional<String> getHistoricalStockDataAsJson(String symbol, LocalDate date) {
         if (symbol == null || symbol.trim().isEmpty()) {
             throw new IllegalArgumentException("El símbolo de la acción no debe ser nulo ni vacío.");
@@ -273,13 +292,13 @@ public class MarketDataService {
         if (date == null) {
             throw new IllegalArgumentException("La fecha no debe ser nula.");
         }
-        
+
         // Normalizar la base URL para asegurarnos de incluir "/query"
         String baseUrl = alphaVantageBaseUrl.endsWith("/query") ? alphaVantageBaseUrl : alphaVantageBaseUrl + "/query";
         String url = String.format("%s?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
                 baseUrl, symbol, alphaVantageApiKey);
         logger.info("🔗 URL generada para datos históricos: {}", url);
-        
+
         try {
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
             logger.info("📥 Respuesta de la API: {}", response);
@@ -288,7 +307,7 @@ public class MarketDataService {
                 return Optional.empty();
             }
             Map<String, Object> timeSeries = (Map<String, Object>) response.get("Time Series (Daily)");
-            String dateKey = date.toString();  // Se espera que la clave sea en formato yyyy-MM-dd
+            String dateKey = date.toString(); // Se espera que la clave sea en formato yyyy-MM-dd
             if (!timeSeries.containsKey(dateKey)) {
                 logger.warn("⚠ No se encontraron datos para la fecha: {}", dateKey);
                 return Optional.empty();
@@ -296,7 +315,7 @@ public class MarketDataService {
 
             Map<String, Object> dailyData = (Map<String, Object>) timeSeries.get(dateKey);
             //
-            
+
             if (dailyData == null || !dailyData.containsKey("4. close")) {
                 logger.warn("⚠ No se encontró precio de cierre para la fecha: {}", dateKey);
                 return Optional.empty();
@@ -304,13 +323,13 @@ public class MarketDataService {
             Object closePriceObj = dailyData.get("4. close");
             BigDecimal closePrice = new BigDecimal(closePriceObj.toString());
             logger.info("✅ Precio histórico de cierre de {} en {}: {}", symbol, dateKey, closePrice);
-            
+
             // Creamos un nuevo JSONObject que solo contenga el registro de la fecha deseada
             JSONObject resultadoFiltrado = new JSONObject();
             resultadoFiltrado.put(dateKey, new JSONObject(dailyData));
             String jsonConIndentacion = resultadoFiltrado.toString(4);
             logger.info("✅ Datos históricos de {} en {}:\n{}", symbol, dateKey, jsonConIndentacion);
-            //return Optional.of(jsonConIndentacion);
+            // return Optional.of(jsonConIndentacion);
             return Optional.of(closePrice.toString());
         } catch (Exception e) {
             logger.error("❌ Error inesperado en getHistoricalStockDataAsJson(): {}", e.getMessage(), e);

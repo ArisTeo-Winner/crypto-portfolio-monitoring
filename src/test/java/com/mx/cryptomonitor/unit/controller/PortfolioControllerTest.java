@@ -71,7 +71,6 @@ class PortfolioControllerTest {
             BigDecimal.valueOf(50000),
             LocalDateTime.now(),
             BigDecimal.ZERO,
-            BigDecimal.valueOf(50000),
             "Compra de BTC"
         );
 
@@ -85,7 +84,6 @@ class PortfolioControllerTest {
             BigDecimal.valueOf(50000),
             LocalDateTime.now(),
             BigDecimal.ZERO,
-            BigDecimal.valueOf(50000),
             "Compra de BTC",
             LocalDateTime.now(),
             LocalDateTime.now()

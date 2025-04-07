@@ -16,16 +16,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.domain.models.Transaction;
+import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
 import com.mx.cryptomonitor.domain.services.TransactionService;
 import com.mx.cryptomonitor.shared.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.shared.dto.request.TransactionRequest;
+import com.mx.cryptomonitor.application.controllers.PortfolioController;
 import com.mx.cryptomonitor.application.mappers.TransactionMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,6 +37,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TransactionServiceTest {
+	
+	private static final Logger logger = LoggerFactory.getLogger(PortfolioController.class);
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -43,36 +49,54 @@ public class TransactionServiceTest {
     @InjectMocks
     private TransactionService transactionService;
 
+    private User user;
     private Transaction transaction;
     private TransactionRequest request;
     private TransactionResponse response;
+    
     private UUID userId;
     private UUID portfolio_entry_id;
-/*
+    private UUID transactionId;
+    
+    private String assetSymbol;
 
     @BeforeEach
     public void setUp() {
         userId = UUID.randomUUID();
         portfolio_entry_id = UUID.randomUUID();
+        transactionId = UUID.randomUUID();
+        assetSymbol = "BTC";
 
+        
         request = new TransactionRequest(
-            userId, 
-            portfolio_entry_id,
-            "BTC", 
-            "CRYPTO", 
-            "BUY", 
-            new BigDecimal("1.5"), 
-            new BigDecimal("50000.00"), 
-            new BigDecimal("75000.00"), 
-            null, 
-            new BigDecimal("10.00"), 
-            null, 
-            "Test transaction"
-        );
+        		userId, 
+        		portfolio_entry_id, 
+        		"BTC", 
+        		"CRYTO", 
+        		"BUY", 
+        		BigDecimal.valueOf(1.5), 
+        		BigDecimal.valueOf(45000), 
+        		BigDecimal.valueOf(67500), 
+        		null, 
+        		null, 
+        		null
+        		);
+        
+        user = User.builder()
+        		.id(userId)
+        		.username("testuser")
+        		.email("testuser@example.com")
+        		.passwordHash("hashedpassword")
+        		.firstName("test")
+        		.roles(new ArrayList<>())
+        		.build();
+        
+        logger.info("Lista de user :{}",user);
+
 
         transaction = new Transaction();
-        transaction.setTransactionId(UUID.randomUUID());
-        transaction.setUserId(userId);
+        transaction.setTransactionId(transactionId);
+        transaction.setUser(user);
         transaction.setAssetSymbol("BTC");
         transaction.setAssetType("CRYPTO");
         transaction.setTransactionType("BUY");
@@ -81,21 +105,18 @@ public class TransactionServiceTest {
         transaction.setTotalValue(new BigDecimal("75000.00"));
 
         response = new TransactionResponse(
-            transaction.getTransactionId(), 
-            userId, 
-            "BTC", 
-            "CRYPTO", 
-            "BUY", 
-            new BigDecimal("1.5"), 
-            new BigDecimal("50000.00"), 
-            new BigDecimal("75000.00"), 
-            transaction.getTransactionDate(), 
-            new BigDecimal("10.00"), 
-            null, 
-            "Test transaction", 
-            null, 
-            null
-        );
+        		user.getId(),  
+        		"BTC", 
+        		"CRYTO", 
+        		"BUY", 
+        		BigDecimal.valueOf(1.5), 
+        		BigDecimal.valueOf(45000), 
+        		BigDecimal.valueOf(67500), 
+        		null, 
+        		null, 
+        		null, 
+        		null,
+        		null);
     }
 
     @Test
@@ -109,21 +130,20 @@ public class TransactionServiceTest {
         TransactionResponse result = transactionService.saveTransaction(request);
 
         // Verificar resultados
-        assertEquals(response.transactionId(), result.transactionId());
+        assertEquals(response.userId(), result.userId());
         verify(transactionMapper, times(1)).toEntity(request);
         verify(transactionRepository, times(1)).save(transaction);
         verify(transactionMapper, times(1)).toResponse(transaction);
     }
 
-
-
+/**/
 
     @Test
     public void testGetTransactionsByUser() {
-    	
+    	/*
     	TransactionResponse transactionResponse = new TransactionResponse(
     		    transaction.getTransactionId(),
-    		    transaction.getUserId(),
+    		    //transaction.getUser().getId(),
     		    transaction.getAssetSymbol(),
     		    transaction.getAssetType(),
     		    transaction.getTransactionType(),
@@ -132,17 +152,16 @@ public class TransactionServiceTest {
     		    transaction.getTotalValue(),
     		    transaction.getTransactionDate(),
     		    transaction.getFee(),
-    		    transaction.getPriceAtTransaction(),
     		    transaction.getNotes(),
     		    transaction.getCreatedAt(),
     		    transaction.getUpdatedAt()
-    		);
+    		);*/
 
-    	
+    	//when(transactionRepository.findByUserId(userId)).thenReturn(List.of());
 
-    	
+    	assertEquals(transaction.getUser().getId(), user.getId());
         // Configurar comportamiento simulado
-    	when(transactionRepository.findByUserId(userId)).thenReturn(Arrays.asList(transactionResponse));
+    	when(transactionRepository.findByUserId(userId)).thenReturn(Arrays.asList(response));
 
         // Ejecutar el método a probar
         List<TransactionResponse> transactions = transactionService.getTransactionsByUser(userId);
@@ -151,5 +170,23 @@ public class TransactionServiceTest {
         assertEquals(1, transactions.size());
         assertEquals(transaction.getAssetSymbol(), transactions.get(0).assetSymbol());
         verify(transactionRepository, times(1)).findByUserId(userId);
-    }*/
+    }
+    
+    @Test
+    void testGetTransactionsByUserAndSymbol() {
+    	when(transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol)).
+    		thenReturn(List.of(response));
+    	
+    	List<TransactionResponse> result = transactionService.getTransactionsByUserAndSymbol(userId, assetSymbol);
+    	
+    	assertNotNull(result);
+    	assertFalse(result.isEmpty());
+    	assertEquals(1, result.size());
+    	assertEquals(assetSymbol, result.get(0).assetSymbol());
+    	assertEquals("BUY", result.get(0).transactionType());
+    	
+    	verify(transactionRepository, times(1)).findByUserIdAndAssetSymbol(userId, assetSymbol);
+    	
+    	
+    }
 }

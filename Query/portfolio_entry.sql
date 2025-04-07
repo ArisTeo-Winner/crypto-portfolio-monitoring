@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.portfolio_entry (
     last_updated TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- Última actualización
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,  -- Registro de creación
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,  -- Registro de actualización
+    version bigint DEFAULT 0,                                  -- Bloqueo optimista para concurrencia
     PRIMARY KEY (portfolio_entry_id),
     FOREIGN KEY (user_id) REFERENCES public.users (id) ON DELETE CASCADE, -- Relación con tabla de usuarios
     UNIQUE (user_id, asset_symbol) -- Una entrada única por usuario y activo

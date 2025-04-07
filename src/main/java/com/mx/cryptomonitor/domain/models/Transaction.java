@@ -29,7 +29,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class Transaction {
-	
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID) // Generador automático de UUID
@@ -61,16 +60,12 @@ public class Transaction {
 
     @Column(name = "total_value", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalValue; // Valor total (quantity * pricePerUnit)
-
     
     @Column(name = "transaction_date")
     private LocalDateTime transactionDate = LocalDateTime.now(); // Fecha y hora de la transacción
 
     @Column(name = "fee", precision = 18, scale = 2)
     private BigDecimal fee = BigDecimal.ZERO; // Comisión de la transacción (opcional)
-
-    @Column(name = "price_at_transaction", precision = 18, scale = 8)
-    private BigDecimal priceAtTransaction; // Precio del activo al momento de la transacción (opcional)
 
     @Column(name = "notes")
     private String notes; // Notas adicionales sobre la transacción

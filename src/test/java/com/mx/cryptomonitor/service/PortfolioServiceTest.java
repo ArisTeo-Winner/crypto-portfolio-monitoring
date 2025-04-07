@@ -18,9 +18,12 @@ import org.slf4j.LoggerFactory;
 import com.mx.cryptomonitor.application.mappers.TransactionMapper;
 import com.mx.cryptomonitor.domain.models.PortfolioEntry;
 import com.mx.cryptomonitor.domain.models.Transaction;
+import com.mx.cryptomonitor.domain.models.User;
 import com.mx.cryptomonitor.domain.repositories.PortfolioEntryRepository;
 import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
+import com.mx.cryptomonitor.domain.repositories.UserRepository;
 import com.mx.cryptomonitor.domain.services.PortfolioService;
+import com.mx.cryptomonitor.infrastructure.api.MarketDataService;
 import com.mx.cryptomonitor.shared.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.shared.dto.request.TransactionRequest;
 
@@ -33,8 +36,11 @@ import java.util.UUID;
 @ExtendWith(MockitoExtension.class)
 class PortfolioServiceTest {
 
-    private static final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioService.class);
+    private static final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioServiceTest.class);
 
+    @Mock
+    private UserRepository userRepository;
+    
     @Mock
     private TransactionRepository transactionRepository;
 
@@ -43,6 +49,9 @@ class PortfolioServiceTest {
 
     @Mock
     private TransactionMapper transactionMapper;
+    
+    @Mock
+    private MarketDataService marketDataService;
 
     @InjectMocks
     private PortfolioService portfolioService;
@@ -53,20 +62,60 @@ class PortfolioServiceTest {
     private Transaction transaction;
     private TransactionResponse response;
     private PortfolioEntry portfolioEntry;
-/*
+    private User user;
+
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
         portfolio_entry_id = UUID.randomUUID();
-        request = new TransactionRequest(
-            userId, portfolio_entry_id,"BTC", "CRYPTO", "BUY", 
-            new BigDecimal("1.5"), new BigDecimal("50000.00"), 
-            new BigDecimal("75000.00"), null, new BigDecimal("10.00"), null, "Test transaction"
-        );
 
+        
+        user = User.builder()
+        		.id(userId)
+        		.username("testuser")
+        		.email("testuser@gmail.com")
+        		.passwordHash("password123")
+        		.build();
+        
+        //userRepository.save(user);
+       
+        logger.info("Respuesta userRepository.save:{}",user);
+        
+        request = new TransactionRequest(
+        		user.getId(), 
+        		portfolio_entry_id, 
+        		"BTC", 
+        		"CRYPTO", 
+        		"BUY", 
+        		new BigDecimal("1.5"), 
+        		new BigDecimal("50000.00"), 
+        		new BigDecimal("75000.00"), 
+        		null, 
+        		new BigDecimal("0.5"), 
+        		null);
+        
+        logger.info("Respuesta TransactionResponse():{}",response);
+
+        portfolioEntry = new PortfolioEntry(
+        	portfolio_entry_id, 
+            user, 
+            "BTC", 
+            "CRYPTO",
+            new BigDecimal("2.0"), 
+            new BigDecimal("100000.00"), 
+            new BigDecimal("50000.00"), 
+            new BigDecimal("50000.00"), 
+            new BigDecimal("50000.00"), 
+            new BigDecimal("50000.00"), 
+            null, 
+            null, 
+            null
+        );
+        
         transaction = new Transaction();
         transaction.setTransactionId(UUID.randomUUID());
-        transaction.setUserId(userId);
+        transaction.setUser(user);
+        transaction.setPortfolioEntry(portfolioEntry);
         transaction.setAssetSymbol("BTC");
         transaction.setAssetType("CRYPTO");
         transaction.setTransactionType("BUY");
@@ -74,37 +123,53 @@ class PortfolioServiceTest {
         transaction.setPricePerUnit(new BigDecimal("50000.00"));
         transaction.setTotalValue(new BigDecimal("75000.00"));
 
+        logger.info("Respuesta Transaction():{}",transaction);
+
         response = new TransactionResponse(
-            transaction.getTransactionId(), userId, "BTC", "CRYPTO", "BUY", 
+        		user.getId(), "BTC", "CRYPTO", "BUY", 
             new BigDecimal("1.5"), new BigDecimal("50000.00"), 
             new BigDecimal("75000.00"), transaction.getTransactionDate(), 
-            new BigDecimal("10.00"), null, "Test transaction", null, null
-        );
+            new BigDecimal("10.00"), null, null, null
+        );        
 
-        portfolioEntry = new PortfolioEntry(
-            UUID.randomUUID(), userId, "BTC", "CRYPTO",
-            new BigDecimal("2.0"), new BigDecimal("100000.00"), 
-            new BigDecimal("50000.00"), null, null, null, null, null, null
-        );
     }
 
     @Test
     void testRegisterTransaction_Buy() {
+    	
+    	logger.info("=== Ejecutando método testRegisterTransaction_Buy() ===");
+
+    	
+        assertNotNull(user.getId(), "El ID del usuario no debería ser null");
+        
+        logger.info("El ID del usuario: {}", user.getId());
+        logger.info("Respuesta TransactionRequest():{}",request);
+        logger.info("Respuesta portfolioEntry():{}",portfolioEntry);
+        
+        logger.debug("🔍 Buscando portfolioEntry para userId: {}, assetSymbol: {}", userId, "BTC");
+        Optional<PortfolioEntry> existingEntry = portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "BTC");
+        logger.debug("🔎 ¿PortfolioEntry encontrado?: {}", existingEntry.isPresent());
+
+        when(marketDataService.getCryptoPrice("BTC"))
+        .thenReturn(Optional.of(new BigDecimal("50000.00")));  // Simular precio de BTC
+
         when(transactionMapper.toEntity(request)).thenReturn(transaction);
         when(transactionRepository.save(transaction)).thenReturn(transaction);
-        when(portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "BTC"))
+        when(portfolioEntryRepository.findByUserIdAndAssetSymbol(any(UUID.class), anyString()))
                 .thenReturn(Optional.of(portfolioEntry));
         when(transactionMapper.toResponse(transaction)).thenReturn(response);
-
+        when(userRepository.findById(any(UUID.class)))
+        .thenReturn(Optional.of(user));
+        
         TransactionResponse result = portfolioService.registerTransaction(request);
-
+        
         assertNotNull(result);
         assertEquals("BTC", result.assetSymbol());
         assertEquals("BUY", result.transactionType());
         verify(transactionRepository, times(1)).save(transaction);
         verify(portfolioEntryRepository, times(1)).save(any(PortfolioEntry.class));
     }
-
+/*
     @Test
     void testRegisterTransaction_Sell() {
     	TransactionRequest request_Sell = new TransactionRequest(

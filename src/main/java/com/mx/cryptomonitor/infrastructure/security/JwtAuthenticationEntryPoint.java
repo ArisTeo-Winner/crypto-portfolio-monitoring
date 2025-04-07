@@ -1,8 +1,8 @@
 package com.mx.cryptomonitor.infrastructure.security;
 
 import java.io.IOException;
-import java.io.Serializable;
 
+import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
@@ -12,16 +12,24 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Component
-public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint, Serializable{
+public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint{
 	
-	private static final long serialVersionUID = -7858869558953243875L;
 
 	@Override
 	public void commence(HttpServletRequest request, HttpServletResponse response,
 			AuthenticationException authException) throws IOException, ServletException {
 		// TODO Auto-generated method stub
-		response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
-		
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+
+        String jsonResponse = """
+                {
+                    "status": 401,
+                    "error": "Unauthorized",
+                    "message": "Token expirado"
+                }
+                """;
+            response.getWriter().write(jsonResponse);
 	}
 
 }

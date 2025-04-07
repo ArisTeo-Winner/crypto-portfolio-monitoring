@@ -11,8 +11,9 @@ import org.springframework.stereotype.Repository;
 import com.mx.cryptomonitor.domain.models.User;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, UUID>{
+public interface UserRepository extends JpaRepository<User, UUID> {
 
 	Optional<User> findByEmail(String email);
+
 	Optional<User> findByUsername(String username);
 }

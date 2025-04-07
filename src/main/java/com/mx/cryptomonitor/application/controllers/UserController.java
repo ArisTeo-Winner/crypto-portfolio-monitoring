@@ -9,7 +9,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,12 +21,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import com.mx.cryptomonitor.application.mappers.UserMapper;
 import com.mx.cryptomonitor.domain.models.User;
+import com.mx.cryptomonitor.domain.services.TokenService;
 import com.mx.cryptomonitor.domain.services.UserService;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
 import com.mx.cryptomonitor.infrastructure.security.AuthenticationService;
@@ -30,44 +37,57 @@ import com.mx.cryptomonitor.infrastructure.security.JwtTokenUtil;
 import com.mx.cryptomonitor.infrastructure.security.JwtUserDetailsService;
 //import com.mx.cryptomonitor.shared.dto.LoginRequest;
 import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
+import com.mx.cryptomonitor.shared.dto.request.RefreshTokenRequest;
 import com.mx.cryptomonitor.shared.dto.request.UserRegistrationRequest;
 
 import com.mx.cryptomonitor.shared.dto.response.UserResponse;
 import com.mx.cryptomonitor.shared.dto.response.JwtResponse;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/users")
+@RequiredArgsConstructor
 public class UserController {
 	
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(UserController.class);
 
-    @Autowired
-	private UserRepository userRepository;
-
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private AuthenticationService authenticationService;
     
+	private final UserRepository userRepository;
+
+    
+    private final UserService userService;
+
+    
+    private final AuthenticationService authenticationService;
+    
+    
+    private final TokenService tokenService;
 
     
     private final AuthenticationManager authenticationManager;
     private final JwtTokenUtil jwtTokenUtil;
     private final JwtUserDetailsService userDetailsService;
-
+/*
     @Autowired
-    public UserController(AuthenticationManager authenticationManager, JwtTokenUtil jwtTokenUtil, JwtUserDetailsService userDetailsService) {
+    public UserController(AuthenticationManager authenticationManager, JwtTokenUtil jwtTokenUtil, JwtUserDetailsService userDetailsService, TokenService tokenService) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenUtil = jwtTokenUtil;
         this.userDetailsService = userDetailsService;
-    }
+        this.tokenService = tokenService;
+    }*/
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> registerUser(@Valid @RequestBody UserRegistrationRequest request) {
         // Registrar al usuario y devolver un UserResponse
+        logger.info("📌 Iniciando registro de usuario: {}", request.email());
+
         UserResponse response = userService.registerUser(request);
+        
+        logger.info("✅ Usuario registrado correctamente: {}", response.email());
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -77,24 +97,10 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    
 
-    @PostMapping("/login")
-    public ResponseEntity<JwtResponse> login(@RequestBody LoginRequest loginRequest) {
-        // Autenticar al usuario
-        User user = authenticationService.authenticate(loginRequest.email(), loginRequest.password());
-
-        UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.email());
-
-        // Generar token JWT
-        String token = jwtTokenUtil.generateToken(user);
-        
-        // Retornar el token como respuesta
-        return ResponseEntity.ok(new JwtResponse(token));
-    }
-    
     
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         logger.info("=== Ejecutando método getAllUsers() desde UserController ===");
 
@@ -142,8 +148,6 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-
-
     
 
     @GetMapping("/{id}/test")
@@ -157,6 +161,16 @@ public class UserController {
         	logger.warn("Usuario con ID {} no encontrado", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+    }
+    
+    @GetMapping("/public/test")
+    public ResponseEntity<String> testPublicEndpoint() {
+        return ResponseEntity.ok("Endpoint público funcionando");
+    }
+    
+    @PostMapping("/public/test-post")
+    public ResponseEntity<String> testPublicPost() {
+        return ResponseEntity.ok("Endpoint público POST funcionando");
     }
 
     

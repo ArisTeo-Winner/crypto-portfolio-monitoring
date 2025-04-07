@@ -14,7 +14,7 @@ public class AlphaVantageExample {
     public static void main(String[] args) {
         // Configura tus parámetros
         String apiKey = "2B9V32C85SDUIX5Y"; // Reemplaza con tu API key real
-        String symbol = "IBM";
+        String symbol = "MSFT";
         String function = "TIME_SERIES_DAILY";
         // outputsize=full para obtener el histórico completo
         String url = "https://www.alphavantage.co/query?function=" + function

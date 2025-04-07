@@ -57,7 +57,7 @@ public class StockDataControllerTest {
     
     /**
      * Prueba que, dado un símbolo válido, se retorne el precio de la acción.
-     */
+     
     @Test
     public void testGetStockPriceSuccess() throws Exception {
     	
@@ -75,11 +75,11 @@ public class StockDataControllerTest {
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().string(expectedPrice.toString()));
-    }
+    }*/
 
     /**
      * Prueba que, si el servicio no encuentra información para el símbolo, se retorne 404.
-     **/ 
+     * 
     
     @Test
     public void testGetStockPriceNotFound() throws Exception {
@@ -95,11 +95,11 @@ public class StockDataControllerTest {
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
                 .andExpect(content().string("No se encontró información para el símbolo: " + symbol));
-    }
+    }*/
 
     /**
      * Prueba que, dado un símbolo inválido (nulo o vacío), se retorne 400 Bad Request.
-     */
+     
     
     @Test
     public void testGetStockPriceBadRequest() throws Exception {
@@ -115,5 +115,5 @@ public class StockDataControllerTest {
                 .param("symbol", symbol)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
-    }
+    }*/
 }

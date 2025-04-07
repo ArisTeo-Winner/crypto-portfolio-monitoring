@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Appender para la consola -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Appender para archivo con rotación (app.log) -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Appender para pruebas (appTest.log) -->
+    <appender name="FILE_TEST" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/appTest.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logsTest/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Root logger base sin appenders por defecto -->
+    <root level="INFO" />
+
+    <!-- Configuración para entorno de desarrollo -->
+    <springProfile name="dev">
+        <root level="DEBUG">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE" />
+        </root>
+        <logger name="org.springframework" level="DEBUG" />
+        <logger name="org.hibernate.SQL" level="DEBUG" />
+        <logger name="com.mx.cryptomonitor" level="DEBUG" />
+    	<logger name="org.springframework.security" level="DEBUG" additivity="false" />
+    	<logger name="org.springframework.web" level="DEBUG" additivity="false"/>
+          
+        <logger name="com.mx.cryptomonitor.application.controllers" level="DEBUG" />
+        <logger name="com.mx.cryptomonitor.domain.services" level="DEBUG" />
+          
+    </springProfile>
+
+    <!-- Configuración para entorno de producción -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE" />
+        </root>
+        <logger name="org.springframework" level="INFO" />
+        <logger name="org.hibernate.SQL" level="INFO" />
+        <logger name="com.mx.cryptomonitor" level="INFO" />
+           
+    </springProfile>
+
+    <!-- Perfil para pruebas (unitarias e integración) -->
+    <springProfile name="test">
+    
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_TEST" />
+        </root>
+        <logger name="com.mx.cryptomonitor" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE_TEST" />
+        </logger>
+        <logger name="org.springframework" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE" />        
+            <appender-ref ref="FILE_TEST" />
+        </logger>
+        <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
+            <appender-ref ref="FILE_TEST" />
+        </logger>
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
+            <appender-ref ref="FILE_TEST" />
+        </logger>
+    </springProfile>
+
+    <!-- Configuración por defecto (si no hay perfil activo) -->
+    <springProfile name="!test,!dev,!prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="FILE" />
+        </root>
+        <logger name="com.mx.cryptomonitor" level="TRACE" />
+        <logger name="org.springframework" level="DEBUG" />
+    </springProfile>
+
+</configuration>

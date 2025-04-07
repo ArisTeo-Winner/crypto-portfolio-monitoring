@@ -4,12 +4,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public record ErrorResponseDTO(
-	    String error,
-	    String message,
-	    List<String> details,
-	    LocalDateTime timestamp
+
+	     LocalDateTime localDateTime,
+	     int status,
+	     String error,
+	     List<String> errors,
+	     String path
 	) {
-	    public ErrorResponseDTO(String error, String message, List<String> details) {
-	        this(error, message, details, LocalDateTime.now());
-	    }
+	
+	    
 	}
