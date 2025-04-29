@@ -56,20 +56,20 @@ public class PortfolioService {
    
 
     @Transactional
-    public TransactionResponse registerTransaction(TransactionRequest request) {
+    public TransactionResponse registerTransaction(UUID userdId, TransactionRequest request) {
     	
     	log.info("=== Ejecutando método registerTransaction() desde PortfolioService ===");
 
-        log.info("Registrando transacción para usuario: {}, activo: {}", request.userId(), request.assetSymbol());
+        log.info("Registrando transacción para usuario: {}, activo: {}", userdId, request.assetSymbol());
         
         // Validar la entrada
         validateTransactionRequest(request);
         
         // Obtener el usuario
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException("Usuario no encontrado: " + request.userId()));
+        User user = userRepository.findById(userdId)
+                .orElseThrow(() -> new UserNotFoundException("Usuario no encontrado: " + userdId));
         
-        log.info("🔍 Buscando portfolioEntry para userId: {}, assetSymbol: {}", request.userId(),request.assetSymbol());
+        log.info("🔍 Buscando portfolioEntry para userId: {}, assetSymbol: {}", userdId,request.assetSymbol());
         // Obtener o crear la entrada del portafolio
         PortfolioEntry portfolioEntry = getOrCreatePortfolioEntry(user, request);
         log.info("🔎 ¿PortfolioEntry encontrado?: {}", portfolioEntry);

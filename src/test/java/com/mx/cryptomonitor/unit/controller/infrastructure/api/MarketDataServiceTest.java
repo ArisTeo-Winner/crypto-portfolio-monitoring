@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.unit.controller.infrastructure.api;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,8 +62,7 @@ class MarketDataServiceTest {
     }
     
     
-    /*
-  
+    /*  
     @Test
     public void testGetPrice_Success() throws Exception {
         // Simular respuesta exitosa
@@ -71,7 +72,8 @@ class MarketDataServiceTest {
         when(httpClient.send(any(HttpRequest.class), any())).thenReturn(mockResponse);
 
         // Ejecutar y verificar
-        double price = marketDataService.getPrice("BTC");
+        Optional<BigDecimal> price = marketDataService.getCryptoPrice(CRYPTO_SYMBOL);
+
         assertEquals(86203.82, price, 0.001);
     }
 
@@ -169,7 +171,15 @@ class MarketDataServiceTest {
    */
     /**/
 
-    @Test
+    private void assertEquals(double expected, Optional<BigDecimal> price, double delta) {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+
+
+	@Test
     void testGetStockPrice_withMockedApiResponse() {
         // Simular respuesta de la API (estructura anidada)
         Map<String, Object> timeSeries = new LinkedHashMap<>();
@@ -189,7 +199,7 @@ class MarketDataServiceTest {
 			new RuntimeException("No se pudo obtener el precio actual del activo"));
 
         // Validar
-        assertEquals(new BigDecimal("172.35"), price);
+        Assert.assertEquals(new BigDecimal("172.35"), price);
     }
    
 }

@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.unit.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,8 +70,7 @@ public class TransactionServiceTest {
         assetSymbol = "BTC";
 
         
-        request = new TransactionRequest(
-        		userId, 
+        request = new TransactionRequest(        		
         		portfolio_entry_id, 
         		"BTC", 
         		"CRYTO", 
@@ -179,6 +180,8 @@ public class TransactionServiceTest {
     	
     	List<TransactionResponse> result = transactionService.getTransactionsByUserAndSymbol(userId, assetSymbol);
     	
+    	System.out.println("Respuesta de .getTransactionsByUserAndSymbol(userId, assetSymbol)"+result);
+    	
     	assertNotNull(result);
     	assertFalse(result.isEmpty());
     	assertEquals(1, result.size());
@@ -189,4 +192,24 @@ public class TransactionServiceTest {
     	
     	
     }
+    
+    /*
+    @Test
+    public void whenGetTransactionsUser_thenReturnTransactionResponses() {
+
+        when(transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(userId, "ETH", "CRYPTO", "BUY"))
+            .thenReturn(Collections.singletonList(new Transaction(transactionId, user, null, "ETH", "CRYPTO", "BUY", null, null, null, null, null, assetSymbol, null, null)));
+
+        // Ejecutar el método del servicio
+        List<TransactionResponse> transactions = transactionService.getTransactionsUser(userId, "ETH", "CRYPTO", "BUY");
+    	System.out.println("Respuesta de .getTransactionsUser(userId, \"ETH\", \"CRYPTO\", \"BUY\")"+transactions);
+
+        logger.info("Consulta de transactionService.getTransactionsUser(userId, \"ETH\", \"CRYPTO\", \"BUY\"): {}",transactions);
+        
+        // Verificar el resultado
+        assertThat(transactions).isNotEmpty();
+        assertEquals("BUY", transactions.get(0).transactionType());
+        //assertThat(transactions.get(0).transactionType()).isEqualTo("BUY");
+    }
+    */
 }

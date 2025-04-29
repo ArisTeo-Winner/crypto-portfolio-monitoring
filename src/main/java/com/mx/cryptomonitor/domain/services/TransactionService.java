@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.domain.services;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,7 +35,6 @@ public class TransactionService {
         this.transactionMapper = transactionMapper;
     }
 
-
     @Transactional
     public TransactionResponse saveTransaction(TransactionRequest transactionRequest) {
     	
@@ -42,7 +42,6 @@ public class TransactionService {
 
     	try {
 			
-
         Transaction transactionM = transactionMapper.toEntity(transactionRequest);
     	logger.info("...Transacción mapeada antes de guardar: " + transactionM );
 
@@ -67,9 +66,7 @@ public class TransactionService {
 			// TODO: handle exception
 			logger.error("Exception de saveTransaction ::: "+e);
             throw new RuntimeException("Error al guardar la transacción", e);
-
-		} 
-    	
+		}     	
     }
 
     /**/
@@ -99,17 +96,12 @@ public class TransactionService {
     	if (assetType != null && assetType.isEmpty()) assetType = null;
     	if (transactionType != null && transactionType.isEmpty()) transactionType = null;
     	
-    	if (assetSymbol != null && assetType != null && transactionType !=null) {
-    		
-			List<Transaction> transaction = transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(userId, assetSymbol, assetType, transactionType);
-		
+    	if (assetSymbol != null && assetType != null && transactionType !=null) {    		
+			List<Transaction> transaction = transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(userId, assetSymbol, assetType, transactionType);		
 			return transaction.stream()
 					.map(transactionMapper::toResponse)
 					.collect(Collectors.toList());
-				
-			
 		}
-    	
     	if (assetSymbol != null) {
 			return transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol);
 		}
@@ -119,9 +111,16 @@ public class TransactionService {
     	
     	if(transactionType != null) {
     		return transactionRepository.findByUserIdAndTransactionType(userId, transactionType);
-    	}
+    	}    	
+    	return transactionRepository.findByUserId(userId);    	
+    }
+    
+    public void deleteTransactionById(UUID idTransaction) {
     	
-    	return transactionRepository.findByUserId(userId);
+    	Transaction transaction=  transactionRepository.findById(idTransaction)
+    			.orElseThrow(() -> new RuntimeException("Transaction no encontrado"));
+    	
+    	transactionRepository.deleteById(transaction.getTransactionId());
     	
     }
 

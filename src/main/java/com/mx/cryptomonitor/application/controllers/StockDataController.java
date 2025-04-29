@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.infrastructure.api.MarketDataService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+
 @RestController
 @RequestMapping("/api/v1/marketdata")
 public class StockDataController {
@@ -36,6 +40,15 @@ public class StockDataController {
 	 * @return ResponseEntity con el precio de cierre o un mensaje de error
 	 * 
 	 * */
+    @Operation(summary = "Precio de cierre anterior (Previous Close)",
+               description = "Obtiene el precio de cierre anterior de un Stock usando Alphavantage `query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={apikey}`.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Precio obtenido correctamente"),
+        @ApiResponse(responseCode = "400", description = "Ticker inválido"),
+        @ApiResponse(responseCode = "404", description = "No se encontró información"),
+        @ApiResponse(responseCode = "502", description = "Error de comunicación con Alphavantage"),
+        @ApiResponse(responseCode = "500", description = "Error interno")
+    })
     @GetMapping("/stock")
     public ResponseEntity<?> getStockPrice(@RequestParam("symbol") String symbol) {
         logger.info("Solicitud para obtener precio de acción: {}", symbol);

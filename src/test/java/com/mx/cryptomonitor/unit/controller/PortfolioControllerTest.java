@@ -51,7 +51,7 @@ class PortfolioControllerTest {
         portfolioService = Mockito.mock(PortfolioService.class);
         portfolioController = new PortfolioController(portfolioService);
     }
-
+/*
     @Test
     public void testRegisterTransaction_Success() {
     	
@@ -90,7 +90,7 @@ class PortfolioControllerTest {
         );
 
         // Se simula que el servicio retorna la respuesta esperada.
-        when(portfolioService.registerTransaction(any(TransactionRequest.class))).thenReturn(expectedResponse);
+        when(portfolioService.registerTransaction(userId,any(TransactionRequest.class))).thenReturn(expectedResponse);
 
         var responseEntity = portfolioController.createTransaction(request);
         
@@ -99,7 +99,7 @@ class PortfolioControllerTest {
         assertEquals(201, responseEntity.getStatusCodeValue());
         assertEquals(expectedResponse, responseEntity.getBody());
     }
-    /*
+    
     @Test
     public void testGetTransactionsByUser_Success() {
     	

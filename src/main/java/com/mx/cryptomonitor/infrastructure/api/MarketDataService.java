@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -34,7 +35,6 @@ import com.mx.cryptomonitor.infrastructure.exceptions.MarketDataException;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 
-@Getter
 @Service
 public class MarketDataService {
 
@@ -46,19 +46,19 @@ public class MarketDataService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${api.coinmarketcap.base-url}")
+    @Value("${API_COINMARKETCAP_BASE_URL}")
     private String coinMarketCapBaseUrl;
 
-    @Value("${api.coinmarketcap.api-key}")
+    @Value("${API_COINMARKETCAP_API_KEY}")
     private String coinMarketCapApiKey;
 
-    @Value("${api.alphavantage.base-url}")
+    @Value("${API_ALPHAVANTAGE_BASE_URL}")
     private String alphaVantageBaseUrl;
 
-    @Value("${api.alphavantage.api-key}")
+    @Value("${API_ALPHAVANTAGE_API_KEY}")
     private String alphaVantageApiKey;
 
-    @Autowired
+    
     public MarketDataService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }

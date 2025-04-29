@@ -74,7 +74,10 @@ public class SecurityConfig {
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/refresh",
                                 "/api/v1/users/public/test",
-                                "/api/v1/users/public/test-post"
+                                "/api/v1/users/public/test-post",
+                                "/swagger-ui/**", 
+                                "/v3/api-docs/**", 
+                                "/swagger-ui.html"
                                 )
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/transactions/{userId}/{assetSymbol}").hasRole("USER")

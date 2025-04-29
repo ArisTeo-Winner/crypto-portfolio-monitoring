@@ -81,8 +81,7 @@ class PortfolioServiceTest {
        
         logger.info("Respuesta userRepository.save:{}",user);
         
-        request = new TransactionRequest(
-        		user.getId(), 
+        request = new TransactionRequest(        		
         		portfolio_entry_id, 
         		"BTC", 
         		"CRYPTO", 
@@ -138,7 +137,6 @@ class PortfolioServiceTest {
     void testRegisterTransaction_Buy() {
     	
     	logger.info("=== Ejecutando método testRegisterTransaction_Buy() ===");
-
     	
         assertNotNull(user.getId(), "El ID del usuario no debería ser null");
         
@@ -161,7 +159,7 @@ class PortfolioServiceTest {
         when(userRepository.findById(any(UUID.class)))
         .thenReturn(Optional.of(user));
         
-        TransactionResponse result = portfolioService.registerTransaction(request);
+        TransactionResponse result = portfolioService.registerTransaction(user.getId(),request);
         
         assertNotNull(result);
         assertEquals("BTC", result.assetSymbol());

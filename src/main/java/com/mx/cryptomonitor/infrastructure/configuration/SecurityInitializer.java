@@ -1,4 +1,4 @@
-package com.mx.cryptomonitor.infrastructure.config;
+package com.mx.cryptomonitor.infrastructure.configuration;
 
 import com.mx.cryptomonitor.domain.models.Permission;
 import com.mx.cryptomonitor.domain.models.Role;

@@ -1,13 +1,12 @@
-version: '3.8'
 
 services:
   java_db:
     image: postgres:12
     container_name: java_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Rammstein
-      POSTGRES_DB: crypto_portafolio
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5432:5432"
     networks:
@@ -21,9 +20,15 @@ services:
     depends_on:
       - java_db
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://java_db:5432/crypto_portafolio
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: Rammstein
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USER}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASS}
+
+      API_COINMARKETCAP_BASE_URL: ${API_COINMARKETCAP_BASE_URL}
+      API_COINMARKETCAP_API_KEY: ${COINMARKETCAP_API_KEY}
+      API_ALPHAVANTAGE_BASE_URL: ${API_ALPHAVANTAGE_BASE_URL}
+      API_ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY}
+
     networks:
       - app_network
     ports:

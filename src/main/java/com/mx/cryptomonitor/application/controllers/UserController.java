@@ -41,6 +41,11 @@ import com.mx.cryptomonitor.shared.dto.request.RefreshTokenRequest;
 import com.mx.cryptomonitor.shared.dto.request.UserRegistrationRequest;
 
 import com.mx.cryptomonitor.shared.dto.response.UserResponse;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+
 import com.mx.cryptomonitor.shared.dto.response.JwtResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -98,7 +103,11 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    
+    @Operation(summary = "Lista la información del usuario",
+    		description = "Retorna lista de usuarios")
+    @ApiResponses(value = {
+    		@ApiResponse(responseCode = "200",description = "Lista de usuario obtenida correctamente")
+    })
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> getAllUsers() {

@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.UpdateTimestamp;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
@@ -65,9 +67,10 @@ public class PortfolioEntry {
 
 	    @Column(name = "total_profit_loss", precision = 18, scale = 2)
 	    private BigDecimal totalProfitLoss; // Ganancia o pérdida total calculada
-
+	    
+	    @UpdateTimestamp
 	    @Column(name = "last_updated", nullable = false)
-	    private LocalDateTime lastUpdated = LocalDateTime.now(); // Última actualización
+	    private LocalDateTime lastUpdated; // Última actualización
 
 	    @Column(name = "created_at", nullable = false, updatable = false)
 	    private final LocalDateTime createdAt = LocalDateTime.now(); // Fecha de creación

@@ -58,10 +58,14 @@ public class PortfolioController {
     public ResponseEntity<TransactionResponse> createTransaction(@Valid @RequestBody TransactionRequest request) {
     	
         logger.info("📌 Recibida nueva transacción: {}", request);
-        TransactionResponse response = portfolioService.registerTransaction(request);
+        
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        UUID userId = (UUID) authentication.getPrincipal();
+        
+        TransactionResponse response = portfolioService.registerTransaction(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);			
 	
-
     }
     
     @GetMapping("/transactions/{userId}")

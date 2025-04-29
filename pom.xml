@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.3.0</version>
+		<version>3.3.10</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.mx</groupId>
@@ -108,29 +108,18 @@
     <version>0.11.5</version>
 </dependency>
               
+ <dependency>
+    <groupId>org.junit.vintage</groupId>
+    <artifactId>junit-vintage-engine</artifactId>
+    <scope>test</scope>
+    <exclusions>
+        <exclusion>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
  
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.10.2</version>
-            <scope>test</scope>
-        </dependency>
-        
-<dependency>
-    <groupId>org.junit.jupiter</groupId>
-    <artifactId>junit-jupiter</artifactId>
-    <version>5.10.0</version>
-    <scope>test</scope>
-</dependency>
-
-<dependency>
-    <groupId>junit</groupId>
-    <artifactId>junit</artifactId>
-    <version>4.13.2</version>
-    <scope>test</scope>
-</dependency>
-
-
 <dependency>
     <groupId>org.apache.httpcomponents</groupId>
     <artifactId>httpclient</artifactId>
@@ -183,13 +172,13 @@
         <groupId>com.github.polygon-io</groupId>
         <artifactId>client-jvm</artifactId>
         <version>5.1.2</version> <!-- Reemplaza con la versión actual -->
-    </dependency>
-    
-    <dependency>
-    	<groupId>io.github.cdimascio</groupId>
-    	<artifactId>java-dotenv</artifactId>
-    	<version>5.2.2</version>
-	</dependency>
+    </dependency>            
+	
+<dependency>
+    <groupId>me.paulschwarz</groupId>
+    <artifactId>spring-dotenv</artifactId>
+    <version>3.0.0</version>
+</dependency>
 
     <dependency>
         <groupId>org.springframework.boot</groupId>
@@ -198,6 +187,12 @@
     <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-cache</artifactId>
+    </dependency>
+    
+    <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>2.2.0</version>
     </dependency>
 
 

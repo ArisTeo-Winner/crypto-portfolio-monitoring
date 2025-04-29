@@ -77,11 +77,16 @@ public class TransactionController {
     
     @GetMapping("/list")
     public ResponseEntity<List<TransactionResponse>> getUserTransactions(
-            @RequestParam(value = "assetSymbol", required = false) String assetSymbol) {
+            @RequestParam(value = "assetSymbol", required = false) String assetSymbol,
+            @RequestParam(value = "assetType", required = false) String assetType,
+            @RequestParam(value = "transactionType", required = false) String transactionType) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UUID userId = (UUID) authentication.getPrincipal();
+        
+        log.info("userId:{},assetSymbol:{}, assetType:{}, transactionType:{}",userId,assetSymbol,assetType,transactionType);
 
-        List<TransactionResponse> transactions = transactionService.getTransactionsByUserId(userId, assetSymbol);
+        List<TransactionResponse> transactions = transactionService.getTransactionsUser(userId, assetSymbol, assetType, transactionType);
+        log.info("Respuesta: {}",transactions);
         return ResponseEntity.ok(transactions);
     }
     

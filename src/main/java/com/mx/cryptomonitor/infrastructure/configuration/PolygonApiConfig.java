@@ -5,21 +5,30 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+import jakarta.annotation.PostConstruct;
+import lombok.Getter;
+
 @Configuration
+@Getter
 public class PolygonApiConfig {
-    private final Logger logger = LoggerFactory.getLogger(PolygonApiConfig.class);
-
+	/*
 	@Value("${polygon.api.key}")
-	private String polygonApiKey;
-
-    public String getPolygonApiKey() {
-    	
-        logger.info("=== Ejecutando método getPolygonApiKey() desde PolygonApiConfig ===");
-
-    	
-        logger.info("=== Return KEY de Polygon : {} === ",polygonApiKey);
-
-        return polygonApiKey;
-    }
+	private String polygonKey;
+	
+    @Value("${spring.datasource.url}")
+	private String dataSourceUrl;
+    
+    @Value("${spring.datasource.username}")
+    private String dataSourceUsername;
+    
+    @Value("${spring.datasource.password}")
+    private String dataSourcePassord;
+    
+    @Value("${msg.assets}")
+    private String msgAssets;
+    
+    @Value("${posgresql.url}")
+    private String posgresqlUrl;
+*/
+    
 }
-
