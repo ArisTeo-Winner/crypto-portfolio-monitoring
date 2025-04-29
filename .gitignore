@@ -36,10 +36,9 @@ build/
 
 logsTest/
 Query/
-src/test/
+src/test/java/
 
 # Evita subir credenciales
-src/test/resources/application-test.properties
 src/main/resources/application.properties
 
 #### Variables de Entorno ###
