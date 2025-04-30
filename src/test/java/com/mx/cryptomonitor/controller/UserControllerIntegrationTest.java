@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.junit.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.InjectMocks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,11 +26,11 @@ import com.mx.cryptomonitor.domain.repositories.UserRepository;
 @SpringBootTest
 @AutoConfigureMockMvc
 public class UserControllerIntegrationTest {
-	
+	/*
 	private static final Logger logger = LoggerFactory.getLogger(UserControllerIntegrationTest.class);
 
 
-    @Autowired
+    @InjectMocks
     private MockMvc mockMvc;
 
     @Autowired
@@ -40,6 +41,7 @@ public class UserControllerIntegrationTest {
     @BeforeEach
     public void setUp() {
         userRepository.deleteAll();
+        
         User user = new User();
         user.setUsername("testuser");
         user.setEmail("testuser@example.com");
@@ -47,7 +49,9 @@ public class UserControllerIntegrationTest {
         User savedUser = userRepository.save(user);
         existingUserId = savedUser.getId();
     }
-/*
+    
+    
+
     @Test
     public void deleteUser_ShouldReturn204_WhenUserExists() throws Exception {
     	
