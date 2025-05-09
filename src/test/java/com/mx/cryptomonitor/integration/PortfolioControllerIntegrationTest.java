@@ -1,40 +1,56 @@
 package com.mx.cryptomonitor.integration;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
 import com.mx.cryptomonitor.domain.models.PortfolioEntry;
 import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.models.Transaction;
 import com.mx.cryptomonitor.domain.repositories.PortfolioEntryRepository;
 import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
 import com.mx.cryptomonitor.domain.repositories.UserRepository;
+import com.mx.cryptomonitor.infrastructure.exceptions.UserNotFoundException;
+import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
 import com.mx.cryptomonitor.shared.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.shared.dto.response.TransactionResponse;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.security.core.Authentication;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 
-@SpringBootTest
+
+
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureMockMvc
+@TestInstance(value = Lifecycle.PER_CLASS)
 @ActiveProfiles("test")
-@AutoConfigureMockMvc(addFilters = false)
 class PortfolioControllerIntegrationTest {
 
         private final Logger logger = LoggerFactory.getLogger(PortfolioControllerIntegrationTest.class);
@@ -53,55 +69,125 @@ class PortfolioControllerIntegrationTest {
 
         @Autowired
         private TransactionRepository transactionRepository;
-
-        // Variables para el usuario y la entrada de portafolio de prueba.
-        private PortfolioEntry testPortfolioEntry;
+        
+        @Autowired
+        private PasswordEncoder passwordEncoder;
 
         private User testUser;
+        
+        private String email = "test@example.com";
+        private String password = "Test@Password";
+        
+        private String jwtToken;
+        private UUID mockUserId;
+
 
         @BeforeEach
-        public void setup() {
+        public void setup() throws JsonProcessingException, Exception {
                 // Limpiar las tablas para evitar datos residuales.
+        	
+        	 
                 transactionRepository.deleteAll();
-                portfolioEntryRepository.deleteAll();
-                userRepository.deleteAll();
-
-                // Crear y guardar un usuario de prueba
+                portfolioEntryRepository.deleteAll();     
+                
+               //mockUserId = UUID.fromString("22aff521-0264-468a-9209-163208f7401a");
+                
+               //userRepository.deleteAll();
+                               
+               // Crear y guardar un usuario de prueba
+                /**/
                 testUser = User.builder()
                                 .username("testuser")
-                                .email("test@example.com")
-                                .passwordHash("hashedPassword")
+                                .email(email)
+                                .passwordHash(passwordEncoder.encode(password))
                                 .build();
                 testUser = userRepository.save(testUser);
+                
+                 logger.info("=== Ejecutando método login_success() desde UserControllerIntegrationTest ===");
+        	        	
+        	User savedUser = userRepository.findByEmail(email)
+        			.orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        			
+        	mockUserId = savedUser.getId();
+        	
+        	
+        	logger.info(">>>userRepository.findByEmail: {}",savedUser.toString());
+        	
+            logger.info("Id de Usuario consultado. mockUserId: " + mockUserId);
 
+        	
+        	assertEquals(savedUser.getEmail(),email);
+        	    	
+        	LoginRequest loginRequest = new LoginRequest(savedUser.getEmail(),password);     	
+            
+            logger.info("Datos mapeado loginRequest: {}",loginRequest);
+            
+            MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+        			.contentType(MediaType.APPLICATION_JSON)    			
+        			.content(objectMapper.writeValueAsString(loginRequest)))
+        			.andExpect(status().isOk())
+        			.andReturn();
+            
+            String response = result.getResponse().getContentAsString();
+            
+            logger.info("Datos mapeados response:{}",response);
+            
+            jwtToken = JsonPath.read(response, "$.accessToken");
+            
+            logger.info("jwtToken:{}",jwtToken);   
+                
         }
-/*
+        
+        
         @Test
-        @WithMockUser(username = "testuser", roles = {"USER"})// Simula un usuario autenticado con rol "USER"
-        public void testRegisterTransactionEndpoint() throws Exception {
+        @Disabled
+        public void login_success() throws Exception {
 
-                logger.info("Cosulta un UUID de user: " + testUser);
+            
+        }
+
+        @Test       
+        @WithMockUser(roles = {"USER"})// Simula un usuario autenticado con rol "USER"
+        public void testRegisterTransactionEndpoint() throws Exception {
+        	
+    		logger.info("=== Ejecutando método testRegisterTransactionEndpoint() desde UserControllerIntegrationTest ===");
+
+        	
+            logger.info("jwtToken:{}",jwtToken);
+
+        	
+        	testUser = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new UserNotFoundException("Usuario no encontrado: " + email));
+                 			
+
+                logger.info("Cosulta un UUID de user: " + testUser.getId());
 
                 // Crear y guardar una entrada de portafolio para el usuario.
-                testPortfolioEntry = PortfolioEntry.builder()
-                                .user(testUser)
-                                .assetSymbol("ETH")
-                                .assetType("CRYPTO")
-                                .totalQuantity(BigDecimal.valueOf(10))
-                                .totalInvested(BigDecimal.valueOf(20000))
-                                .averagePricePerUnit(BigDecimal.valueOf(2000))
-                                .lastUpdated(LocalDateTime.now())
-                                .updatedAt(LocalDateTime.now())
-                                .build();
-                testPortfolioEntry = portfolioEntryRepository.save(testPortfolioEntry);
-
-                logger.info("Usuario de prueba creado: {}", testUser);
-                logger.info("Entrada de portafolio creada con ID: {}", testPortfolioEntry.getPortfolioEntryId());
+                /**/
+                PortfolioEntry portfolioEntry = new PortfolioEntry(
+                		UUID.randomUUID(), 
+        				testUser, 
+        				"BTC", 
+        				"CRYPTO", 
+        				BigDecimal.valueOf(1), 
+        				BigDecimal.valueOf(89000), 
+        				BigDecimal.valueOf(89000), 
+        				null, 
+        				null, 
+        				null, 
+        				LocalDateTime.now(),  
+        				LocalDateTime.now(),  
+        				Long.valueOf(1));
+                 portfolioEntryRepository.save(portfolioEntry);
+                 
+                logger.info("Datos mapeados para PortfolioEntry: {}", portfolioEntry);
+                 
+                logger.info("Datos mapeados para Usuario de prueba creado : {}", testUser);
 
                 // Construir el TransactionRequest usando el ID real del usuario y de la entrada
                 // de portafolio.
                 TransactionRequest request = new TransactionRequest(                            
-                                testPortfolioEntry.getPortfolioEntryId(), // Se envía el ID de la entrada existente
+                		portfolioEntry.getPortfolioEntryId(), // Se envía el ID de la entrada existente
                                 "ETH",
                                 "CRYPTO",
                                 "BUY",
@@ -111,21 +197,32 @@ class PortfolioControllerIntegrationTest {
                                 LocalDateTime.now(),
                                 BigDecimal.ZERO,
                                 "Comprar ETH");
+                
+                logger.info("Datos mapeados de TransactionRequest: {}",request);
+                                
+                logger.info("Cosulta un UUID de user: {}", mockUserId);
+
+                // Configurar un Authentication con el UUID como principal
+                Authentication auth = new org.springframework.security.authentication.TestingAuthenticationToken(mockUserId, null, "ROLE_USER");
+
 
                 // Realizar la solicitud POST al endpoint
-                ResultActions jsonResponse = mockMvc.perform(post("/api/v1/portfolio/transactions")
+                ResultActions result = mockMvc.perform(post("/api/v1/portfolio/transactions")
+                        		.with(SecurityMockMvcRequestPostProcessors.authentication(auth)) // Establecer el Authentication
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
-                                .andDo(result -> logger.info("Respuesta del endpoint: {}",
-                                                result.getResponse().getContentAsString()))
+                               .andDo(res -> logger.info("Respuesta del endpoint: {}",
+                                                res.getResponse().getContentAsString()))                               
                                 .andExpect(status().isCreated());
 
+                String jsonResponse = result.andReturn().getResponse().getContentAsString();
+
+                
                 // Deserializar la respuesta a TransactionResponse
                 TransactionResponse response = objectMapper.readValue(jsonResponse, TransactionResponse.class);
-                assertNotNull(response, "La respuesta no debe ser nula");
-                assertEquals(testUser.getId(), response.userId(),
-                                "El userId de la respuesta debe coincidir con el usuario de prueba");
-
+                assertNotNull(response);
+                assertEquals(testUser.getId(), response.userId());
+/*
                 // Verificar en la base de datos que la transacción se guardó.
                 // Como el record TransactionResponse no tiene un campo 'user' (sólo userId),
                 // se valida utilizando el campo userId en la respuesta.
@@ -137,7 +234,7 @@ class PortfolioControllerIntegrationTest {
                                 "El campo 'userId' en la transacción guardada no debe ser nulo");
                 assertEquals(testUser.getId(), savedTransaction.userId(),
                                 "El user_id de la transacción debe coincidir con el ID del usuario de prueba");
-
-        }*/
+*/
+        }
 
 }

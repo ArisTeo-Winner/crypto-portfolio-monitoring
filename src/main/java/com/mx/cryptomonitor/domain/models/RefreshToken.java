@@ -54,8 +54,8 @@ public class RefreshToken {
     @Column(name = "revoked")
     private boolean revoked;
 
-    @Column(name = "ip_address" , columnDefinition = "inet")
-    @ColumnTransformer(write = "CAST(? AS inet)", read = "ip_address::text")
+    @Column(name = "ip_address")
+    @ColumnTransformer(write = "LOWER(?)")
     private String ipAddress;
 
     @Column(name = "user_agent")

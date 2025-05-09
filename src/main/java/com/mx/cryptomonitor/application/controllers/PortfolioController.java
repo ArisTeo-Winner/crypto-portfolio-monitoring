@@ -64,8 +64,7 @@ public class PortfolioController {
         UUID userId = (UUID) authentication.getPrincipal();
         
         TransactionResponse response = portfolioService.registerTransaction(userId, request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);			
-	
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);				
     }
     
     @GetMapping("/transactions/{userId}")

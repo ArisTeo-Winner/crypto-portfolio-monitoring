@@ -121,10 +121,9 @@ public class UserController {
     public ResponseEntity<String> deleteUser(@PathVariable UUID id){
         logger.info("=== Ejecutando método deleteUser() desde UserController ===");
 
-        try {
-			
-    	userService.deleteUserById(id);
-    	return ResponseEntity.ok("Usuario eliminado exitosamente.");
+        try {			
+    	 userService.deleteUserById(id);
+    	 return ResponseEntity.ok("Usuario eliminado exitosamente.");
     	
         } catch (IllegalArgumentException e){
         	return ResponseEntity.status(404).body(e.getMessage());

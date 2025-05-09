@@ -28,6 +28,7 @@ public interface UserMapper {
     @Mapping(target = "passwordHash", source = "password")
     User toEntity(UserRegistrationRequest request);
 
+    
     // Mapeo de User a UserResponse
     UserResponse toResponse(User user);
 }
