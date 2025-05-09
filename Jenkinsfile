@@ -14,7 +14,7 @@ pipeline {
 
 		stage('Test'){
 			steps {
-				bat 'mvn clean test'
+				bat 'mvn test -Dspring.profiles.active=test'
 			}
 			post {
 				always {
