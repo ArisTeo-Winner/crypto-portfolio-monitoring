@@ -12,7 +12,7 @@ pipeline {
 			}
 		}
 		stage('Carga .env'){
-			step {
+			steps {
 				script {
 					def envFile = readFile('.env').split('\n')
 					envFile.each {
