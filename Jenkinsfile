@@ -11,6 +11,25 @@ pipeline {
 				git url: 'https://github.com/ArisTeo-Winner/crypto-portfolio-monitoring.git', credentialsId: 'github-creds'
 			}
 		}
+
+
+		stage('Test'){
+			steps {
+				withEnv([
+					'SPRING_DATASOURCE_URL=',
+                    'SPRING_DATASOURCE_USERNAME=',
+                    'SPRING_DATASOURCE_PASSWORD=',
+				])
+				{
+					bat 'mvn test -Dspring.profiles.active=test'
+				}
+			}
+			post {
+				always {
+					junit 'target/surefire-reports/*.xml'
+				}
+			}
+		}
 		stage('Carga .env'){
 			steps {
 				script {
@@ -21,22 +40,9 @@ pipeline {
 							env[key.trim()] = value.trim()
 						}
 					}
-				}
-				
-			}
-			
-		}
-
-		stage('Test'){
-			steps {
-				bat 'mvn test -Dspring.profiles.active=test'
-			}
-			post {
-				always {
-					junit 'target/surefire-reports/*.xml'
-				}
-			}
-		}
+				}				
+			}			
+		}		
 		stage('Build JAR'){
 			steps {
 				bat 'mvn clean package -DskipTests'
