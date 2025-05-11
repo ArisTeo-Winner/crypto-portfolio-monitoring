@@ -53,11 +53,16 @@ pipeline {
 				bat 'docker build -t crypto-monitor:latest .'
 			}
 		}
+		stage('Run App') {
+			steps {
+				bat 'docker-compose down && docker-compose build --no-cache && docker-compose up -d'
+			}
+		}
 	}
 	post {
 		success {
 			echo "Build exitoso"
-			echo "API KEY: ${env.API_COINMARKETCAP_BASE_UR}"
+			echo "API KEY: ${env.MENSSEGER_TO_THE_JENKINS}"
 		}
 		failure {
 			echo "Falló el build"
