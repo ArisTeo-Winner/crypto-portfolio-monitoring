@@ -13,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +31,6 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.UUID;
 
-import static org.junit.Assert.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -119,6 +120,7 @@ public class UserControllerIntegrationTest {
     	logger.info(">>>userRepository.findByEmail: {}",savedUser.toString());
     	
     	assertEquals(savedUser.getEmail(),"testuser@example.com");
+    	
     	    	
     	LoginRequest loginRequest = new LoginRequest("testuser@example.com","Test@123");     	
         
@@ -140,7 +142,10 @@ public class UserControllerIntegrationTest {
 
     }
     
-    @Test
+ 
+
+
+	@Test
     @WithMockUser(username = "admin", roles = {"ADMIN"})
     public void deleteUser_ShouldReturn204_WhenUserExists() throws Exception {
     	

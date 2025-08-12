@@ -138,7 +138,5 @@ public class CustomExceptionHandler {
         		.build();
         
         return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);    
-        }
-    
- 
+        }    
 }

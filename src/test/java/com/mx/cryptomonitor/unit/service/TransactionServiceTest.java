@@ -202,9 +202,9 @@ public class TransactionServiceTest {
 
         // Ejecutar el método del servicio
         List<TransactionResponse> transactions = transactionService.getTransactionsUser(userId, "ETH", "CRYPTO", "BUY");
-    	System.out.println("Respuesta de .getTransactionsUser(userId, \"ETH\", \"CRYPTO\", \"BUY\")"+transactions);
+    	//System.out.println("Respuesta de .getTransactionsUser(userId, \"ETH\", \"CRYPTO\", \"BUY\")"+transactions);
 
-        logger.info("Consulta de transactionService.getTransactionsUser(userId, \"ETH\", \"CRYPTO\", \"BUY\"): {}",transactions);
+        logger.info("Consulta de transactionService.getTransactionsUser(userId, \"ETH\", \"CRYPTO\", \"BUY\"): {}",transactions.toString());
         
         // Verificar el resultado
         assertThat(transactions).isNotEmpty();

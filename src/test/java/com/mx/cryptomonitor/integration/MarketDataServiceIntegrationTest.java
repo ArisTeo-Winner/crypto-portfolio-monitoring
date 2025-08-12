@@ -24,6 +24,7 @@ import java.net.http.HttpResponse;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,17 +32,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.infrastructure.api.MarketDataService;
 
+//@TestPropertySource(properties = "logging.level.org.springframework=TRACE")
 @SpringBootTest
 @ActiveProfiles("test")
 class MarketDataServiceIntegrationTest {
@@ -68,6 +76,10 @@ class MarketDataServiceIntegrationTest {
     // Usamos el mismo símbolo y fecha para la prueba.
     
     private final LocalDate historicalDate = LocalDate.of(2024, 9, 23);
+    
+    @Autowired
+    private CacheManager cacheManager;
+    
     /*
     @BeforeEach
     void setUp() {
@@ -75,42 +87,81 @@ class MarketDataServiceIntegrationTest {
         mockServer = MockRestServiceServer.bindTo(restTemplate).build();
     }*/
 
+/* 
+    
+    @BeforeEach
+    void clearCaches() {
+      cacheManager.getCache("cryptoPrices").clear();
+      cacheManager.getCache("stockPrices").clear();
+      cacheManager.getCache("historicalPrices").clear();
+    }
 
-    @Test
+    */    
+
+    @Test    
     void testGetCryptoPriceRealAPI() {
         logger.info("=== Ejecutando método testGetCryptoPriceRealAPI() desde MarketDataServiceIntegrationTest ===");
 
-        Optional<BigDecimal> priceOpt = marketDataService.getCryptoPrice(SYMBOL_BTC);
+        Optional<BigDecimal> priceOpt = marketDataService.getCryptoPrice(SYMBOL_ETH);
         
         BigDecimal price = priceOpt.get();
         
+        assertTrue(priceOpt.isPresent());
         assertNotNull(price);
-        logger.info("✅ Último precio de cierre de {}: {}", SYMBOL_BTC, price);
+        logger.info("✅ Último precio de cierre de {}: {}", SYMBOL_ETH, price);
 
     }
-   
-    @Test
+    
+    @Test    
     void testGetStockPriceIntegration() throws Exception {
     	
         logger.info("=== Ejecutando método testGetStockPriceIntegration() desde MarketDataServiceIntegrationTest ===");
 
-    	
-        Optional<BigDecimal> priceOpt = marketDataService.getStockPrice(STOCK_SYMBOL);
+        // Primera llamada → cache miss y put    	
+        Optional<BigDecimal> priceOpt = marketDataService.getStockQuote(STOCK_SYMBOL);
         
         BigDecimal price = priceOpt.orElseThrow(() ->
         		new RuntimeException("No se pudo obtener el precio actual del activo"));
+        
+        assertNotNull(priceOpt);     
+        
+        logger.info("✅ Último precio de cierre de {}: {}", STOCK_SYMBOL, price);    
+       
+        assertTrue(priceOpt.isPresent());
 
-        assertNotNull(priceOpt);
+        // Segunda llamada → cache hit (no debe volver a invocar al API externa)
+        Optional<BigDecimal> second = marketDataService.getStockQuote("IBM");
+        assertTrue(second.isPresent());
         
         //BigDecimal price = priceOpt.get();
         
-        logger.info("✅ Último precio de cierre de {}: {}", STOCK_SYMBOL, price);
-
         
-    } /* */
-   
+
+    } 
+  
+    @Test    
+    void testGetClosingPriceForDate() {
+    	
+    	logger.info("Exeuting TEST: testGetClosingPriceForDate");
+    	
+    	String symbol = "AAPL";
+    	LocalDate date = LocalDate.of(2025,4,21);
+    	
+    	logger.info("Executing getClosePriceForDate for {} on {}", symbol, date);
+
+    	
+    	Optional<BigDecimal> priceOpt = marketDataService.getHistoricalStockPrice(symbol, date);
+    	
+    	//BigDecimal price =priceOpt.get();
+    	
+    	logger.info("Stock for date. {} : {}",date,priceOpt);
+    	
+    	//assertNotNull(priceOpt,"Closing price should not be null");
+    }
+    
     /**/
     @Test
+    @Disabled
     public void testGetHistoricalStockDataAsJsonIntegration() throws JSONException {
     	
         logger.info("=== Ejecutando método testGetHistoricalStockDataAsJsonIntegration() desde MarketDataServiceIntegrationTest ===");

@@ -7,24 +7,39 @@ import static org.mockito.ArgumentMatchers.*; // 🔥 Importa anyString() y eq()
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import org.aspectj.weaver.loadtime.Options;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatcher;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.infrastructure.api.MarketDataService;
+
+import net.bytebuddy.asm.Advice.Argument;
 
 @ExtendWith(MockitoExtension.class)
 class MarketDataServiceTest {
@@ -41,12 +56,110 @@ class MarketDataServiceTest {
     private final LocalDate historicalDate = LocalDate.of(2024, 9, 23);
 
 
+    private String mockJsonHistorical = "";
+    
     @BeforeEach
     void setUp() {
         // 🔥 Configurar manualmente las propiedades
         ReflectionTestUtils.setField(marketDataService, "alphaVantageBaseUrl", "https://www.alphavantage.co");
         ReflectionTestUtils.setField(marketDataService, "alphaVantageApiKey", "2B9V32C85SDUIX5Y");
          
+        mockJsonHistorical = """
+        		{
+        		    "Meta Data": {
+        		        "1. Information": "Daily Prices (open, high, low, close) and Volumes",
+        		        "2. Symbol": "AMZN",
+        		        "3. Last Refreshed": "2025-04-21",
+        		        "4. Output Size": "Compact",
+        		        "5. Time Zone": "US/Eastern"
+        		    },
+        		                "Time Series (Daily)": {                
+        		        		    
+        		        "2025-04-21": {
+        		            "1. open": "169.6000",
+        		            "2. high": "169.6000",
+        		            "3. low": "165.2850",
+        		            "4. close": "167.3200",
+        		            "5. volume": "48126111"
+        		        },
+        		        "2025-04-17": {
+        		            "1. open": "176.0000",
+        		            "2. high": "176.2100",
+        		            "3. low": "172.0000",
+        		            "4. close": "172.6100",
+        		            "5. volume": "44726453"
+        		        },
+        		        "2025-04-16": {
+        		            "1. open": "176.2900",
+        		            "2. high": "179.1046",
+        		            "3. low": "171.4100",
+        		            "4. close": "174.3300",
+        		            "5. volume": "51875316"
+        		        },
+        		        "2025-04-15": {
+        		            "1. open": "181.4100",
+        		            "2. high": "182.3500",
+        		            "3. low": "177.9331",
+        		            "4. close": "179.5900",
+        		            "5. volume": "43641952"
+        		        }
+
+        		                }
+        		            }
+        		            """;
+    }
+    
+    @Test    
+    public void testGetMarketData() {
+    	
+    	logger.info("=== Executing test: testGetMarketData");    	    	
+    	
+    	Map<String, String> quetaData = new HashMap<>();
+    	quetaData.put("01. symbol", "AAPL");
+    	quetaData.put("02. open", "207.67");
+    	quetaData.put("05. price", "206.86");
+    	quetaData.put("06. volume", "40912064");
+    	
+    	Map<String, Object> globalQuote = new HashMap<>();
+    	globalQuote.put("Global Quote", quetaData);
+    	
+    	when(restTemplate.getForObject(ArgumentMatchers.contains("symbol=AAPL"), eq(Map.class))).thenReturn(globalQuote);
+    	
+    	Optional<BigDecimal> price = marketDataService.getStockQuote("AAPL");
+    	
+    	BigDecimal currentPrice = price.get();
+    	
+    	logger.info("Mapeo de actualResponse. \"05. price\": {}", price.get());
+    	    	
+    	assertNotNull(price);
+    	assertEquals(new BigDecimal("206.86"), currentPrice);    	        	    	
+    }
+    
+    @Test
+    void getPriceForDate_validDate_returnsPrice() throws JsonProcessingException, Exception{
+    	logger.info("=== Executing test: getPriceForDate_validDate_returnsPrice");
+    	
+     	String symbol = "AMZN";
+     	
+     	LocalDate date = LocalDate.of(2025, 04, 16);    	    
+      
+     	logger.info("Consultando precio para {} en fecha {}", symbol, date);
+     	
+        //ResponseEntity<String> mockResponse = new ResponseEntity<>(mockJson, HttpStatus.OK);
+        
+
+        Map<String, Object> mockResponse = new ObjectMapper().readValue(mockJsonHistorical, new TypeReference<Map<String, Object>>() {});
+	        
+     	
+    	when(restTemplate.getForObject(contains("symbol=AMZN"), eq(Map.class))).thenReturn(mockResponse);
+    	
+    	Optional<BigDecimal> price = marketDataService.getClosePriceForDate(symbol, date);
+    	
+    	logger.info("Mapeo de price por fecha. Fecha:{}, \"05. price\": {}",date, price.get());
+    	
+    	assertTrue(price.isPresent());
+    	//assertEquals(new BigDecimal("238.2600"),price.get());
+    	//assertEquals(date,);
     }
  
     @Test
@@ -69,6 +182,50 @@ class MarketDataServiceTest {
 
         assertTrue(price.isPresent(), "El precio no debe ser vacío");
         assertEquals(new BigDecimal("233.1400"), price.get());
+    }
+    
+    @Test    
+    void getDailyPrice_invalidDate_returnsEmpty() throws JsonProcessingException, Exception {
+         String symbol = "AAPL";
+        LocalDate date = LocalDate.of(2024, 2, 8);
+
+        String mockApiResponse = """
+            {                "Meta Data": {
+                    "1. Information": "Daily Prices (open, high, low, close) and Volumes",
+                    "2. Symbol": "AAPL",
+                    "3. Last Refreshed": "2025-05-20",
+                    "4. Output Size": "Compact",
+                    "5. Time Zone": "US/Eastern"
+                },
+              "Time Series (Daily)": {
+                "2024-01-09": {
+                  "1. open": "150.00",
+                  "2. high": "152.00",
+                  "3. low": "149.00",
+                  "4. close": "151.00",
+                  "5. volume": "1000000"
+                },
+                "2024-01-10": {
+                  "1. open": "152.00",
+                  "2. high": "153.00",
+                  "3. low": "150.00",
+                  "4. close": "152.50",
+                  "5. volume": "1200000"
+                }
+              }
+            }
+            """;
+
+        //ResponseEntity<String> mockResponse = new ResponseEntity<>(mockApiResponse, HttpStatus.OK);
+        
+        Map<String, Object> mockResponse = new ObjectMapper().readValue(mockApiResponse, new TypeReference<Map<String, Object>>() {});
+
+     	
+    	when(restTemplate.getForObject(contains("symbol=AAPL"), eq(Map.class))).thenReturn(mockResponse);
+    	
+    	Optional<BigDecimal> price = marketDataService.getClosePriceForDate(symbol, date);
+
+        assertEquals(Optional.empty(), price);
     }
    
     @Test
