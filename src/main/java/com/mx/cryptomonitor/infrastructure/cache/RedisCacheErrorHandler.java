@@ -13,25 +13,25 @@ public class RedisCacheErrorHandler implements CacheErrorHandler{
 	@Override
 	public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
 		// TODO Auto-generated method stub
-		log.warn("Redus GET error for key '{}': {}", key, exception.getMessage());
+		log.warn("Redus GET error for key '{}': {} ({})", key, exception.getMessage(), exception.getClass().getSimpleName());
 	}
 
 	@Override
 	public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
 		// TODO Auto-generated method stub
-		log.warn("Redis PUT error for key '{}': {}", key, exception.getMessage());				
+		log.warn("Redis PUT error for key '{}': {} ({})", key, exception.getMessage(), exception.getClass().getSimpleName());				
 	}
 
 	@Override
 	public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
 		// TODO Auto-generated method stub
-		log.warn("Redis EVICT error for key '{}': {}", key, exception.getMessage());
+		log.warn("Redis EVICT error for key '{}': {} ({})", key, exception.getMessage(), exception.getClass().getSimpleName());
 	}
 
 	@Override
 	public void handleCacheClearError(RuntimeException exception, Cache cache) {
 		// TODO Auto-generated method stub
-		log.warn("Redis CLEAR error for cache '{}': {}", cache.getName(), exception.getMessage());
+		log.warn("Redis CLEAR error for cache '{}': {} ({})", cache.getName(), exception.getMessage(), exception.getClass().getSimpleName());
 	}
 
 }
