@@ -29,6 +29,9 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+###evita subir tests###
+src/test/java/com/mx/cryptomonitor/**
+
 ### VS Code ###
 .vscode/
 # Evita subir log
@@ -43,5 +46,6 @@ src/main/resources/application.properties
 
 #### Variables de Entorno ###
 .env
+#### Description of Directories and Files ###
 /Description\ of\ Directories\ and\ Files
-.env
+
