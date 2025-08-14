@@ -62,7 +62,7 @@ pipeline {
 	post {
 		success {
 			echo "Build exitoso"
-			echo "API KEY: ${env.MENSSEGER_TO_THE_JENKINS}"
+			echo "MENSSEGER_TO_THE_JENKINS: ${env.MENSSEGER_TO_THE_JENKINS}"
 		}
 		failure {
 			echo "Falló el build"

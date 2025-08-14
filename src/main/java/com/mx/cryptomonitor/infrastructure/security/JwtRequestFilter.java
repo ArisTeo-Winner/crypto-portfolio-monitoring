@@ -52,6 +52,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         "/api/v1/users/register",
         "/api/v1/users/refresh",
         "/api/v1/users/public/test",
+        "/api/v1/marketdata/**",
         "/swagger-ui/**", 
         "/v3/api-docs/**", 
         "/swagger-ui.html"

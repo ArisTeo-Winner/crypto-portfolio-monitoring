@@ -12,13 +12,25 @@ services:
     networks:
       - app_network
     volumes: 
-      - pg_data:/var/lib/postgresql/data
+      - shared_pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app_network
+    volumes:
+      - redis_data:/data
+
 
   java_app:
     build: .
     container_name: java_app
     depends_on:
       - java_db
+      - redis
     environment:
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USER}
@@ -29,6 +41,9 @@ services:
       API_ALPHAVANTAGE_BASE_URL: ${API_ALPHAVANTAGE_BASE_URL}
       API_ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY}
 
+      MENSSEGER_ASSETS: ${MENSSEGER_ASSETS}
+      
+      REDIS_HOST: ${REDIS_HOST}
     networks:
       - app_network
     ports:
@@ -38,5 +53,5 @@ networks:
   app_network:
 
 volumes:
-  pg_data:
+  shared_pg_data:
   redis_data:

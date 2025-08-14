@@ -171,9 +171,9 @@ public class UserController {
         }
     }
     
-    @GetMapping("/public/test")
+    @GetMapping("/public/test-get")
     public ResponseEntity<String> testPublicEndpoint() {
-        return ResponseEntity.ok("Endpoint público funcionando");
+        return ResponseEntity.ok("Endpoint público GET funcionando");
     }
     
     @PostMapping("/public/test-post")

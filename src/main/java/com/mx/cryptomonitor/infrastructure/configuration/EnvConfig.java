@@ -9,8 +9,12 @@ import lombok.Getter;
 
 @Getter
 @Configuration
-@PropertySource("classpath:application.properties")
+//@PropertySource("classpath:application.properties")
 public class EnvConfig {
+	
+    @Value("${msg.assets}")
+    private String msgAssets;
+	
 /*
     @PostConstruct
     public void loadEnv() {
