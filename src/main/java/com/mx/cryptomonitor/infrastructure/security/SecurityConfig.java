@@ -70,11 +70,14 @@ public class SecurityConfig {
                                 "/api/v1/users/register",
                                 "/api/v1/users/login",
                                 "/api/v1/marketdata/stock",
-                                "/api/v1/marketdata/historical/{symbol}/{date}",
+                                "/api/v1/marketdata/**",
+                                "/api/v1/marketdata/stock/historical/{symbol}/{date}",
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/refresh",
                                 "/api/v1/users/public/test",
                                 "/api/v1/users/public/test-post",
+                                "/oauth/authorize/**",
+                                "/oauth/callback/**",
                                 "/swagger-ui/**", 
                                 "/v3/api-docs/**", 
                                 "/swagger-ui.html"
@@ -96,11 +99,20 @@ public class SecurityConfig {
                                 "/api/v1/transactions/{userId}")
                         .authenticated() // Requiere autenticación
                         .anyRequest().authenticated())
+                .oauth2Login(oauth2 -> oauth2
+                		.loginPage("/login")
+                		.defaultSuccessUrl("/dashboard", true)
+                		)
+                .logout(oauth2 -> oauth2
+                		.logoutUrl("/logout")
+                		.logoutSuccessUrl("/")
+                		)
                 .exceptionHandling(exception -> exception
                 		.accessDeniedHandler(customAccessDeniedHandler)
                 		.authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 										 )
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                		);
 
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 

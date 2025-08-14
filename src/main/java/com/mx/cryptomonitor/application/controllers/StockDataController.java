@@ -58,7 +58,7 @@ public class StockDataController {
             throw new IllegalArgumentException("El símbolo de la acción no debe ser nulo ni vacío.");
         }
         
-        Optional<BigDecimal> priceOpt = marketDataService.getStockPrice(symbol);
+        Optional<BigDecimal> priceOpt = marketDataService.getStockQuote(symbol);
         return priceOpt
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -66,16 +66,16 @@ public class StockDataController {
     }
     
     /**
-     * GET /api/market/stocks/historical/{symbol}/{date}
+     * GET /api/v1/marketdata/stock/historical/{symbol}/{date}
      * Obtiene el precio histórico de cierre de una acción para la fecha especificada.
      *
-     *Ej:http://localhost:8080/api/v1/marketdata/historical/AMZN/2025-01-02
+     *Ej:http://localhost:8080/api/v1/marketdata/stock/historical/AMZN/2025-01-02
      *
      * @param symbol Símbolo de la acción (por ejemplo, "AMZN")
      * @param date   Fecha en formato ISO (yyyy-MM-dd)
      * @return Precio histórico de cierre o un mensaje de error
      */
-    @GetMapping("/historical/{symbol}/{date}")
+    @GetMapping("/stock/historical/{symbol}/{date}")
     public ResponseEntity<?> getHistoricalStockPrice(
             @PathVariable("symbol") String symbol,
             @PathVariable("date") String date) {
