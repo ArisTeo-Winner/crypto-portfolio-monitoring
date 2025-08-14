@@ -42,4 +42,4 @@ src/test/java/
 src/main/resources/application.properties
 
 #### Variables de Entorno ###
-.env
+.env/Description of Directories and Files
