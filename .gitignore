@@ -45,11 +45,9 @@ src/test/java/
 src/main/resources/application.properties
 
 #### Variables de Entorno ###
-<<<<<<< HEAD
-/.env
+
+.env
 
 #### Carpetas a ignorar ###
 /Query/
-=======
-.env/Query/
->>>>>>> origin/dev
+
