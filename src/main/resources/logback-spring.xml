@@ -138,17 +138,20 @@
 			<appender-ref ref="FILE_TEST" />
 		</logger>
 
-		<!-- Loggers para caché Spring 
+		<!-- Loggers para caché Spring
 		<logger
 			name="org.springframework.cache.interceptor.CacheInterceptor"
 			level="TRACE">
 			<appender-ref ref="CONSOLE" />
 		</logger>
-		-->
+		 -->
+		 <logger 
+		 	name="com.mx.cryptomonitor.infrastructure.config.RedisCacheErrorHandler"
+        	level="WARN"
+        	additivity="false">
+  			<appender-ref ref="CONSOLE"/>
+		</logger>		 
 
-		<logger name="com.mx.cryptomonitor.infrastructure.config.RedisCacheErrorHandler" level="WARN">
-		 	<appender-ref ref="CONSOLE"/>
-		</logger>
 		<!-- o, si prefieres ver todo CacheInterceptor también: -->
 		<!-- <logger name="org.springframework.cache.interceptor" level="TRACE"/> -->
 				
@@ -169,8 +172,12 @@
 		<!-- <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" 
 			additivity="false"> <appender-ref ref="FILE_TEST" /> </logger> -->
 	</springProfile>
+	
+	
 
-	<!-- Configuración por defecto (si no hay perfil activo) -->
+	<!--
+	/////////////////////////////////////////////////////	
+	 Configuración por defecto (si no hay perfil activo) -->
 	<springProfile name="!test,!dev,!prod">
 		<root level="INFO">
 			<appender-ref ref="CONSOLE" />
