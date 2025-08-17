@@ -41,5 +41,9 @@ src/test/java/
 # Evita subir credenciales
 src/main/resources/application.properties
 
-#### Variables de Entorno ###
-.env/Query/
+#### Variables de Entorno ### 
+.env 
+#### Carpetas a ignorar ### 
+/Query/
+
+/src/main/resources/static/
