@@ -36,7 +36,6 @@ build/
 
 logsTest/
 Query/
-src/test/java/
 
 # Evita subir credenciales
 src/main/resources/application.properties
@@ -51,6 +50,9 @@ src/main/resources/application.properties
 /src/main/resources/db/migration/
 
 # Ignora TODO lo de tests bajo el paquete cryptomonitor…
-!src/test/java/com/mx/cryptomonitor/**
+src/test/java/com/mx/cryptomonitor/**
+
+# …pero PERMITE estas rutas concretas (deshacer ignorado, de arriba hacia abajo)
+
 !src/test/java/com/mx/cryptomonitor/integration/
-!src/test/java/com/mx/cryptomonitor/unit/service
+!src/test/java/com/mx/cryptomonitor/unit/service/
