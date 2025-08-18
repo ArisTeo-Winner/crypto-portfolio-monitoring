@@ -40,6 +40,7 @@ Query/
 # Evita subir credenciales
 src/main/resources/application.properties
 
+/Description_of_Directories_and_Files.txt
 #### Variables de Entorno ### 
 .env 
 #### Carpetas a ignorar ### 
