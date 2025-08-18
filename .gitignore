@@ -53,6 +53,9 @@ src/main/resources/application.properties
 src/test/java/com/mx/cryptomonitor/**
 
 # …pero PERMITE estas rutas concretas (deshacer ignorado, de arriba hacia abajo)
-
+!src/test/java/com/mx/cryptomonitor/
 !src/test/java/com/mx/cryptomonitor/integration/
+!src/test/java/com/mx/cryptomonitor/integration/**
+!src/test/java/com/mx/cryptomonitor/unit/
 !src/test/java/com/mx/cryptomonitor/unit/service/
+!src/test/java/com/mx/cryptomonitor/unit/service/**
