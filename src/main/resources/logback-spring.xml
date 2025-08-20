@@ -119,11 +119,7 @@
 		</logger>
 		<!-- <logger name="org.hibernate.SQL" level="DEBUG" additivity="false"> 
 			<appender-ref ref="FILE_TEST" /> </logger> -->
-		<logger name="logging.level.com.mx.cryptomonitor" level="DEBUG"
-			additivity="false">
-			<appender-ref ref="CONSOLE" />
-			<appender-ref ref="FILE_TEST" />
-		</logger>
+
 
 		<logger
 			name="com.mx.cryptomonitor.infrastructure.api.MarketDataService"
@@ -205,7 +201,7 @@
 			<appender-ref ref="CONSOLE" />
 		</logger>
 		
-		<logger name="logging.level.org.springframework.boot.context.properties.bind"
+		<logger name="org.springframework.boot.context.properties.bind"
 			level="DEBUG" additivity="false">
 			<appender-ref ref="CONSOLE" />
 		</logger>
