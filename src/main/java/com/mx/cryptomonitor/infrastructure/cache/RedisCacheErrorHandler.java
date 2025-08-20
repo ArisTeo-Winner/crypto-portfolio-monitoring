@@ -13,7 +13,7 @@ public class RedisCacheErrorHandler implements CacheErrorHandler{
 	@Override
 	public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
 		// TODO Auto-generated method stub
-		log.warn("Redus GET error for key '{}': {} ({})", key, exception.getMessage(), exception.getClass().getSimpleName());
+		log.warn("Redis GET error for key '{}': {} ({})", key, exception.getMessage(), exception.getClass().getSimpleName());
 	}
 
 	@Override
