@@ -36,10 +36,27 @@ build/
 
 logsTest/
 Query/
-src/test/java/
 
 # Evita subir credenciales
 src/main/resources/application.properties
 
-#### Variables de Entorno ###
-.env/Query/
+/Description_of_Directories_and_Files.txt
+#### Variables de Entorno ### 
+.env 
+#### Carpetas a ignorar ### 
+/Query/
+
+/src/main/resources/static/
+
+/src/main/resources/db/migration/
+
+# Ignora TODO lo de tests bajo el paquete cryptomonitor…
+src/test/java/com/mx/cryptomonitor/**
+
+# …pero PERMITE estas rutas concretas (deshacer ignorado, de arriba hacia abajo)
+!src/test/java/com/mx/cryptomonitor/
+!src/test/java/com/mx/cryptomonitor/integration/
+!src/test/java/com/mx/cryptomonitor/integration/**
+!src/test/java/com/mx/cryptomonitor/unit/
+!src/test/java/com/mx/cryptomonitor/unit/service/
+!src/test/java/com/mx/cryptomonitor/unit/service/**
