@@ -12,7 +12,20 @@ pipeline {
 			}
 		}
 
-
+		stage('Carga .env'){
+			steps {
+				script {
+					def envFile = readFile('.env').split('\n')
+					envFile.each {
+						if (it && it.contains('=')) {
+							def (key, value) = it.split('=')
+							env[key.trim()] = value.trim()
+						}
+					}
+				}				
+			}			
+		}
+		
 		stage('Test'){
 			steps {
 				withEnv([
@@ -30,19 +43,7 @@ pipeline {
 				}
 			}
 		}
-		stage('Carga .env'){
-			steps {
-				script {
-					def envFile = readFile('.env').split('\n')
-					envFile.each {
-						if (it && it.contains('=')) {
-							def (key, value) = it.split('=')
-							env[key.trim()] = value.trim()
-						}
-					}
-				}				
-			}			
-		}		
+		
 		stage('Build JAR'){
 			steps {
 				bat 'mvn clean package -DskipTests'
