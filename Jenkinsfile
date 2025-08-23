@@ -4,6 +4,10 @@ pipeline {
 		maven 'Maven 3.9.9'
 		jdk 'jdk-21'
 	}
+	 environment {
+		SPRING_PROFILES_ACTIVE = 'test'
+	 }
+	
 	stages {
 		
 		stage('Checkout') {
@@ -27,6 +31,12 @@ pipeline {
 		}
 		
 		stage('Test'){
+			when {
+				anyOf {
+					branch 'dev'
+				}
+			}
+			
 			steps {
 				withEnv([
 					'SPRING_DATASOURCE_URL=',
