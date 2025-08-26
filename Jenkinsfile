@@ -12,7 +12,9 @@ pipeline {
 		
 		stage('Checkout') {
 			steps {
-				git url: 'https://github.com/ArisTeo-Winner/crypto-portfolio-monitoring.git', credentialsId: 'github-creds'
+				git url: 'https://github.com/ArisTeo-Winner/crypto-portfolio-monitoring.git',
+					branch:'feature/jenkins-pipeline' 
+					credentialsId: 'github-creds'
 			}
 		}
 
