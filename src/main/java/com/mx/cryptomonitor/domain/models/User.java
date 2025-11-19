@@ -3,7 +3,9 @@ package com.mx.cryptomonitor.domain.models;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -31,8 +33,9 @@ public class User {
     @NotBlank(message = "Email is mandatory")
     private String email;
 
-    @NotBlank(message = "Password is mandatory")
+    //@NotBlank(message = "Password is mandatory")
     private String passwordHash;
+    
 
     @JsonProperty("firstName")
     @Column(name = "first_name")

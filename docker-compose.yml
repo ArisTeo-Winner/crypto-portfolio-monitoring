@@ -44,6 +44,9 @@ services:
       MENSSEGER_ASSETS: ${MENSSEGER_ASSETS}
       
       REDIS_HOST: ${REDIS_HOST}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}	  
     networks:
       - app_network
     ports:

@@ -21,11 +21,22 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.security.web.firewall.StrictHttpFirewall;
 
+import com.mx.cryptomonitor.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
+import com.mx.cryptomonitor.infrastructure.security.oauth.CustomOAuth2UserService;
+import com.mx.cryptomonitor.infrastructure.security.oidc.CustomOidcUserService;
+import com.nimbusds.openid.connect.sdk.claims.UserInfo;
+
+import lombok.RequiredArgsConstructor;
+
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtUserDetailsService userDetailsService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOidcUserService customOidcUserService;
 
     @Autowired
     private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
@@ -39,12 +50,6 @@ public class SecurityConfig {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    public SecurityConfig(JwtUserDetailsService userDetailsService, PasswordEncoder passwordEncoder, CustomAccessDeniedHandler customAccessDeniedHandler) {
-        this.userDetailsService = userDetailsService;
-        this.passwordEncoder = passwordEncoder;
-        this.customAccessDeniedHandler= customAccessDeniedHandler;
-    }
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
@@ -80,7 +85,9 @@ public class SecurityConfig {
                                 "/oauth/callback/**",
                                 "/swagger-ui/**", 
                                 "/v3/api-docs/**", 
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/api/v1/oauth2/**",
+                                "/actuator/health"
                                 )
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/transactions/{userId}/{assetSymbol}").hasRole("USER")
@@ -102,6 +109,12 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                 		.loginPage("/login")
                 		.defaultSuccessUrl("/dashboard", true)
+                		.userInfoEndpoint(userInfo -> userInfo
+                				
+                				.userService(customOAuth2UserService)
+                				.oidcUserService(customOidcUserService)                				
+                				)
+                		.successHandler(oAuth2AuthenticationSuccessHandler)
                 		)
                 .logout(oauth2 -> oauth2
                 		.logoutUrl("/logout")

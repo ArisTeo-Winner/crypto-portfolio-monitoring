@@ -3,6 +3,7 @@ package com.mx.cryptomonitor.domain.models;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -33,10 +34,10 @@ public class Session {
     private UUID refreshTokenId;
 	
 	@Column(name = "login_time")
-	private LocalDateTime loginTime;
+	private OffsetDateTime loginTime;
 	
 	@Column(name = "logout_time")
-	private LocalDateTime logoutTime;
+	private OffsetDateTime logoutTime;
 	
 	@Column(name = "is_active")
     private boolean active = true;

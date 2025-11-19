@@ -1,5 +1,7 @@
 package com.mx.cryptomonitor.application.controllers;
 
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,7 @@ import com.mx.cryptomonitor.infrastructure.security.JwtTokenUtil;
 import com.mx.cryptomonitor.infrastructure.security.JwtUserDetailsService;
 import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
 import com.mx.cryptomonitor.shared.dto.response.JwtResponse;
+import com.mx.cryptomonitor.shared.dto.response.UserResponse;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -131,5 +134,12 @@ public class AuthController {
 	public String dashboard(@AuthenticationPrincipal OAuth2User principal) {
 		return "Bienvenido, "+principal.getAttribute("name");
 	}
+	
+	// Google OAuth Endpoints
+	public ResponseEntity<JwtResponse> registerWithGoogle(@RequestBody Map<String, String> request){
+		String token = request.get("token");
+		return null;
+	}
+	
 
 }

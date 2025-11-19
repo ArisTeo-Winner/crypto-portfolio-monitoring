@@ -71,27 +71,7 @@ class UserServiceTest {
         
         UUID userId = UUID.randomUUID();
 
-		User expectedUser = new User(
-				userId, 
-				"Paul_Leo", 
-				"paul@example.com", 
-				"passwordHash", 
-				"Paul", 
-				"Leo", 
-				null, 
-				null, 
-				null, 
-				null, 
-				null, 
-				null, 
-				null, 
-				null, 
-				null, 
-				false, 
-				null, 
-				null, 
-				null, 
-				null);
+		User expectedUser = new User();
 		
 		when(userRepository.findById(userId)).thenReturn(Optional.of(expectedUser));
 		
