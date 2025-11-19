@@ -185,7 +185,7 @@ class TransactionIntegrationTest {
 		
 		for (Iterator iterator = transactionResponse.iterator(); iterator.hasNext();) {
 			TransactionResponse transactionResponse2 = (TransactionResponse) iterator.next();
-			logger.info(transactionResponse2.toString());
+			logger.info("::",transactionResponse2.toString());
 		}
 		
 		

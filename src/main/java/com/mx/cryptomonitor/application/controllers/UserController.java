@@ -36,8 +36,7 @@ import com.mx.cryptomonitor.infrastructure.security.AuthenticationService;
 import com.mx.cryptomonitor.infrastructure.security.JwtTokenUtil;
 import com.mx.cryptomonitor.infrastructure.security.JwtUserDetailsService;
 //import com.mx.cryptomonitor.shared.dto.LoginRequest;
-import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
-import com.mx.cryptomonitor.shared.dto.request.RefreshTokenRequest;
+
 import com.mx.cryptomonitor.shared.dto.request.UserRegistrationRequest;
 
 import com.mx.cryptomonitor.shared.dto.response.UserResponse;
@@ -46,9 +45,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
-import com.mx.cryptomonitor.shared.dto.response.JwtResponse;
-
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 

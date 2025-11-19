@@ -29,13 +29,15 @@ public class TokenService {
     private final SessionRepository sessionRepository;
 	
     private final JwtTokenUtil jwtTokenUtil;
-/*
+    
+    private SessionService sessionService;
+
     @Transactional
-    public JwtResponse generateTokens(User user, String ipAddress, String userAgent) {
+    public RefreshToken accessToken(User user, String ipAddress, String userAgent) {
     	
     	logger.info("--TokenService >>> generateTokens()--");
     	
-        String accessToken = jwtTokenUtil.generateAccessToken(user, null)
+        //String accessToken = jwtTokenUtil.generateAccessToken(user, null)
         String refreshTokenValue = jwtTokenUtil.generateRefreshToken(user.getEmail());
 
         RefreshToken refreshToken = RefreshToken.builder()
@@ -47,13 +49,14 @@ public class TokenService {
         .userAgent(userAgent)
         .build();
         
-        refreshTokenRepository.save(refreshToken);
+        return refreshTokenRepository.save(refreshToken);
         
-    	logger.info("Respuesta JwtResponse: {}, {}",accessToken,refreshTokenValue);        
+        
+    	//logger.info("Respuesta JwtResponse: {}, {}",accessToken,refreshTokenValue);        
 
-        return new JwtResponse(accessToken, refreshTokenValue);
+        //return refreshToken.getId();
     }
-
+/*
     @Transactional
     public JwtResponse refreshAccessToken(String refreshTokenValue) {
     	

@@ -3,8 +3,10 @@ package com.mx.cryptomonitor.domain.services;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.chrono.ChronoLocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -31,6 +33,7 @@ import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
 import com.mx.cryptomonitor.shared.dto.response.JwtResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -49,8 +52,6 @@ public class AuthService {
 	private final SessionRepository sessionRepository;
 	
     private final JwtUserDetailsService userDetailsService;
-
-    private final TokenService tokenService;
     
     private final JwtTokenUtil jwtTokenUtil;
 
@@ -96,7 +97,7 @@ public class AuthService {
          // Crear sesión
          Session session = new Session();
          session.setUser(user);
-         session.setLoginTime(LocalDateTime.now());
+         session.setLoginTime(OffsetDateTime.now());
          session.setActive(true);
          session.setRefreshTokenId(rt.getId());
          sessionRepository.save(session);
@@ -139,7 +140,7 @@ public class AuthService {
                 return new InvalidTokenException("Sesión no encontrada");
             });
         session.setActive(false);
-        session.setLogoutTime(LocalDateTime.now());
+        session.setLogoutTime(OffsetDateTime.now());
         sessionRepository.save(session);
         logger.info("Sesión cerrada para usuario: {}", refreshToken.getUser());
     }   
@@ -187,7 +188,7 @@ public class AuthService {
         // Crear sesión
         session = new Session();
         session.setUser(user);
-        session.setLoginTime(LocalDateTime.now());
+        session.setLoginTime(OffsetDateTime.now());
         session.setActive(true);
         session.setRefreshTokenId(rt.getId());
         sessionRepository.save(session);
@@ -196,16 +197,14 @@ public class AuthService {
         String newAccessToken = jwtTokenUtil.generateAccessToken(user.getEmail(), session.getSessionId());
         
         //auditLogService.logEvent(user.getId(), "TOKEN_REFRESHED", "Token de acceso renovado desde " + ipAddress);
-        
-
-        
+                
         return new JwtResponse(newAccessToken, newRefreshToken);
     }
     
     public Session createSession(User user) {
         Session session = new Session();
         session.setUser(user);
-        session.setLoginTime(LocalDateTime.now());
+        session.setLoginTime(OffsetDateTime.now());
         session.setActive(true);
         session.setRefreshTokenId(null);
         return sessionRepository.save(session);
@@ -215,12 +214,44 @@ public class AuthService {
     public void closeSession(UUID sessionId) {
         Session session = sessionRepository.findById(sessionId)
             .orElseThrow(() -> new IllegalArgumentException("Sesión no encontrada"));
-        session.setLogoutTime(LocalDateTime.now());
+        session.setLogoutTime(OffsetDateTime.now());
         session.setActive(false);
         sessionRepository.save(session);
     }
 
-    
+    @Transactional
+    public JwtResponse issueTokensForUser(User user, HttpServletRequest request) {
+
+        String ipAddress = Optional.ofNullable(request.getHeader("X-Forwarded-For"))
+                .filter(s -> !s.isBlank()).orElseGet(request::getRemoteAddr);
+        String userAgent = Optional.ofNullable(request.getHeader("User-Agent")).orElse("unknown");
+
+        String refreshTokenValue = jwtTokenUtil.generateRefreshToken(user.getEmail());
+
+        RefreshToken rt = RefreshToken.builder()
+            .user(user)
+            .refreshToken(refreshTokenValue)
+            .createdAt(LocalDateTime.now())
+            .expiresAt(LocalDateTime.now().plusDays(7))
+            .ipAddress(ipAddress)
+            .userAgent(userAgent)
+            .revoked(false)
+            .build();
+        refreshTokenRepository.save(rt);
+
+        Session session = new Session();
+        session.setUser(user);
+        session.setLoginTime(OffsetDateTime.now());
+        session.setActive(true);
+        session.setRefreshTokenId(rt.getId());
+        sessionRepository.save(session);
+
+        user.setLastLogin(LocalDateTime.now());
+        userRepository.save(user);
+
+        String accessToken = jwtTokenUtil.generateAccessToken(user.getEmail(), session.getSessionId());
+        return new JwtResponse(accessToken, refreshTokenValue);
+    }
 	
 	
 	/*
