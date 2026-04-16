@@ -1,5 +1,6 @@
 HELP.md
 target/
+.scannerwork/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -33,6 +34,14 @@ build/
 .vscode/
 # Evita subir log
 /logs/
+*.log
+mvn_output*.txt
+build*.log
+output_*.txt
+out.txt
+jacoco_*.csv
+jacoco.exec
+dependency-reduced-pom.xml
 
 logsTest/
 Query/
@@ -51,9 +60,11 @@ src/main/resources/application.properties
 /src/main/resources/db/migration/
 
 # Ignora TODO lo de tests bajo el paquete cryptomonitor…
+/src/test/**
 src/test/java/com/mx/cryptomonitor/**
 
 # …pero PERMITE estas rutas concretas (deshacer ignorado, de arriba hacia abajo)
+
 !src/test/java/com/mx/cryptomonitor/
 !src/test/java/com/mx/cryptomonitor/integration/
 !src/test/java/com/mx/cryptomonitor/integration/**
