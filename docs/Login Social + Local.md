@@ -1,0 +1,27 @@
+flowchart TD
+    A[Usuario accede a login/registro] --> B1[Email/Contraseña] 
+    A --> B2[Continuar con Google]
+    A --> B3[Continuar con Apple]
+    A --> B4[Continuar con Telegram]
+
+    B1 --> C1[POST /auth/login]
+    C1 --> D1[Validar credenciales]
+    D1 --> E1[Emitir JWT internos]
+    E1 --> F[Sesión en app]
+
+    B2 --> C2["Redirigir a Google (Auth Endpoint)"]
+    C2 --> D2[Google redirige a /oauth/callback/google]
+    D2 --> E2[Validar token Google]
+    E2 --> G[Buscar/crear usuario interno]
+    G --> H[Emitir JWT internos]
+    H --> F[Sesión en app]
+
+    B3 --> C3[Redirigir a Apple]
+    C3 --> D3[Apple redirige a /oauth/callback/apple]
+    D3 --> E3[Validar token Apple]
+    E3 --> G[Buscar/crear usuario interno]
+
+    B4 --> C4[Redirigir a Telegram]
+    C4 --> D4[Telegram redirige a /oauth/callback/telegram]
+    D4 --> E4[Validar token Telegram]
+    E4 --> G[Buscar/crear usuario interno]

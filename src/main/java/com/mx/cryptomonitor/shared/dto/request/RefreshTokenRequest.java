@@ -1,5 +1,3 @@
 package com.mx.cryptomonitor.shared.dto.request;
 
-public record RefreshTokenRequest(String refreshToken) {
-
-}
+public record RefreshTokenRequest(String refreshToken) {}

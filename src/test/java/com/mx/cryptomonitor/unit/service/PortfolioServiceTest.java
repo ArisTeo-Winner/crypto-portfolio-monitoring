@@ -1,262 +1,459 @@
 package com.mx.cryptomonitor.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.h2.command.dml.MergeUsing.When;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
-import com.mx.cryptomonitor.application.mappers.TransactionMapper;
-import com.mx.cryptomonitor.domain.models.PortfolioEntry;
-import com.mx.cryptomonitor.domain.models.Transaction;
-import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.repositories.PortfolioEntryRepository;
-import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
-import com.mx.cryptomonitor.domain.repositories.UserRepository;
-import com.mx.cryptomonitor.domain.services.PortfolioService;
-import com.mx.cryptomonitor.infrastructure.api.MarketDataService;
-import com.mx.cryptomonitor.shared.dto.response.TransactionResponse;
-import com.mx.cryptomonitor.shared.dto.request.TransactionRequest;
-
-
-import java.math.BigDecimal;
-import java.sql.Time;
-import java.util.Optional;
-import java.util.UUID;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePoint;
+import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPriceSeries;
+import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
+import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
+import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
+import com.mx.cryptomonitor.portfolio.application.service.PortfolioService;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
+import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioServiceTest {
 
-    private static final Logger logger = (Logger) LoggerFactory.getLogger(PortfolioServiceTest.class);
+  @Mock private PortfolioEntryRepository portfolioEntryRepository;
+  @Mock private MarketDataProvider marketDataProvider;
+  @Mock private AssetPricePort assetPricePort;
+  @Mock private CryptoHistoricalPricePort cryptoHistoricalPricePort;
+  @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
+  @Mock private TransactionHistoryPort transactionHistoryPort;
 
-    @Mock
-    private UserRepository userRepository;
-    
-    @Mock
-    private TransactionRepository transactionRepository;
+  @InjectMocks private PortfolioService portfolioService;
 
-    @Mock
-    private PortfolioEntryRepository portfolioEntryRepository;
+  @Test
+  void shouldReturnPortfolioEntryByUserAndSymbol() {
+    UUID userId = UUID.randomUUID();
+    PortfolioEntry entry =
+        PortfolioEntry.builder()
+            .assetSymbol("ETH")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.0"))
+            .totalInvested(new BigDecimal("2500.00"))
+            .build();
+    when(portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "ETH"))
+        .thenReturn(Optional.of(entry));
 
-    @Mock
-    private TransactionMapper transactionMapper;
-    
-    @Mock
-    private MarketDataService marketDataService;
+    Optional<PortfolioEntry> result =
+        portfolioService.getPortfolioEntryByUserAndSymbol(userId, "ETH");
 
-    @InjectMocks
-    private PortfolioService portfolioService;
+    assertThat(result).contains(entry);
+    verify(portfolioEntryRepository).findByUserIdAndAssetSymbol(userId, "ETH");
+  }
 
-    private UUID userId;
-    private UUID portfolio_entry_id;
-    private TransactionRequest request;
-    private Transaction transaction;
-    private TransactionResponse response;
-    private PortfolioEntry portfolioEntry;
-    private User user;
+  @Test
+  void shouldRemoveStalePortfolioEntriesWithoutTransactions() {
+    UUID userId = UUID.randomUUID();
+    PortfolioEntry staleEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(userId)
+            .assetSymbol("SOL")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("7"))
+            .totalInvested(new BigDecimal("624.65"))
+            .build();
 
-    @BeforeEach
-    void setUp() {
-        userId = UUID.randomUUID();
-        portfolio_entry_id = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of());
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of(staleEntry));
 
-        
-        user = User.builder()
-        		.id(userId)
-        		.username("testuser")
-        		.email("testuser@gmail.com")
-        		.passwordHash("password123")
-        		.build();
-        
-        //userRepository.save(user);
-       
-        logger.info("Respuesta userRepository.save:{}",user);
-        
-        request = new TransactionRequest(        		
-        		portfolio_entry_id, 
-        		"BTC", 
-        		"CRYPTO", 
-        		"BUY", 
-        		new BigDecimal("1.5"), 
-        		new BigDecimal("50000.00"), 
-        		new BigDecimal("75000.00"), 
-        		null, 
-        		new BigDecimal("0.5"), 
-        		null);
-        
-        logger.info("Respuesta TransactionResponse():{}",response);
+    portfolioService.reconcilePortfolio(userId);
 
-        portfolioEntry = new PortfolioEntry(
-        	portfolio_entry_id, 
-            user, 
-            "BTC", 
-            "CRYPTO",
-            new BigDecimal("2.0"), 
-            new BigDecimal("100000.00"), 
-            new BigDecimal("50000.00"), 
-            new BigDecimal("50000.00"), 
-            new BigDecimal("50000.00"), 
-            new BigDecimal("50000.00"), 
-            null, 
-            null, 
-            null
-        );
-        
-        transaction = new Transaction();
-        transaction.setTransactionId(UUID.randomUUID());
-        transaction.setUser(user);
-        transaction.setPortfolioEntry(portfolioEntry);
-        transaction.setAssetSymbol("BTC");
-        transaction.setAssetType("CRYPTO");
-        transaction.setTransactionType("BUY");
-        transaction.setQuantity(new BigDecimal("1.5"));
-        transaction.setPricePerUnit(new BigDecimal("50000.00"));
-        transaction.setTotalValue(new BigDecimal("75000.00"));
+    verify(portfolioEntryRepository).deleteAllInBatch(List.of(staleEntry));
+  }
 
-        logger.info("Respuesta Transaction():{}",transaction);
+  @Test
+  void shouldNotPersistProjectionWhenPortfolioStateIsAlreadyUpToDate() {
+    UUID userId = UUID.randomUUID();
+    PortfolioEntry entry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(userId)
+            .assetSymbol("ETH")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.0"))
+            .totalInvested(new BigDecimal("2500.00"))
+            .averagePricePerUnit(new BigDecimal("2500.00000000"))
+            .lastTransactionPrice(new BigDecimal("2500.00"))
+            .currentValue(new BigDecimal("2500.00"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.of(2026, 3, 26, 10, 0))
+            .build();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "ETH",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    BigDecimal.ONE,
+                    new BigDecimal("2500.00"),
+                    new BigDecimal("2500.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2026, 3, 26, 10, 0))));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of(entry));
+    when(assetPricePort.getCryptoPriceAmount("ETH"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2500.00")));
 
-        response = new TransactionResponse(
-        		user.getId(), "BTC", "CRYPTO", "BUY", 
-            new BigDecimal("1.5"), new BigDecimal("50000.00"), 
-            new BigDecimal("75000.00"), transaction.getTransactionDate(), 
-            new BigDecimal("10.00"), null, null, null
-        );        
+    portfolioService.reconcilePortfolio(userId);
 
-    }
+    verify(portfolioEntryRepository, never()).saveAll(anyList());
+    verify(portfolioEntryRepository, never()).deleteAllInBatch(anyList());
+  }
 
-    @Test
-    void testRegisterTransaction_Buy() {
-    	
-    	logger.info("=== Ejecutando método testRegisterTransaction_Buy() ===");
-    	
-        assertNotNull(user.getId(), "El ID del usuario no debería ser null");
-        
-        logger.info("El ID del usuario: {}", user.getId());
-        logger.info("Respuesta TransactionRequest():{}",request);
-        logger.info("Respuesta portfolioEntry():{}",portfolioEntry);
-        
-        logger.debug("🔍 Buscando portfolioEntry para userId: {}, assetSymbol: {}", userId, "BTC");
-        Optional<PortfolioEntry> existingEntry = portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "BTC");
-        logger.debug("🔎 ¿PortfolioEntry encontrado?: {}", existingEntry.isPresent());
+  @Test
+  void shouldRetryReconcileWhenOptimisticLockOccursDuringProjectionUpdate() {
+    UUID userId = UUID.randomUUID();
+    PortfolioEntry staleEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(userId)
+            .assetSymbol("ETH")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.0"))
+            .totalInvested(new BigDecimal("2400.00"))
+            .averagePricePerUnit(new BigDecimal("2400.00000000"))
+            .lastTransactionPrice(new BigDecimal("2400.00"))
+            .currentValue(new BigDecimal("2400.00"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.of(2026, 3, 26, 9, 0))
+            .build();
+    PortfolioEntry freshEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(staleEntry.getPortfolioEntryId())
+            .userId(userId)
+            .assetSymbol("ETH")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.0"))
+            .totalInvested(new BigDecimal("2500.00"))
+            .averagePricePerUnit(new BigDecimal("2500.00000000"))
+            .lastTransactionPrice(new BigDecimal("2500.00"))
+            .currentValue(new BigDecimal("2500.00"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.of(2026, 3, 26, 10, 0))
+            .build();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "ETH",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    BigDecimal.ONE,
+                    new BigDecimal("2500.00"),
+                    new BigDecimal("2500.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2026, 3, 26, 10, 0))));
+    when(portfolioEntryRepository.findByUserId(userId))
+        .thenReturn(List.of(staleEntry))
+        .thenReturn(List.of(freshEntry))
+        .thenReturn(List.of(freshEntry));
+    when(assetPricePort.getCryptoPriceAmount("ETH"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2500.00")));
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenThrow(
+            new ObjectOptimisticLockingFailureException(
+                PortfolioEntry.class, staleEntry.getPortfolioEntryId()));
 
-        when(marketDataService.getCryptoPrice("BTC"))
-        .thenReturn(Optional.of(new BigDecimal("50000.00")));  // Simular precio de BTC
+    portfolioService.reconcilePortfolio(userId);
+    List<PortfolioEntry> result = portfolioService.getPortfolioEntriesByUser(userId);
 
-        when(transactionMapper.toEntity(request)).thenReturn(transaction);
-        when(transactionRepository.save(transaction)).thenReturn(transaction);
-        when(portfolioEntryRepository.findByUserIdAndAssetSymbol(any(UUID.class), anyString()))
-                .thenReturn(Optional.of(portfolioEntry));
-        when(transactionMapper.toResponse(transaction)).thenReturn(response);
-        when(userRepository.findById(any(UUID.class)))
-        .thenReturn(Optional.of(user));
-        
-        TransactionResponse result = portfolioService.registerTransaction(user.getId(),request);
-        
-        assertNotNull(result);
-        assertEquals("BTC", result.assetSymbol());
-        assertEquals("BUY", result.transactionType());
-        verify(transactionRepository, times(1)).save(transaction);
-        verify(portfolioEntryRepository, times(1)).save(any(PortfolioEntry.class));
-    }
-/*
-    @Test
-    void testRegisterTransaction_Sell() {
-    	TransactionRequest request_Sell = new TransactionRequest(
-            userId, portfolio_entry_id, "BTC", "CRYPTO", "SELL", new BigDecimal("1.0"), 
-            new BigDecimal("50000.00"), new BigDecimal("50000.00"), 
-            null, new BigDecimal("10.00"), null, "Venta BTC"
-        );
-    	
-        // 📌 Crear una nueva transacción para esta prueba con "SELL"
-        Transaction sellTransaction = Transaction.builder()
-                .transactionId(UUID.randomUUID())
-                .userId(userId)
-                .assetSymbol("BTC")
-                .assetType("CRYPTO")
-                .transactionType("SELL") // 🔥 Asegurar que es "SELL"
-                .quantity(BigDecimal.valueOf(1.0))
-                .pricePerUnit(BigDecimal.valueOf(50000.00))
-                .totalValue(BigDecimal.valueOf(50000.00))
-                .notes("Venta BTC")
-                .build();
-        
-        logger.info("request ::: "+request_Sell);
+    assertThat(result).hasSize(1);
+    assertThat(result.getFirst().getTotalInvested()).isEqualByComparingTo("2500.00");
+    verify(portfolioEntryRepository).saveAll(anyList());
+    verify(portfolioEntryRepository, never()).deleteAllInBatch(anyList());
+  }
 
-        portfolioEntry.setTotalQuantity(new BigDecimal("2.0"));
-        portfolioEntry.setTotalInvested(new BigDecimal("100000.00"));
+  @Test
+  void shouldReturnPersistedPortfolioEntriesWhenOptimisticLockPersistsAcrossRetries() {
+    UUID userId = UUID.randomUUID();
+    UUID portfolioEntryId = UUID.randomUUID();
+    PortfolioEntry staleEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(portfolioEntryId)
+            .userId(userId)
+            .assetSymbol("HYPE")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.0"))
+            .totalInvested(new BigDecimal("13.40"))
+            .averagePricePerUnit(new BigDecimal("13.40000000"))
+            .lastTransactionPrice(new BigDecimal("38.34"))
+            .currentValue(new BigDecimal("38.34"))
+            .totalProfitLoss(new BigDecimal("24.94"))
+            .updatedAt(LocalDateTime.of(2026, 4, 8, 18, 0))
+            .build();
+    PortfolioEntry staleEntrySecondAttempt =
+        PortfolioEntry.builder()
+            .portfolioEntryId(portfolioEntryId)
+            .userId(userId)
+            .assetSymbol("HYPE")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.0"))
+            .totalInvested(new BigDecimal("13.40"))
+            .averagePricePerUnit(new BigDecimal("13.40000000"))
+            .lastTransactionPrice(new BigDecimal("38.34"))
+            .currentValue(new BigDecimal("38.34"))
+            .totalProfitLoss(new BigDecimal("24.94"))
+            .updatedAt(LocalDateTime.of(2026, 4, 8, 18, 0))
+            .build();
+    PortfolioEntry persistedEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(portfolioEntryId)
+            .userId(userId)
+            .assetSymbol("HYPE")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("0.75"))
+            .totalInvested(new BigDecimal("28.00"))
+            .averagePricePerUnit(new BigDecimal("37.33333333"))
+            .lastTransactionPrice(new BigDecimal("37.33"))
+            .currentValue(new BigDecimal("28.00"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.of(2026, 4, 8, 18, 1))
+            .build();
 
-        when(transactionMapper.toEntity(request_Sell)).thenReturn(sellTransaction);
-        when(transactionRepository.save(sellTransaction)).thenReturn(sellTransaction);
-        when(portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "BTC"))
-                .thenReturn(Optional.of(portfolioEntry));
-        
-        // 📌 Modificación aquí: el tipo de transacción en la respuesta se asigna correctamente
-        TransactionResponse response_Sell = new TransactionResponse(
-        		sellTransaction.getTransactionId(), userId, "BTC", "CRYPTO", "SELL", // 🔥 "SELL" en lugar de "BUY"
-            new BigDecimal("1.0"), new BigDecimal("50000.00"), 
-            new BigDecimal("50000.00"), sellTransaction.getTransactionDate(), 
-            new BigDecimal("10.00"), null, "Venta BTC", null, null
-        );
-        
-        logger.info("response ::: "+response_Sell);
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "HYPE",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    BigDecimal.ONE,
+                    new BigDecimal("13.40"),
+                    new BigDecimal("13.40"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2026, 4, 8, 18, 0))));
+    when(portfolioEntryRepository.findByUserId(userId))
+        .thenReturn(List.of(staleEntry))
+        .thenReturn(List.of(staleEntrySecondAttempt))
+        .thenReturn(List.of(persistedEntry))
+        .thenReturn(List.of(persistedEntry));
+    when(assetPricePort.getCryptoPriceAmount("HYPE"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("38.34")));
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenThrow(
+            new ObjectOptimisticLockingFailureException(
+                PortfolioEntry.class, staleEntry.getPortfolioEntryId()));
 
-        
-        when(transactionMapper.toResponse(sellTransaction)).thenReturn(response_Sell);
+    portfolioService.reconcilePortfolio(userId);
+    List<PortfolioEntry> result = portfolioService.getPortfolioEntriesByUser(userId);
 
-        TransactionResponse result = portfolioService.registerTransaction(request_Sell);
-        
-        logger.info("result ::: "+result);
+    assertThat(result).hasSize(1);
+    assertThat(result.getFirst().getAssetSymbol()).isEqualTo("HYPE");
+    assertThat(result.getFirst().getTotalQuantity()).isEqualByComparingTo("0.75");
+    assertThat(result.getFirst().getCurrentValue()).isEqualByComparingTo("28.00");
+    assertThat(result.getFirst().getUpdatedAt()).isEqualTo(LocalDateTime.of(2026, 4, 8, 18, 1));
+    verify(portfolioEntryRepository, times(4)).findByUserId(userId);
+    verify(portfolioEntryRepository, times(2)).saveAll(anyList());
+  }
 
-        assertNotNull(result);
-        assertEquals("BTC", result.assetSymbol());
-        assertEquals("SELL", result.transactionType());
-        verify(transactionRepository, times(1)).save(sellTransaction);
-        verify(portfolioEntryRepository, times(1)).save(any(PortfolioEntry.class));
-    }
+  @Test
+  void shouldReturnCurrentCryptoPrice() {
+    when(assetPricePort.getCryptoPriceAmount("ETH"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2500.00")));
 
-    */	
-    
-    
-/*
-    @Test
-    void testRegisterTransaction_BuyTransaction_NewEntry() {
-        when(portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "BTC")).thenReturn(Optional.empty());
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(buyTransaction);
-        when(portfolioEntryRepository.save(any(PortfolioEntry.class))).thenReturn(portfolioEntry);
+    Optional<BigDecimal> result = portfolioService.getCurrentCryptoPrice("ETH");
 
-        TransactionResponse savedTransaction = portfolioService.registerTransaction(transactionRequest);
+    assertThat(result).contains(new BigDecimal("2500.00"));
+    verify(assetPricePort).getCryptoPriceAmount("ETH");
+  }
 
-        assertNotNull(savedTransaction);
-        assertEquals("BTC", savedTransaction.assetSymbol());
-        verify(transactionRepository, times(1)).save(buyTransaction);
-        verify(portfolioEntryRepository, times(1)).save(any(PortfolioEntry.class));
-    }
+  @Test
+  void shouldReturnCurrentTimestamp() {
+    assertThat(portfolioService.now()).isNotNull();
+  }
 
-    @Test
-    void testRegisterTransaction_BuyTransaction_ExistingEntry() {
-        portfolioEntry.setTotalQuantity(BigDecimal.valueOf(1.0));
-        portfolioEntry.setTotalInvested(BigDecimal.valueOf(20000));
-        portfolioEntry.setAveragePricePerUnit(BigDecimal.valueOf(20000));
+  @Test
+  void shouldCalculateHoldingsPerformanceForHypeUsingAverageCostMethod() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "HYPE",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("100"),
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 3, 3, 10, 0)),
+                new PortfolioTransactionSnapshot(
+                    "HYPE",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("50"),
+                    new BigDecimal("500.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 3, 10, 10, 0)),
+                new PortfolioTransactionSnapshot(
+                    "HYPE",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("30"),
+                    new BigDecimal("691.38"),
+                    new BigDecimal("23.046"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 3, 17, 10, 0)),
+                new PortfolioTransactionSnapshot(
+                    "HYPE",
+                    "CRYPTO",
+                    "SELL",
+                    null,
+                    new BigDecimal("40"),
+                    new BigDecimal("800.00"),
+                    new BigDecimal("20.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 3, 24, 10, 0)),
+                new PortfolioTransactionSnapshot(
+                    "HYPE",
+                    "CRYPTO",
+                    "SELL",
+                    null,
+                    new BigDecimal("50"),
+                    new BigDecimal("1750.00"),
+                    new BigDecimal("35.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 3, 31, 10, 0))));
+    when(assetPricePort.getCryptoPriceAmount("HYPE"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("60.54244444")));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("HYPE")).thenReturn(Optional.empty());
 
-        when(portfolioEntryRepository.findByUserIdAndAssetSymbol(userId, "BTC")).thenReturn(Optional.of(portfolioEntry));
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(buyTransaction);
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "HYPE", "ALL");
 
-        TransactionResponse savedTransaction = portfolioService.registerTransaction(buyTransaction);
+    assertThat(response.series()).isNotEmpty();
+    assertThat(response.isProfit()).isTrue();
+    assertThat(response.costBasis()).isEqualByComparingTo("2191.38");
+    assertThat(response.allTimeProfit()).isEqualByComparingTo("5807.44");
+    assertThat(response.allTimeProfitPercent()).isEqualByComparingTo("265.01");
+    assertThat(response.firstTransactionDate()).isEqualTo(LocalDate.of(2025, 3, 3));
+  }
 
-        assertNotNull(savedTransaction);
-        assertEquals("BTC", savedTransaction.getAssetSymbol());
-        assertEquals(BigDecimal.valueOf(1.5), portfolioEntry.getTotalQuantity());
-        assertEquals(BigDecimal.valueOf(30000), portfolioEntry.getTotalInvested());
-        verify(transactionRepository, times(1)).save(buyTransaction);
-        verify(portfolioEntryRepository, times(1)).save(any(PortfolioEntry.class));
-    }*/
+  @Test
+  void shouldUseCoinGeckoHistoricalSeriesForCryptoHoldingsWhenAssetMappingExists() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "BTC",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("2"),
+                    new BigDecimal("20.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 4, 7, 0, 0))));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
+    when(cryptoHistoricalPricePort.getHistoricalUsdPrices(
+            org.mockito.ArgumentMatchers.eq("bitcoin"),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            reactor.core.publisher.Mono.just(
+                new CryptoHistoricalPriceSeries(
+                    "bitcoin",
+                    "usd",
+                    List.of(
+                        new CryptoHistoricalPricePoint(
+                            Instant.parse("2025-04-07T00:00:00Z"), new BigDecimal("10.00")),
+                        new CryptoHistoricalPricePoint(
+                            Instant.parse("2025-04-08T00:00:00Z"), new BigDecimal("12.00"))))));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("13.00")));
+
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "BTC", "ALL");
+
+    assertThat(response.series()).isNotEmpty();
+    assertThat(response.series().getFirst().value()).isEqualByComparingTo("20.00");
+    assertThat(response.series().get(1).value()).isEqualByComparingTo("24.00");
+    assertThat(response.series().getLast().value()).isEqualByComparingTo("26.00");
+    verify(cryptoHistoricalPricePort)
+        .getHistoricalUsdPrices(
+            org.mockito.ArgumentMatchers.eq("bitcoin"),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any());
+    verify(cryptoHistoricalPricePort, never())
+        .getHistoricalUsdPrices(
+            org.mockito.ArgumentMatchers.eq("bitcoin"), org.mockito.ArgumentMatchers.anyInt());
+  }
+
+  @Test
+  void shouldUseCoinGeckoMarketChartDaysForFixedPeriodsAndKeepAllUsingRange() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "BTC",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("2"),
+                    new BigDecimal("20.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    LocalDateTime.of(2025, 4, 7, 0, 0))));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
+    when(cryptoHistoricalPricePort.getHistoricalUsdPrices("bitcoin", 30))
+        .thenReturn(
+            reactor.core.publisher.Mono.just(
+                new CryptoHistoricalPriceSeries(
+                    "bitcoin",
+                    "usd",
+                    List.of(
+                        new CryptoHistoricalPricePoint(
+                            Instant.parse("2025-04-07T00:00:00Z"), new BigDecimal("10.00")),
+                        new CryptoHistoricalPricePoint(
+                            Instant.parse("2025-04-08T00:00:00Z"), new BigDecimal("12.00"))))));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("13.00")));
+
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "BTC", "30D");
+
+    assertThat(response.series()).isNotEmpty();
+    verify(cryptoHistoricalPricePort).getHistoricalUsdPrices("bitcoin", 30);
+    verify(cryptoHistoricalPricePort, never())
+        .getHistoricalUsdPrices(
+            org.mockito.ArgumentMatchers.eq("bitcoin"),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any());
+  }
 }

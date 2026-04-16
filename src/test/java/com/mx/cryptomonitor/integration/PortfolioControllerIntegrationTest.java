@@ -1,240 +1,350 @@
 package com.mx.cryptomonitor.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jayway.jsonpath.JsonPath;
-import com.mx.cryptomonitor.domain.models.PortfolioEntry;
-import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.repositories.PortfolioEntryRepository;
-import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
-import com.mx.cryptomonitor.domain.repositories.UserRepository;
-import com.mx.cryptomonitor.infrastructure.exceptions.UserNotFoundException;
-import com.mx.cryptomonitor.shared.dto.request.LoginRequest;
-import com.mx.cryptomonitor.shared.dto.request.TransactionRequest;
-import com.mx.cryptomonitor.shared.dto.response.TransactionResponse;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.TestInstance.Lifecycle;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.http.HttpHeaders;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
+import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
+import com.mx.cryptomonitor.transaction.domain.model.AssetType;
+import com.mx.cryptomonitor.transaction.domain.model.Transaction;
+import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
+import com.mx.cryptomonitor.user.domain.model.User;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
+import reactor.core.publisher.Mono;
 
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = WebEnvironment.MOCK)
 @AutoConfigureMockMvc
-@TestInstance(value = Lifecycle.PER_CLASS)
+@AutoConfigureTestDatabase(replace = Replace.NONE)
+@Transactional
 @ActiveProfiles("test")
 class PortfolioControllerIntegrationTest {
 
-        private final Logger logger = LoggerFactory.getLogger(PortfolioControllerIntegrationTest.class);
-/**/
-        @Autowired
-        private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
+  @Autowired private UserRepository userRepository;
+  @Autowired private PortfolioEntryRepository portfolioEntryRepository;
+  @Autowired private TransactionRepository transactionRepository;
+  @MockBean private AssetPricePort assetPricePort;
+  @MockBean private CryptoHistoricalPricePort cryptoHistoricalPricePort;
 
-        @Autowired
-        private ObjectMapper objectMapper;
+  private User testUser;
 
-        @Autowired
-        private UserRepository userRepository;
+  @BeforeEach
+  void setup() {
+    org.mockito.Mockito.when(
+            assetPricePort.getCryptoPriceAmount(org.mockito.ArgumentMatchers.anyString()))
+        .thenReturn(Mono.empty());
+    transactionRepository.deleteAll();
+    portfolioEntryRepository.deleteAll();
+    userRepository.deleteAll();
 
-        @Autowired
-        private PortfolioEntryRepository portfolioEntryRepository;
+    testUser =
+        User.builder()
+            .username("portfolio-user-" + UUID.randomUUID())
+            .email("portfolio-" + UUID.randomUUID() + "@example.com")
+            .passwordHash("hash")
+            .build();
+    testUser = userRepository.saveAndFlush(testUser);
+  }
 
-        @Autowired
-        private TransactionRepository transactionRepository;
-        
-        @Autowired
-        private PasswordEncoder passwordEncoder;
+  @Test
+  void getCurrentUserPortfolioReturnsOnlyAuthenticatedUsersHoldings() throws Exception {
+    transactionRepository.saveAndFlush(
+        transaction(testUser, "BTC", new BigDecimal("1.5"), new BigDecimal("90000.00000000")));
+    transactionRepository.saveAndFlush(
+        transaction(testUser, "ETH", new BigDecimal("3.0"), new BigDecimal("2000.00000000")));
 
-        private User testUser;
-        
-        private String email = "test@example.com";
-        private String password = "Test@Password";
-        
-        private String jwtToken;
-        private UUID mockUserId;
+    User otherUser =
+        userRepository.saveAndFlush(
+            User.builder()
+                .username("portfolio-other-" + UUID.randomUUID())
+                .email("portfolio-other-" + UUID.randomUUID() + "@example.com")
+                .passwordHash("hash")
+                .build());
+    transactionRepository.saveAndFlush(
+        transaction(otherUser, "SOL", new BigDecimal("5.0"), new BigDecimal("100.00000000")));
 
+    reconcilePortfolio();
 
-        @BeforeEach
-        public void setup() throws JsonProcessingException, Exception {
-                // Limpiar las tablas para evitar datos residuales.
-        	
-        	 
-                transactionRepository.deleteAll();
-                portfolioEntryRepository.deleteAll();     
-                
-               //mockUserId = UUID.fromString("22aff521-0264-468a-9209-163208f7401a");
-                
-               //userRepository.deleteAll();
-                               
-               // Crear y guardar un usuario de prueba
-                /**/
-                testUser = User.builder()
-                                .username("testuser")
-                                .email(email)
-                                .passwordHash(passwordEncoder.encode(password))
-                                .build();
-                testUser = userRepository.save(testUser);
-                
-                 logger.info("=== Ejecutando método login_success() desde UserControllerIntegrationTest ===");
-        	        	
-        	User savedUser = userRepository.findByEmail(email)
-        			.orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-        			
-        	mockUserId = savedUser.getId();
-        	
-        	
-        	logger.info(">>>userRepository.findByEmail: {}",savedUser.toString());
-        	
-            logger.info("Id de Usuario consultado. mockUserId: " + mockUserId);
+    mockMvc
+        .perform(get("/api/v1/me/portfolio").with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$", Matchers.hasSize(2)))
+        .andExpect(jsonPath("$[0].userId").value(testUser.getId().toString()))
+        .andExpect(jsonPath("$[*].assetSymbol", Matchers.containsInAnyOrder("BTC", "ETH")))
+        .andExpect(jsonPath("$[?(@.assetSymbol=='SOL')]").isEmpty());
+  }
 
-        	
-        	assertEquals(savedUser.getEmail(),email);
-        	    	
-        	LoginRequest loginRequest = new LoginRequest(savedUser.getEmail(),password);     	
-            
-            logger.info("Datos mapeado loginRequest: {}",loginRequest);
-            
-            MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
-        			.contentType(MediaType.APPLICATION_JSON)    			
-        			.content(objectMapper.writeValueAsString(loginRequest)))
-        			.andExpect(status().isOk())
-        			.andReturn();
-            
-            String response = result.getResponse().getContentAsString();
-            
-            logger.info("Datos mapeados response:{}",response);
-            
-            jwtToken = JsonPath.read(response, "$.accessToken");
-            
-            logger.info("jwtToken:{}",jwtToken);   
-                
-        }
-        
-        
-        @Test
-        @Disabled
-        public void login_success() throws Exception {
+  @Test
+  void getCurrentUserPortfolioEntryReturnsHoldingBySymbol() throws Exception {
+    transactionRepository.saveAndFlush(
+        transaction(testUser, "BTC", new BigDecimal("1.5"), new BigDecimal("90000.00000000")));
 
-            
-        }
+    reconcilePortfolio();
 
-        @Test       
-        @WithMockUser(roles = {"USER"})// Simula un usuario autenticado con rol "USER"
-        public void testRegisterTransactionEndpoint() throws Exception {
-        	
-    		logger.info("=== Ejecutando método testRegisterTransactionEndpoint() desde UserControllerIntegrationTest ===");
+    mockMvc
+        .perform(get("/api/v1/me/portfolio/BTC").with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.assetSymbol").value("BTC"))
+        .andExpect(jsonPath("$.totalQuantity").value(1.5))
+        .andExpect(jsonPath("$.currentValue").value(135000.00));
+  }
 
-        	
-            logger.info("jwtToken:{}",jwtToken);
+  @Test
+  void getCurrentUserPortfolioEntryReturns404WhenHoldingDoesNotExist() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/me/portfolio/BTC").with(authentication(userAuthentication())))
+        .andExpect(status().isNotFound())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.title").value("Portfolio Entry Not Found"))
+        .andExpect(jsonPath("$.errorCode").value("PORTFOLIO_ENTRY_NOT_FOUND"))
+        .andExpect(jsonPath("$.instance").value("/api/v1/me/portfolio/BTC"));
+  }
 
-        	
-        	testUser = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new UserNotFoundException("Usuario no encontrado: " + email));
-                 			
+  @Test
+  void getCurrentUserPortfolioReturns401WhenUnauthenticated() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/me/portfolio"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+  }
 
-                logger.info("Cosulta un UUID de user: " + testUser.getId());
+  @Test
+  void getCurrentUserPortfolioReturnsPersistedEntriesWithoutImplicitReconciliation()
+      throws Exception {
+    Transaction solTransaction =
+        transaction(testUser, "SOL", new BigDecimal("7.0"), new BigDecimal("89.35714286"));
+    transactionRepository.saveAndFlush(solTransaction);
 
-                // Crear y guardar una entrada de portafolio para el usuario.
-                /**/
-                PortfolioEntry portfolioEntry = new PortfolioEntry(
-                		UUID.randomUUID(), 
-        				testUser, 
-        				"BTC", 
-        				"CRYPTO", 
-        				BigDecimal.valueOf(1), 
-        				BigDecimal.valueOf(89000), 
-        				BigDecimal.valueOf(89000), 
-        				null, 
-        				null, 
-        				null, 
-        				LocalDateTime.now(),  
-        				LocalDateTime.now(),  
-        				Long.valueOf(1));
-                 portfolioEntryRepository.save(portfolioEntry);
-                 
-                logger.info("Datos mapeados para PortfolioEntry: {}", portfolioEntry);
-                 
-                logger.info("Datos mapeados para Usuario de prueba creado : {}", testUser);
+    portfolioEntryRepository.saveAndFlush(
+        PortfolioEntry.builder()
+            .userId(testUser.getId())
+            .assetSymbol("SOL")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("7.0"))
+            .totalInvested(new BigDecimal("625.50"))
+            .averagePricePerUnit(new BigDecimal("89.35714286"))
+            .lastTransactionPrice(new BigDecimal("89.35714286"))
+            .currentValue(new BigDecimal("625.50"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.now())
+            .build());
 
-                // Construir el TransactionRequest usando el ID real del usuario y de la entrada
-                // de portafolio.
-                TransactionRequest request = new TransactionRequest(                            
-                		portfolioEntry.getPortfolioEntryId(), // Se envía el ID de la entrada existente
-                                "ETH",
-                                "CRYPTO",
-                                "BUY",
-                                BigDecimal.valueOf(5),
-                                BigDecimal.valueOf(2000), // princePerUnit
-                                BigDecimal.valueOf(10000), // totalValue
-                                LocalDateTime.now(),
-                                BigDecimal.ZERO,
-                                "Comprar ETH");
-                
-                logger.info("Datos mapeados de TransactionRequest: {}",request);
-                                
-                logger.info("Cosulta un UUID de user: {}", mockUserId);
+    transactionRepository.deleteById(solTransaction.getTransactionId());
+    transactionRepository.flush();
 
-                // Configurar un Authentication con el UUID como principal
-                Authentication auth = new org.springframework.security.authentication.TestingAuthenticationToken(mockUserId, null, "ROLE_USER");
+    mockMvc
+        .perform(get("/api/v1/me/portfolio").with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$", Matchers.hasSize(1)))
+        .andExpect(jsonPath("$[0].assetSymbol").value("SOL"));
 
+    org.assertj.core.api.Assertions.assertThat(
+            portfolioEntryRepository.findByUserIdAndAssetSymbol(testUser.getId(), "SOL"))
+        .isPresent();
+  }
 
-                // Realizar la solicitud POST al endpoint
-                ResultActions result = mockMvc.perform(post("/api/v1/portfolio/transactions")
-                        		.with(SecurityMockMvcRequestPostProcessors.authentication(auth)) // Establecer el Authentication
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request)))
-                               .andDo(res -> logger.info("Respuesta del endpoint: {}",
-                                                res.getResponse().getContentAsString()))                               
-                                .andExpect(status().isCreated());
+  @Test
+  void getCurrentUserPortfolioEntryReturnsPersistedHoldingWithoutImplicitCleanup()
+      throws Exception {
+    portfolioEntryRepository.saveAndFlush(
+        PortfolioEntry.builder()
+            .userId(testUser.getId())
+            .assetSymbol("SOL")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("7.0"))
+            .totalInvested(new BigDecimal("625.50"))
+            .averagePricePerUnit(new BigDecimal("89.35714286"))
+            .lastTransactionPrice(new BigDecimal("89.35714286"))
+            .currentValue(new BigDecimal("625.50"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.now())
+            .build());
 
-                String jsonResponse = result.andReturn().getResponse().getContentAsString();
+    mockMvc
+        .perform(get("/api/v1/me/portfolio/SOL").with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.assetSymbol").value("SOL"))
+        .andExpect(jsonPath("$.totalQuantity").value(7.0));
 
-                
-                // Deserializar la respuesta a TransactionResponse
-                TransactionResponse response = objectMapper.readValue(jsonResponse, TransactionResponse.class);
-                assertNotNull(response);
-                assertEquals(testUser.getId(), response.userId());
-/*
-                // Verificar en la base de datos que la transacción se guardó.
-                // Como el record TransactionResponse no tiene un campo 'user' (sólo userId),
-                // se valida utilizando el campo userId en la respuesta.
-                List<TransactionResponse> transactions = transactionRepository.findByUserId(testUser.getId());
-                assertFalse(transactions.isEmpty(), "Debe existir al menos una transacción para el usuario");
-                // Como TransactionResponse solo tiene userId, validamos ese campo:
-                TransactionResponse savedTransaction = transactions.get(0);
-                assertNotNull(savedTransaction.userId(),
-                                "El campo 'userId' en la transacción guardada no debe ser nulo");
-                assertEquals(testUser.getId(), savedTransaction.userId(),
-                                "El user_id de la transacción debe coincidir con el ID del usuario de prueba");
-*/
-        }
+    org.assertj.core.api.Assertions.assertThat(
+            portfolioEntryRepository.findByUserIdAndAssetSymbol(testUser.getId(), "SOL"))
+        .isPresent();
+  }
 
+  @Test
+  void reconcileEndpointRemovesStalePortfolioEntriesAfterManualDatabaseChanges() throws Exception {
+    portfolioEntryRepository.saveAndFlush(
+        PortfolioEntry.builder()
+            .userId(testUser.getId())
+            .assetSymbol("SOL")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("7.0"))
+            .totalInvested(new BigDecimal("625.50"))
+            .averagePricePerUnit(new BigDecimal("89.35714286"))
+            .lastTransactionPrice(new BigDecimal("89.35714286"))
+            .currentValue(new BigDecimal("625.50"))
+            .totalProfitLoss(BigDecimal.ZERO)
+            .updatedAt(LocalDateTime.now())
+            .build());
+
+    mockMvc
+        .perform(post("/api/v1/me/portfolio/reconcile").with(authentication(userAuthentication())))
+        .andExpect(status().isNoContent());
+
+    org.assertj.core.api.Assertions.assertThat(
+            portfolioEntryRepository.findByUserIdAndAssetSymbol(testUser.getId(), "SOL"))
+        .isEmpty();
+  }
+
+  @Test
+  void reconcileEndpointReturns401WhenUnauthenticated() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/me/portfolio/reconcile"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+  }
+
+  @Test
+  void getCurrentUserHoldingsPerformanceReturnsAverageCostMetricsForHype() throws Exception {
+    org.mockito.Mockito.when(assetPricePort.getCryptoPriceAmount("HYPE"))
+        .thenReturn(Mono.just(new BigDecimal("60.54244444")));
+
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "BUY",
+            new BigDecimal("100"),
+            new BigDecimal("10.00"),
+            new BigDecimal("1000.00"),
+            LocalDateTime.of(2025, 3, 3, 10, 0)));
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "BUY",
+            new BigDecimal("50"),
+            new BigDecimal("10.00"),
+            new BigDecimal("500.00"),
+            LocalDateTime.of(2025, 3, 10, 10, 0)));
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "BUY",
+            new BigDecimal("30"),
+            new BigDecimal("23.04600000"),
+            new BigDecimal("691.38"),
+            LocalDateTime.of(2025, 3, 17, 10, 0)));
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "SELL",
+            new BigDecimal("40"),
+            new BigDecimal("20.00"),
+            new BigDecimal("800.00"),
+            LocalDateTime.of(2025, 3, 24, 10, 0)));
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "SELL",
+            new BigDecimal("50"),
+            new BigDecimal("35.00"),
+            new BigDecimal("1750.00"),
+            LocalDateTime.of(2025, 3, 31, 10, 0)));
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/HYPE/holdings-performance")
+                .param("period", "ALL")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.isProfit").value(true))
+        .andExpect(jsonPath("$.costBasis").value(2191.38))
+        .andExpect(jsonPath("$.allTimeProfit").value(5807.44))
+        .andExpect(jsonPath("$.allTimeProfitPercent").value(265.01))
+        .andExpect(jsonPath("$.firstTransactionDate").value("2025-03-03"))
+        .andExpect(jsonPath("$.series", Matchers.hasSize(Matchers.greaterThanOrEqualTo(6))));
+  }
+
+  private Transaction transaction(
+      User user,
+      String assetSymbol,
+      String transactionType,
+      BigDecimal quantity,
+      BigDecimal pricePerUnit,
+      BigDecimal totalValue,
+      LocalDateTime transactionDate) {
+    return Transaction.builder()
+        .user(user)
+        .portfolioEntryId(UUID.randomUUID())
+        .assetSymbol(assetSymbol)
+        .assetType(AssetType.CRYPTO)
+        .transactionType(transactionType)
+        .quantity(quantity)
+        .pricePerUnit(pricePerUnit)
+        .totalValue(totalValue)
+        .transactionDate(transactionDate)
+        .fee(BigDecimal.ZERO)
+        .createdAt(transactionDate)
+        .updatedAt(transactionDate)
+        .build();
+  }
+
+  private Transaction transaction(
+      User user, String assetSymbol, BigDecimal quantity, BigDecimal pricePerUnit) {
+    BigDecimal totalValue = quantity.multiply(pricePerUnit).setScale(2, RoundingMode.HALF_UP);
+    return transaction(
+        user, assetSymbol, "BUY", quantity, pricePerUnit, totalValue, LocalDateTime.now());
+  }
+
+  private TestingAuthenticationToken userAuthentication() {
+    TestingAuthenticationToken authentication =
+        new TestingAuthenticationToken(testUser.getEmail(), null, "ROLE_USER");
+    authentication.setAuthenticated(true);
+    return authentication;
+  }
+
+  private void reconcilePortfolio() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/me/portfolio/reconcile").with(authentication(userAuthentication())))
+        .andExpect(status().isNoContent());
+  }
 }

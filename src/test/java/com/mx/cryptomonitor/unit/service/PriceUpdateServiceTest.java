@@ -1,111 +1,97 @@
 package com.mx.cryptomonitor.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
 
-import com.mx.cryptomonitor.domain.models.PortfolioEntry;
-import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.repositories.PortfolioEntryRepository;
-import com.mx.cryptomonitor.domain.repositories.TransactionRepository;
-import com.mx.cryptomonitor.domain.repositories.UserRepository;
-import com.mx.cryptomonitor.domain.services.PortfolioService;
-import com.mx.cryptomonitor.domain.services.PriceUpdateService;
-import com.mx.cryptomonitor.infrastructure.api.MarketDataService;
+import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.portfolio.application.service.PriceUpdateService;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
+import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 
 @ExtendWith(MockitoExtension.class)
 class PriceUpdateServiceTest {
-	private static final Logger logger = LoggerFactory.getLogger(PriceUpdateServiceTest.class);
 
+  @Mock private MarketDataProvider marketDataProvider;
+  @Mock private AssetPricePort assetPricePort;
+  @Mock private PortfolioEntryRepository portfolioEntryRepository;
 
-    @Mock
-    private RestTemplate restTemplate;
-	
-    @Mock
-	private MarketDataService marketDataService;
-	
+  @InjectMocks private PriceUpdateService priceUpdateService;
 
-    @Mock
-    private TransactionRepository transactionRepository;
+  @Test
+  void updatePricesShouldDoNothingWhenThereAreNoTrackedEntries() {
+    when(portfolioEntryRepository.findAll()).thenReturn(java.util.List.of());
 
-    @Mock
-    private PortfolioEntryRepository portfolioEntryRepository;
+    priceUpdateService.updatePrices();
 
- 
-    @Mock
-    private PortfolioService portfolioService;
-    
-    @InjectMocks
-    private PriceUpdateService priceUpdateService; 
-    
-    private UUID existingUserId;
+    verify(marketDataProvider, never()).getLatest(any());
+    verify(assetPricePort, never()).getCryptoPriceAmount(any());
+    verify(portfolioEntryRepository, never()).save(any());
+  }
 
+  @Test
+  void updatePricesShouldSkipCryptoEntryWhenProviderHasNoPrice() {
+    PortfolioEntry btcEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(UUID.randomUUID())
+            .assetSymbol("BTC")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.50000000"))
+            .totalInvested(new BigDecimal("120000.00"))
+            .averagePricePerUnit(new BigDecimal("80000.00000000"))
+            .build();
+    when(portfolioEntryRepository.findAll()).thenReturn(java.util.List.of(btcEntry));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(reactor.core.publisher.Mono.empty());
 
-    @Test
-    public void testUpdatePrices_success() {
-        logger.info("=== Ejecutando método testUpdatePrices_success() desde PriceUpdateServiceTest ===");
+    priceUpdateService.updatePrices();
 
-    	
-        UUID userId = UUID.randomUUID();
-        
-        User user = new User();
-        user.setId(userId);
-        user.setUsername("testUser");
-        user.setEmail("test@example.com");
+    verify(portfolioEntryRepository, never()).save(any());
+  }
 
-    	
-        // Simula el comportamiento de getCryptoPrice() para ETH
-        when(marketDataService.getCryptoPrice("ETH")).thenReturn(Optional.of(BigDecimal.valueOf(2300)));
+  @Test
+  void updatePricesShouldPersistCurrentValueProfitLossAndTimestampForEachEntry() {
+    PortfolioEntry btcEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(UUID.randomUUID())
+            .assetSymbol("BTC")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.50000000"))
+            .totalInvested(new BigDecimal("120000.00"))
+            .averagePricePerUnit(new BigDecimal("80000.00000000"))
+            .lastUpdated(LocalDateTime.now().minusDays(1))
+            .build();
 
-        // Simula una entrada en el portafolio
-        PortfolioEntry entry = PortfolioEntry.builder()
-                .user(user)
-                .assetSymbol("ETH")
-                .assetType("CRYPTO")
-                .totalQuantity(BigDecimal.valueOf(2.0))
-                .totalInvested(BigDecimal.valueOf(5000))
-                .averagePricePerUnit(BigDecimal.valueOf(2500))
-                .lastUpdated(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        
-        when(portfolioEntryRepository.findDistinctAssetSymbols()).thenReturn(List.of("ETH"));
-        when(portfolioEntryRepository.findByAssetSymbol("ETH")).thenReturn(List.of(entry));
+    when(portfolioEntryRepository.findAll()).thenReturn(java.util.List.of(btcEntry));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("95000.00")));
+    when(portfolioEntryRepository.save(any(PortfolioEntry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Act: Ejecuta el método bajo prueba
-        priceUpdateService.updatePrices();
-      
-        ArgumentCaptor<PortfolioEntry> captor = ArgumentCaptor.forClass(PortfolioEntry.class);
-        verify(portfolioEntryRepository).save(captor.capture());
-        
-        PortfolioEntry savedEntry = captor.getValue();
-        
-        logger.info("Valor almacenado: {}",savedEntry.getCurrentValue());
-        
-        assertNotNull(savedEntry);
-        //assertEquals(BigDecimal.valueOf(4600).setScale(2), savedEntry.getCurrentValue().setScale(2)); // 2 * 2300
-    }
+    priceUpdateService.updatePrices();
+
+    ArgumentCaptor<PortfolioEntry> captor = ArgumentCaptor.forClass(PortfolioEntry.class);
+    verify(portfolioEntryRepository).save(captor.capture());
+    PortfolioEntry saved = captor.getValue();
+
+    assertThat(saved.getCurrentValue()).isEqualByComparingTo("142500.00000000");
+    assertThat(saved.getTotalProfitLoss()).isEqualByComparingTo("22500.00000000");
+    assertThat(saved.getLastUpdated()).isNotNull();
+  }
 }
