@@ -1,0 +1,5 @@
+user@example.com
+admin@example.com
+test@example.com
+victim@example.com
+unknown@example.com
