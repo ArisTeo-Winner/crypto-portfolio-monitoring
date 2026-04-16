@@ -1,5 +1,6 @@
 HELP.md
 target/
+.scannerwork/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -33,6 +34,14 @@ build/
 .vscode/
 # Evita subir log
 /logs/
+*.log
+mvn_output*.txt
+build*.log
+output_*.txt
+out.txt
+jacoco_*.csv
+jacoco.exec
+dependency-reduced-pom.xml
 
 logsTest/
 Query/

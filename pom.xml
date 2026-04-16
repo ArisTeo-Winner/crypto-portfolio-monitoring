@@ -6,7 +6,12 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.3.10</version>
+		<!--
+		Multiple markers at this line
+		- Newer minor version of Spring Boot available: 3.5.10 [BOOT_VERSION_VALIDATION_CODE]
+		- C:\Users\Ortiz\OneDrive\Documentos\eclipse-workspace\crypto-portfolio-monitoring\target\classes\META-INF\MANIFEST.MF
+		-->
+		<version>3.5.11</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.mx</groupId>
@@ -29,12 +34,59 @@
 	</scm>
 	<properties>
 		<java.version>21.0.5</java.version>
+		<java.release>21</java.release>
+		<sonar.projectKey>crypto-portfolio-monitoring</sonar.projectKey>
+		<sonar.projectName>crypto-portfolio-monitoring</sonar.projectName>
+		<sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
+		<sonar.sources>src/main/java</sonar.sources>
+		<sonar.tests>src/test/java</sonar.tests>
+		<sonar.java.source>${java.release}</sonar.java.source>
+		<sonar.java.binaries>${project.build.outputDirectory}</sonar.java.binaries>
+		<sonar.junit.reportPaths>${project.build.directory}/surefire-reports</sonar.junit.reportPaths>
+		<sonar.coverage.jacoco.xmlReportPaths>${project.reporting.outputDirectory}/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 	</properties>
+	<dependencyManagement>
+		<dependencies>
+			
+		<dependency>
+			<groupId>org.springframework.modulith</groupId>
+			<artifactId>spring-modulith-api</artifactId>
+		</dependency><dependency>
+				<groupId>org.springframework.modulith</groupId>
+				<artifactId>spring-modulith-bom</artifactId>
+				<version>1.4.1</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 
+		
+		<dependency>
+			<groupId>org.springframework.modulith</groupId>
+			<artifactId>spring-modulith-api</artifactId>
+			<version>1.4.1</version>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-brave</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -87,6 +139,13 @@
 		</dependency>
 
 		<dependency>
+			<groupId>com.tngtech.archunit</groupId>
+			<artifactId>archunit-junit5</artifactId>
+			<version>1.3.0</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
 			<scope>test</scope>
@@ -122,9 +181,14 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.apache.httpcomponents</groupId>
-			<artifactId>httpclient</artifactId>
-			<version>4.5.14</version> <!-- Usa la última versión disponible -->
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<version>5.4.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.core5</groupId>
+			<artifactId>httpcore5</artifactId>
+			<version>5.3.1</version>
 		</dependency>
 
 		<dependency>
@@ -138,7 +202,7 @@
 		<dependency>
 			<groupId>org.mapstruct</groupId>
 			<artifactId>mapstruct</artifactId>
-			<version>1.5.5.Final</version> <!-- Verifica que esta versión
+			<version>1.5.5.Final</version> <!-- Verifica que esta versiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n
 			coincida con tu entorno -->
 		</dependency>
 
@@ -173,7 +237,7 @@
 		<dependency>
 			<groupId>com.github.polygon-io</groupId>
 			<artifactId>client-jvm</artifactId>
-			<version>5.1.2</version> <!-- Reemplaza con la versión actual -->
+			<version>5.1.2</version> <!-- Reemplaza con la versiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n actual -->
 		</dependency>
 
 		<dependency>
@@ -190,18 +254,22 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
 		</dependency>
-
-<dependency> 
-    <groupId>org.testcontainers</groupId> 
-    <artifactId>testcontainers</artifactId> 
-    <version>1.19.7</version> 
-    <scope>test</scope> 
-</dependency>
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>8.1</version>
+		</dependency>
+		
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		
 
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>junit-jupiter</artifactId>
-    <version>1.19.6</version>
     <scope>test</scope>
 </dependency>
 
@@ -210,19 +278,18 @@
         <artifactId>postgresql</artifactId>
         <scope>test</scope>
     </dependency>
-
-
+    
 <dependency>
-    <groupId>com.redis.testcontainers</groupId>
-    <artifactId>testcontainers-redis-junit-jupiter</artifactId>
-    <version>1.4.6</version>
+    <groupId>com.redis</groupId>
+    <artifactId>testcontainers-redis</artifactId>
+    <version>2.2.4</version>
     <scope>test</scope>
 </dependency>
 
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.2.0</version>
+			<version>2.8.16</version>
 		</dependency>
 
 		<dependency>
@@ -241,10 +308,22 @@
 		<dependency>
         	<groupId>org.jacoco</groupId>
         	<artifactId>jacoco-maven-plugin</artifactId>
-        	<version>0.8.12</version> <!-- Asegúrate de usar la última versión -->
+        	<version>0.8.12</version> <!-- AsegÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºrate de usar la ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºltima versiÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n -->
         	<scope>test</scope>
         </dependency>
-
+		
+		<dependency>
+  <groupId>org.wiremock</groupId>
+  <artifactId>wiremock-jetty12</artifactId>
+  <version>3.13.2</version>
+  <scope>test</scope>
+</dependency>
+	
+		<dependency>
+			<groupId>org.springframework.modulith</groupId>
+			<artifactId>spring-modulith-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 	<repositories>
 		<repository>
@@ -273,9 +352,17 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>3.11.0</version>
 				<configuration>
-					<source>21</source>
-					<target>21</target>
-					<release>21</release>
+					<source>${java.release}</source>
+					<target>${java.release}</target>
+					<release>${java.release}</release>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<forkedProcessExitTimeoutInSeconds>120</forkedProcessExitTimeoutInSeconds>
 				</configuration>
 			</plugin>
 			
@@ -296,10 +383,76 @@
                        <goals>
                            <goal>report</goal>
                        </goals>
+                       <configuration>
+                           <formats>
+                               <format>XML</format>
+                               <format>HTML</format>
+                           </formats>
+                       </configuration>
                    </execution>
                </executions>
            </plugin>
+
+			<plugin>
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>3.11.0.3922</version>
+			</plugin>
+
+			<plugin>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<version>2.43.0</version>
+				<configuration>
+					<java>
+						<includes>
+							<include>src/main/java/**/*.java</include>
+							<include>src/test/java/**/*.java</include>
+						</includes>
+						<googleJavaFormat>
+							<version>1.17.0</version>
+							<style>GOOGLE</style>
+						</googleJavaFormat>
+						<removeUnusedImports />
+						<importOrder>
+							<order>java,javax,org,com,</order>
+						</importOrder>
+					</java>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>3.6.0</version> <!-- Version estable del plugin -->
+				<dependencies>
+					<dependency>
+						<groupId>com.puppycrawl.tools</groupId>
+						<artifactId>checkstyle</artifactId>
+						<version>13.0.0</version> <!-- Version de motor compatible con Java 21 -->
+					</dependency>
+				</dependencies>
+				<configuration>
+					<configLocation>google_checks.xml</configLocation> <!-- O
+					sun_checks.xml -->
+					<consoleOutput>true</consoleOutput>
+					<failsOnError>true</failsOnError>
+					<linkXRef>false</linkXRef>
+				</configuration>
+				<executions>
+					<execution>
+						<id>validate</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
 		</plugins>
 	</build>
 
 </project>
+
+

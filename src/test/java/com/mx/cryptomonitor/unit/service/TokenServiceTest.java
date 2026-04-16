@@ -1,9 +1,12 @@
 package com.mx.cryptomonitor.unit.service;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -14,64 +17,88 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.mx.cryptomonitor.domain.models.RefreshToken;
-import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.repositories.RefreshTokenRepository;
-import com.mx.cryptomonitor.domain.services.TokenService;
-import com.mx.cryptomonitor.infrastructure.security.JwtTokenUtil;
+import com.mx.cryptomonitor.user.application.service.AuditLogService;
+import com.mx.cryptomonitor.user.application.service.AuthenticationService;
+import com.mx.cryptomonitor.user.application.service.JwtUserDetailsService;
+import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService;
+import com.mx.cryptomonitor.user.application.service.TokenService;
+import com.mx.cryptomonitor.user.domain.model.RefreshToken;
+import com.mx.cryptomonitor.user.domain.model.User;
+import com.mx.cryptomonitor.user.domain.port.TokenIssuerPort;
+import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class TokenServiceTest {
 
-	private final Logger logger = LoggerFactory.getLogger(TokenServiceTest.class);
+  private final Logger logger = LoggerFactory.getLogger(TokenServiceTest.class);
 
-    @Mock
-    private RefreshTokenRepository refreshTokenRepository;
+  @Mock private RefreshTokenStoreService refreshTokenStoreService;
 
-    @Mock
-    private JwtTokenUtil jwtTokenUtil;
+  @Mock private SessionRepository sessionRepository;
 
-    @InjectMocks
-    private TokenService tokenService;
-    
-/*
-    @Test
-    void testRefreshAccessToken_validToken() {
-    	
-    	logger.info("---TokenServiceTest >>> testRefreshAccessToken_validToken()---");
+  @Mock private TokenIssuerPort tokenIssuerPort;
+  @Mock private UserRepository userRepository;
+  @Mock private AuthenticationService authenticationService;
+  @Mock private JwtUserDetailsService userDetailsService;
+  @Mock private AuditLogService auditLogService;
 
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setRefreshToken("refresh-token");
-        refreshToken.setUser(new User());
-        refreshToken.getUser().setEmail("test@example.com");
-        refreshToken.setExpiresAt(LocalDateTime.now().plusDays(1));
-        refreshToken.setRevoked(false);
+  @InjectMocks private TokenService tokenService;
 
-        when(refreshTokenRepository.findByRefreshToken("refresh-token")).thenReturn(Optional.of(refreshToken));
-        //when(jwtTokenUtil.generateAccessToken("test@example.com")).thenReturn("new-access-token");
+  @Test
+  void accessToken_should_persist_refresh_token_with_expected_expiration() {
+    logger.info(
+        "---TokenServiceTest >>> accessToken_should_persist_refresh_token_with_expected_expiration()---");
 
-        var response = tokenService.revokeRefreshToken(null);
-        
-    	logger.info("Respuesta response; {}, {}",response.accessToken(),response.refreshToken());
+    User user = User.builder().email("token@example.com").username("token_user").build();
 
-        
-        assertEquals("new-access-token", response.accessToken());
-      //  assertEquals("refresh-token", response.refreshToken());
-    }
-    
-    @Test
-    void testRefreshAccessToken_expiredToken() {
+    when(tokenIssuerPort.generateRefreshToken("token@example.com")).thenReturn("refresh-abc");
+    when(tokenIssuerPort.getRefreshExpiration()).thenReturn(120_000L); // 120s
+    when(refreshTokenStoreService.store(
+            eq("refresh-abc"), eq(user.getId()), any(), any(), eq("127.0.0.1"), eq("JUnit")))
+        .thenReturn(
+            new RefreshTokenStoreService.StoredRefreshToken(
+                java.util.UUID.randomUUID(), user.getId(), java.util.UUID.randomUUID(), false));
 
-    	logger.info("---TokenServiceTest >>> testRefreshAccessToken_expiredToken()---");
-    	
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setRefreshToken("refresh-token");
-        refreshToken.setExpiresAt(LocalDateTime.now().minusDays(1));
-        refreshToken.setRevoked(false);
+    RefreshToken saved = tokenService.accessToken(user, "127.0.0.1", "JUnit");
 
-        when(refreshTokenRepository.findByRefreshToken("refresh-token")).thenReturn(Optional.of(refreshToken));
+    assertThat(saved.getRefreshToken()).isEqualTo("REDIS_HASHED");
+    assertThat(saved.getUser()).isEqualTo(user);
+    assertThat(saved.getIpAddress()).isEqualTo("127.0.0.1");
+    assertThat(saved.getUserAgent()).isEqualTo("JUnit");
+    assertThat(saved.getCreatedAt()).isNotNull();
+    assertThat(saved.getExpiresAt()).isNotNull();
+    assertThat(saved.getExpiresAt()).isAfter(saved.getCreatedAt());
 
-        assertThrows(SecurityException.class, () -> tokenService.refreshAccessToken("refresh-token"));
-    }*/
+    verify(tokenIssuerPort).generateRefreshToken("token@example.com");
+    verify(refreshTokenStoreService)
+        .store(eq("refresh-abc"), eq(user.getId()), any(), any(), eq("127.0.0.1"), eq("JUnit"));
+    verify(tokenIssuerPort).getRefreshExpiration();
+  }
 
+  @Test
+  void revokeRefreshToken_should_mark_token_as_revoked() {
+    RefreshTokenStoreService.StoredRefreshToken existing =
+        new RefreshTokenStoreService.StoredRefreshToken(
+            java.util.UUID.randomUUID(),
+            java.util.UUID.randomUUID(),
+            java.util.UUID.randomUUID(),
+            false);
+    when(refreshTokenStoreService.findByRawToken("refresh-xyz")).thenReturn(Optional.of(existing));
+
+    tokenService.revokeRefreshToken("refresh-xyz");
+
+    verify(refreshTokenStoreService).findByRawToken("refresh-xyz");
+    verify(refreshTokenStoreService).markRevokedByRawToken("refresh-xyz");
+  }
+
+  @Test
+  void revokeRefreshToken_should_throw_when_token_missing() {
+    when(refreshTokenStoreService.findByRawToken("missing")).thenReturn(Optional.empty());
+
+    SecurityException ex =
+        assertThrows(SecurityException.class, () -> tokenService.revokeRefreshToken("missing"));
+
+    assertThat(ex.getMessage()).isEqualTo("Refresh token no encontrado");
+  }
 }

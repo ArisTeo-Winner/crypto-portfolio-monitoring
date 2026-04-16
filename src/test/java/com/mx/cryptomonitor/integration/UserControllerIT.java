@@ -19,64 +19,71 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mx.cryptomonitor.domain.models.Role;
-import com.mx.cryptomonitor.domain.models.User;
-import com.mx.cryptomonitor.domain.repositories.RoleRepository;
-import com.mx.cryptomonitor.domain.repositories.UserRepository;
-import com.mx.cryptomonitor.shared.dto.request.UserRegistrationRequest;
+import com.mx.cryptomonitor.user.application.dto.request.UserRegistrationRequest;
+import com.mx.cryptomonitor.user.domain.model.Role;
+import com.mx.cryptomonitor.user.domain.model.User;
+import com.mx.cryptomonitor.user.domain.repository.RoleRepository;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Transactional
 @ActiveProfiles("test")
 class UserControllerIT {
-	
-    @Autowired
-    private MockMvc mockMvc;
 
-    @Autowired
-    private UserRepository userRepository;
+  @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private RoleRepository roleRepository;
+  @Autowired private UserRepository userRepository;
 
-    @Autowired
-    private ObjectMapper objectMapper; // 🔥 Para convertir objetos en JSON
+  @Autowired private RoleRepository roleRepository;
 
+  @Autowired private ObjectMapper objectMapper; // 🔥 Para convertir objetos en JSON
 
-	@BeforeEach
-	void setUp(){
-        // 🔥 Inserta rol en BD antes de la prueba
-        if (roleRepository.findByName("ROLE_USER").isEmpty()) {
-            Role userRole = new Role();
-            userRole.setName("ROLE_USER");
-            userRole.setDescription("Rol de usuario normal");
-            roleRepository.save(userRole);
-        }
-	}
+  @BeforeEach
+  void setUp() {
+    // 🔥 Inserta rol en BD antes de la prueba
+    if (roleRepository.findByName("ROLE_USER").isEmpty()) {
+      Role userRole = new Role();
+      userRole.setName("ROLE_USER");
+      userRole.setDescription("Rol de usuario normal");
+      roleRepository.save(userRole);
+    }
+  }
 
-    @Test
-    @WithMockUser(roles = "USER")
-    void testRegisterUser_Success() throws Exception {
-    	
-    	
-        // 🔥 Simula solicitud de registro
-        UserRegistrationRequest request = new UserRegistrationRequest(
-            "testuser", "test@example.com", "password123", null, null, null, null, null, null, null, null, null
-        );
+  @Test
+  @WithMockUser(roles = "USER")
+  void testRegisterUser_Success() throws Exception {
 
-        // Actúa como un cliente real llamando al endpoint
-        mockMvc.perform(post("/api/v1/users/register")
+    // 🔥 Simula solicitud de registro
+    UserRegistrationRequest request =
+        new UserRegistrationRequest(
+            "testuser",
+            "test@example.com",
+            "Password123!",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    // Actúa como un cliente real llamando al endpoint
+    mockMvc
+        .perform(
+            post("/api/v1/users/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated()) // 🔥 Verifica que retorna 201
-                .andExpect(jsonPath("$.username").value("testuser"))
-                .andExpect(jsonPath("$.email").value("test@example.com"));
+        .andExpect(status().isCreated()) // 🔥 Verifica que retorna 201
+        .andExpect(jsonPath("$.username").value("testuser"))
+        .andExpect(jsonPath("$.email").value("test@example.com"));
 
-        // 🔍 Verifica que el usuario realmente se guardó en la BD
-        Optional<User> savedUser = userRepository.findByEmail("test@example.com");
-        assertTrue(savedUser.isPresent());
-        assertEquals("testuser", savedUser.get().getUsername());
-        assertTrue(savedUser.get().isActive());
-    }
+    // 🔍 Verifica que el usuario realmente se guardó en la BD
+    Optional<User> savedUser = userRepository.findByEmail("test@example.com");
+    assertTrue(savedUser.isPresent());
+    assertEquals("testuser", savedUser.get().getUsername());
+    assertTrue(savedUser.get().isActive());
+  }
 }
