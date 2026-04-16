@@ -1,216 +1,154 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-	<!-- Appender para la consola -->
-	<appender name="CONSOLE"
+	<springProperty name="APP_NAME" source="spring.application.name"
+		defaultValue="crypto-portfolio-monitoring" />
+	<springProperty name="ACTIVE_PROFILE"
+		source="spring.profiles.active" defaultValue="default" />
+	<property name="LOG_DIR" value="logs" />
+	<property name="PLAIN_PATTERN"
+		value="%d{yyyy-MM-dd HH:mm:ss} %-5level [trace=%X{traceId:-} span=%X{spanId:-} req=%X{requestId:-}] %logger{36} - %msg%n" />
+
+	<appender name="CONSOLE_PLAIN"
 		class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
-			<pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n
-			</pattern>
+			<pattern>${PLAIN_PATTERN}</pattern>
 		</encoder>
 	</appender>
 
-	<!-- Appender para archivo con rotación (app.log) -->
-	<appender name="FILE"
+	<appender name="FILE_PLAIN"
 		class="ch.qos.logback.core.rolling.RollingFileAppender">
-		<file>logs/app.log</file>
+		<file>${LOG_DIR}/app.log</file>
 		<rollingPolicy
 			class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-			<fileNamePattern>logs/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+			<fileNamePattern>${LOG_DIR}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
 			<maxHistory>30</maxHistory>
 		</rollingPolicy>
 		<encoder>
-			<pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n
-			</pattern>
+			<pattern>${PLAIN_PATTERN}</pattern>
 		</encoder>
 	</appender>
 
-	<!-- Appender para pruebas (appTest.log) -->
 	<appender name="FILE_TEST"
 		class="ch.qos.logback.core.rolling.RollingFileAppender">
-		<file>logs/appTest.log</file>
+		<file>${LOG_DIR}/app-test.log</file>
 		<rollingPolicy
 			class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-			<fileNamePattern>logsTest/app.%d{yyyy-MM-dd}.log</fileNamePattern>
-			<maxHistory>30</maxHistory>
+			<fileNamePattern>${LOG_DIR}/app-test.%d{yyyy-MM-dd}.log</fileNamePattern>
+			<maxHistory>14</maxHistory>
 		</rollingPolicy>
 		<encoder>
-			<pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n
-			</pattern>
+			<pattern>${PLAIN_PATTERN}</pattern>
 		</encoder>
 	</appender>
 
-	<!-- Root logger base sin appenders por defecto -->
+	<appender name="CONSOLE_JSON"
+		class="ch.qos.logback.core.ConsoleAppender">
+		<encoder class="net.logstash.logback.encoder.LogstashEncoder">
+			<customFields>{"application":"${APP_NAME}","profile":"${ACTIVE_PROFILE}"}</customFields>
+		</encoder>
+	</appender>
+
+	<appender name="FILE_JSON"
+		class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>${LOG_DIR}/app.json.log</file>
+		<rollingPolicy
+			class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>${LOG_DIR}/app.%d{yyyy-MM-dd}.json.log</fileNamePattern>
+			<maxHistory>30</maxHistory>
+		</rollingPolicy>
+		<encoder class="net.logstash.logback.encoder.LogstashEncoder">
+			<customFields>{"application":"${APP_NAME}","profile":"${ACTIVE_PROFILE}"}</customFields>
+		</encoder>
+	</appender>
+
 	<root level="INFO" />
 
-	<!-- Configuración para entorno de desarrollo -->
 	<springProfile name="dev">
 		<root level="DEBUG">
-			<appender-ref ref="CONSOLE" />
-			<appender-ref ref="FILE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
+			<appender-ref ref="FILE_PLAIN" />
 		</root>
 		<logger name="org.springframework" level="DEBUG" />
-		
 		<logger name="org.hibernate.SQL" level="DEBUG" />
-		
 		<logger name="com.mx.cryptomonitor" level="DEBUG" />
 		<logger name="org.springframework.security" level="DEBUG"
 			additivity="false" />
-		<logger name="org.springframework.web" level="DEBUG"
-			additivity="false" />
-
-		<logger name="com.mx.cryptomonitor.application.controllers"
-			level="DEBUG" />
-		<logger name="com.mx.cryptomonitor.domain.services"
-			level="DEBUG" />
-
-        <logger name="org.springframework.cache" level="TRACE"/>
-        <logger name="org.springframework.cache.interceptor.CacheInterceptor" level="TRACE"/>
-        <logger name="org.springframework.data.redis" level="DEBUG"/>
-        <logger name="io.lettuce.core" level="DEBUG"/>
-        <logger name="com.mx.cryptomonitor.infrastructure.config" level="DEBUG"/>
-        <logger name="com.mx.cryptomonitor.infrastructure.api.MarketDataService" level="DEBUG"/>
-
-
+		<logger name="org.springframework.cache" level="TRACE" />
+		<logger name="org.springframework.cache.interceptor.CacheInterceptor"
+			level="TRACE" />
+		<logger name="org.springframework.data.redis" level="DEBUG" />
+		<logger name="io.lettuce.core" level="DEBUG" />
+		<logger name="http.access" level="INFO" additivity="false">
+			<appender-ref ref="CONSOLE_PLAIN" />
+			<appender-ref ref="FILE_PLAIN" />
+		</logger>
 	</springProfile>
 
-	<!-- Configuración para entorno de producción -->
 	<springProfile name="prod">
 		<root level="INFO">
-			<appender-ref ref="CONSOLE" />
-			<appender-ref ref="FILE" />
+			<appender-ref ref="CONSOLE_JSON" />
+			<appender-ref ref="FILE_JSON" />
 		</root>
 		<logger name="org.springframework" level="INFO" />
-		
-		<!--  		
-		<logger name="org.hibernate.SQL" level="INFO" />
-		-->
 		<logger name="com.mx.cryptomonitor" level="INFO" />
-		
-		        <!-- Nivel reducido en producción -->
-        <logger name="org.springframework.cache" level="WARN"/>
-        <logger name="org.springframework.data.redis" level="WARN"/>
-        <logger name="io.lettuce.core" level="WARN"/>
-		
-
-		<logger
-			name="org.springframework.cache.interceptor.CacheInterceptor"
+		<logger name="org.springframework.cache" level="WARN" />
+		<logger name="org.springframework.data.redis" level="WARN" />
+		<logger name="io.lettuce.core" level="WARN" />
+		<logger name="org.springframework.cache.interceptor.CacheInterceptor"
 			level="INFO" />
-		<logger name="com.mx.cryptomonitor" level="INFO" />
-
+		<logger name="http.access" level="INFO" additivity="false">
+			<appender-ref ref="CONSOLE_JSON" />
+			<appender-ref ref="FILE_JSON" />
+		</logger>
 	</springProfile>
 
-	<!-- Perfil para pruebas (unitarias e integración) -->
 	<springProfile name="test">
-
 		<root level="INFO">
-			<appender-ref ref="CONSOLE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
 			<appender-ref ref="FILE_TEST" />
 		</root>
 		<logger name="com.mx.cryptomonitor" level="DEBUG"
 			additivity="false">
-			<appender-ref ref="CONSOLE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
 			<appender-ref ref="FILE_TEST" />
 		</logger>
 		<logger name="org.springframework" level="DEBUG"
 			additivity="false">
-			<appender-ref ref="CONSOLE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
 			<appender-ref ref="FILE_TEST" />
 		</logger>
-		<!-- <logger name="org.hibernate.SQL" level="DEBUG" additivity="false"> 
-			<appender-ref ref="FILE_TEST" /> </logger> -->
-
-
-		<logger
-			name="com.mx.cryptomonitor.infrastructure.api.MarketDataService"
-			level="DEBUG" additivity="false">
-			<appender-ref ref="CONSOLE" />
-			<appender-ref ref="FILE_TEST" />
-		</logger>
-		<logger
-			name="com.mx.cryptomonitor.integration.MarketDataServiceIntegrationTest"
-			level="DEBUG" additivity="false">
-			<appender-ref ref="CONSOLE" />
-			<appender-ref ref="FILE_TEST" />
-		</logger>
-
-		<!-- Loggers para caché Spring
-		<logger
-			name="org.springframework.cache.interceptor.CacheInterceptor"
-			level="TRACE">
-			<appender-ref ref="CONSOLE" />
-		</logger>
-		 -->
-		 <logger 
-		 	name="com.mx.cryptomonitor.infrastructure.config.RedisCacheErrorHandler"
-        	level="WARN"
-        	additivity="false">
-  			<appender-ref ref="CONSOLE"/>
-		</logger>		 
-
-		<!-- o, si prefieres ver todo CacheInterceptor también: -->
-		<!-- <logger name="org.springframework.cache.interceptor" level="TRACE"/> -->
-				
-		
 		<logger name="org.springframework.cache" level="TRACE"
 			additivity="false">
-			<appender-ref ref="CONSOLE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
 		</logger>
-
-		<!-- Infra de Redis Cache -->
 		<logger name="org.springframework.data.redis.cache"
 			level="DEBUG" additivity="false">
-			<appender-ref ref="CONSOLE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
 		</logger>
-		
-		<logger name="io.lettuce.core" level="WARN"/>
-
-		<!-- <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" 
-			additivity="false"> <appender-ref ref="FILE_TEST" /> </logger> -->
+		<logger
+			name="com.mx.cryptomonitor.infrastructure.config.RedisCacheErrorHandler"
+			level="WARN" additivity="false">
+			<appender-ref ref="CONSOLE_PLAIN" />
+		</logger>
+		<logger name="io.lettuce.core" level="WARN" />
+		<logger name="http.access" level="INFO" additivity="false">
+			<appender-ref ref="CONSOLE_PLAIN" />
+			<appender-ref ref="FILE_TEST" />
+		</logger>
 	</springProfile>
-	
-	
 
-	<!--
-	/////////////////////////////////////////////////////	
-	 Configuración por defecto (si no hay perfil activo) -->
 	<springProfile name="!test,!dev,!prod">
 		<root level="INFO">
-			<appender-ref ref="CONSOLE" />
-			<appender-ref ref="FILE" />
+			<appender-ref ref="CONSOLE_PLAIN" />
+			<appender-ref ref="FILE_PLAIN" />
 		</root>
-		<logger name="com.mx.cryptomonitor" level="DEBUG" />
-		<logger name="org.springframework" level="DEBUG" />
-
-		<!-- Loggers para caché Spring
-		<logger
-			name="org.springframework.cache.interceptor.CacheInterceptor"
-			level="TRACE" additivity="false">
-			<appender-ref ref="CONSOLE" />
-		</logger> 
-		-->
-
-		<logger name="org.springframework.cache" level="TRACE"
-			additivity="false">
-			<appender-ref ref="CONSOLE" />
+		<logger name="com.mx.cryptomonitor" level="INFO" />
+		<logger name="org.springframework" level="INFO" />
+		<logger name="http.access" level="INFO" additivity="false">
+			<appender-ref ref="CONSOLE_PLAIN" />
+			<appender-ref ref="FILE_PLAIN" />
 		</logger>
-
-		<!-- Infra de Redis Cache -->
-		<logger name="org.springframework.data.redis.cache"
-			level="DEBUG" additivity="false">
-			<appender-ref ref="CONSOLE" />
-		</logger>
-		
-		<logger name="org.springframework.boot.context.properties.bind"
-			level="DEBUG" additivity="false">
-			<appender-ref ref="CONSOLE" />
-		</logger>
-		
-		
-		<!-- - 
-		<logger name="io.lettuce.core" level="DEBUG"/>
-		-->
-		
 	</springProfile>
 
 </configuration>

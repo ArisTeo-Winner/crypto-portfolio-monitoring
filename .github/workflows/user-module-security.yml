@@ -1,0 +1,78 @@
+name: user-module-security
+
+on:
+  pull_request:
+    paths:
+      - "src/main/java/com/mx/cryptomonitor/user/**"
+      - "src/main/java/com/mx/cryptomonitor/transaction/**"
+      - "src/main/java/com/mx/cryptomonitor/portfolio/**"
+      - "src/main/java/com/mx/cryptomonitor/marketdata/**"
+      - "src/main/java/com/mx/cryptomonitor/application/**"
+      - "src/main/java/com/mx/cryptomonitor/domain/**"
+      - "src/main/java/com/mx/cryptomonitor/infrastructure/**"
+      - "src/main/java/com/mx/cryptomonitor/shared/**"
+      - "src/test/**"
+      - "pom.xml"
+      - "ci/security/**"
+      - ".github/workflows/user-module-security.yml"
+
+jobs:
+  modulith-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run Modulith verification gate
+        run: >
+          mvn -B -Dspring.profiles.active=test
+          -Dtest=ModulithVerificationTest
+          test
+
+  unit-and-security-slice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run user/auth WebMvc security tests
+        run: >
+          mvn -B -Dspring.profiles.active=test
+          -Dtest=AuthControllerLoginWebMvcTest,UserControllerRegisterWebMvcTest,UserControllerLoginWebMvcTest,UserControllerOwaspWebMvcTest
+          test
+
+  integration-access-control:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run access-control integration test
+        run: >
+          mvn -B -Dspring.profiles.active=test
+          -Dtest=UserControllerAccessControlSecurityIT
+          test
+
+  integration-token-rotation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run refresh-token rotation integration test (Testcontainers)
+        run: >
+          mvn -B -Dspring.profiles.active=test
+          -Dtest=AuthRefreshTokenRotationIT
+          test
