@@ -71,3 +71,4 @@ src/test/java/com/mx/cryptomonitor/**
 !src/test/java/com/mx/cryptomonitor/unit/
 !src/test/java/com/mx/cryptomonitor/unit/service/
 !src/test/java/com/mx/cryptomonitor/unit/service/**
+FETCH_HEAD
