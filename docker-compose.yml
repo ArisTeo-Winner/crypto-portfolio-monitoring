@@ -2,35 +2,47 @@
 services:
   java_db:
     image: postgres:16-alpine
-    container_name: java_db
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_LOCAL_PORT:-5432}:5432"
     networks:
       - app_network
     volumes: 
       - shared_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7
-    container_name: redis
     ports:
-      - "6379:6379"
+      - "${REDIS_LOCAL_PORT:-6379}:6379"
     networks:
       - app_network
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
 
   java_app:
-    build: .
-    container_name: java_app
+    build:
+      context: .
     depends_on:
-      - java_db
-      - redis
+      java_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
@@ -59,7 +71,7 @@ services:
     networks:
       - app_network
     ports:
-      - "8080:8080"
+      - "${APP_HOST_PORT:-8080}:8080"
 
 networks:
   app_network:
