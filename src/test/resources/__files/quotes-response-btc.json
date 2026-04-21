@@ -1,0 +1,25 @@
+﻿{
+  "status": {
+    "timestamp": "2025-12-12T19:29:27.882Z",
+    "error_code": 0,
+    "error_message": null,
+    "elapsed": 25,
+    "credit_count": 1,
+    "notice": null
+  },
+  "data": {
+    "BTC": [
+      {
+        "id": 1,
+        "name": "Bitcoin",
+        "symbol": "BTC",
+        "quote": {
+          "USD": {
+            "price": 90214.77304604798,
+            "last_updated": "2025-12-12T19:27:00.000Z"
+          }
+        }
+      }
+    ]
+  }
+}

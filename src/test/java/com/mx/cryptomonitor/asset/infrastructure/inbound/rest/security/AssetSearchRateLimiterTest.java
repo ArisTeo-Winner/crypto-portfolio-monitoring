@@ -1,0 +1,137 @@
+package com.mx.cryptomonitor.asset.infrastructure.inbound.rest.security;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+
+import com.mx.cryptomonitor.asset.domain.exception.TooManyAssetSearchRequestsException;
+
+class AssetSearchRateLimiterTest {
+
+  @Test
+  void validateOrThrowShouldDoNothingWhenLimiterIsDisabled() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(false, 2, 60, 60, clock::get);
+
+    assertThatCode(() -> limiter.validateOrThrow(requestWithRemoteAddr("10.0.0.1")))
+        .doesNotThrowAnyException();
+    assertThatCode(() -> limiter.validateOrThrow(requestWithRemoteAddr("10.0.0.1")))
+        .doesNotThrowAnyException();
+    assertThatCode(() -> limiter.validateOrThrow(requestWithRemoteAddr("10.0.0.1")))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void validateOrThrowShouldRejectInvalidConfiguration() {
+    AtomicLong clock = new AtomicLong(1_000L);
+
+    assertThatThrownBy(() -> new AssetSearchRateLimiter(true, 0, 60, 60, clock::get))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("positive");
+    assertThatThrownBy(() -> new AssetSearchRateLimiter(true, 1, 0, 60, clock::get))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("positive");
+    assertThatThrownBy(() -> new AssetSearchRateLimiter(true, 1, 60, 0, clock::get))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("positive");
+  }
+
+  @Test
+  void validateOrThrowShouldRejectNullClock() {
+    assertThatThrownBy(() -> new AssetSearchRateLimiter(true, 1, 60, 60, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("clockMillis");
+  }
+
+  @Test
+  void validateOrThrowShouldBlockClientWhenLimitIsExceeded() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(true, 2, 60, 60, clock::get);
+    MockHttpServletRequest request = requestWithRemoteAddr("10.0.0.1");
+
+    limiter.validateOrThrow(request);
+    limiter.validateOrThrow(request);
+
+    assertThatThrownBy(() -> limiter.validateOrThrow(request))
+        .isInstanceOf(TooManyAssetSearchRequestsException.class)
+        .satisfies(
+            throwable ->
+                assertThat(((TooManyAssetSearchRequestsException) throwable).getRetryAfterSeconds())
+                    .isEqualTo(60L));
+  }
+
+  @Test
+  void validateOrThrowShouldUseForwardedForFirstIpAsClientKey() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(true, 1, 60, 60, clock::get);
+    MockHttpServletRequest request = requestWithRemoteAddr("10.0.0.1");
+    request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.1");
+
+    limiter.validateOrThrow(request);
+
+    MockHttpServletRequest secondRequest = requestWithRemoteAddr("198.51.100.99");
+    secondRequest.addHeader("X-Forwarded-For", "203.0.113.10, 198.51.100.99");
+
+    assertThatThrownBy(() -> limiter.validateOrThrow(secondRequest))
+        .isInstanceOf(TooManyAssetSearchRequestsException.class);
+  }
+
+  @Test
+  void validateOrThrowShouldUseUnknownClientKeyWhenRequestIsNull() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(true, 1, 60, 60, clock::get);
+
+    limiter.validateOrThrow(null);
+
+    assertThatThrownBy(() -> limiter.validateOrThrow(null))
+        .isInstanceOf(TooManyAssetSearchRequestsException.class);
+  }
+
+  @Test
+  void validateOrThrowShouldAllowClientAgainAfterWindowExpires() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(true, 1, 60, 1, clock::get);
+    MockHttpServletRequest request = requestWithRemoteAddr("10.0.0.1");
+
+    limiter.validateOrThrow(request);
+    clock.addAndGet(60_001L);
+
+    assertThatCode(() -> limiter.validateOrThrow(request)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void validateOrThrowShouldFallbackToUnknownWhenRemoteAddrIsBlank() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(true, 1, 60, 60, clock::get);
+    MockHttpServletRequest request = requestWithRemoteAddr(" ");
+
+    limiter.validateOrThrow(request);
+
+    assertThatThrownBy(() -> limiter.validateOrThrow(requestWithRemoteAddr(null)))
+        .isInstanceOf(TooManyAssetSearchRequestsException.class);
+  }
+
+  @Test
+  void validateOrThrowShouldFallbackToRemoteAddrWhenForwardedHeaderIsBlank() {
+    AtomicLong clock = new AtomicLong(1_000L);
+    AssetSearchRateLimiter limiter = new AssetSearchRateLimiter(true, 1, 60, 60, clock::get);
+    MockHttpServletRequest request = requestWithRemoteAddr("10.0.0.1");
+    request.addHeader("X-Forwarded-For", " ");
+
+    limiter.validateOrThrow(request);
+
+    assertThatThrownBy(() -> limiter.validateOrThrow(requestWithRemoteAddr("10.0.0.1")))
+        .isInstanceOf(TooManyAssetSearchRequestsException.class);
+  }
+
+  private MockHttpServletRequest requestWithRemoteAddr(String remoteAddr) {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setRemoteAddr(remoteAddr);
+    return request;
+  }
+}
