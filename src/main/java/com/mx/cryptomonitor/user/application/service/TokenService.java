@@ -39,7 +39,6 @@ public class TokenService {
 
   @Transactional
   public RefreshToken accessToken(User user, String ipAddress, String userAgent) {
-    logger.info("--TokenService >>> generateTokens()--");
 
     String refreshTokenValue = tokenIssuerPort.generateRefreshToken(user.getEmail());
     Session session = new Session();
@@ -153,7 +152,6 @@ public class TokenService {
 
   @Transactional
   public void revokeRefreshToken(String refreshTokenValue) {
-    logger.info("--TokenService >>> revokeRefreshToken()--");
 
     RefreshTokenStoreService.StoredRefreshToken storedToken =
         refreshTokenStoreService

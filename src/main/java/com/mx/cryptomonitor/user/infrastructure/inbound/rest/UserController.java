@@ -247,7 +247,6 @@ public class UserController {
   @GetMapping
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<List<UserResponse>> getAllUsers() {
-    logger.info("=== Ejecutando metodo getAllUsers() desde UserController ===");
     List<UserResponse> users = userService.getAllUsers();
     return ResponseEntity.ok(users);
   }
@@ -261,7 +260,6 @@ public class UserController {
       })
   @DeleteMapping("/{id}")
   public ResponseEntity<String> deleteUser(@PathVariable UUID id) {
-    logger.info("=== Ejecutando metodo deleteUser() desde UserController ===");
     try {
       userService.deleteUserById(id);
       return ResponseEntity.ok("Usuario eliminado exitosamente.");
@@ -323,10 +321,8 @@ public class UserController {
       })
   @GetMapping("/{id}/test")
   public ResponseEntity<User> testFindById(@PathVariable UUID id) {
-    logger.info("ID recibido: {}", id);
     Optional<User> user = userService.findById(id);
     if (user.isPresent()) {
-      logger.info("Usuario encontrado: {}", user.get());
       return ResponseEntity.ok(user.get());
     }
     logger.warn("Usuario con ID {} no encontrado", id);

@@ -70,7 +70,6 @@ public class AuthController {
     loginRateLimiter.validateOrThrow(request);
     JwtResponse token = authService.login(loginRequest, request);
 
-    logger.info("User {} logged in successfully", loginRequest.email());
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .header(HttpHeaders.PRAGMA, "no-cache")
@@ -92,8 +91,6 @@ public class AuthController {
       })
   @PostMapping("/logout")
   public ResponseEntity<String> logout(@RequestHeader("X-Refresh-Token") String refreshToken) {
-    logger.info("---AuthController >>> logout");
-    // Never log tokens.
 
     authService.logout(refreshToken);
     return ResponseEntity.ok("Sesión cerrada exitosamente");
