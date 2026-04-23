@@ -1,0 +1,114 @@
+services:
+  java_db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:?DB_USER is required}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS is required}
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is required}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      - -c
+      - log_min_duration_statement=${POSTGRES_LOG_MIN_DURATION_STATEMENT_MS:-500}
+    networks:
+      - app_network
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    networks:
+      - app_network
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+
+  java_app:
+    build:
+      context: .
+      dockerfile: dockerfile
+    restart: unless-stopped
+    depends_on:
+      java_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL is required}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USER:?SPRING_DATASOURCE_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASS:?SPRING_DATASOURCE_PASS is required}
+      FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
+      FLYWAY_USER: ${SPRING_DATASOURCE_USER:?SPRING_DATASOURCE_USER is required}
+      FLYWAY_PASSWORD: ${SPRING_DATASOURCE_PASS:?SPRING_DATASOURCE_PASS is required}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+      DB_POOL_MIN_IDLE: ${DB_POOL_MIN_IDLE:-2}
+      DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-30000}
+      DB_VALIDATION_TIMEOUT_MS: ${DB_VALIDATION_TIMEOUT_MS:-5000}
+      DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-600000}
+      DB_MAX_LIFETIME_MS: ${DB_MAX_LIFETIME_MS:-1800000}
+      DB_LEAK_DETECTION_THRESHOLD_MS: ${DB_LEAK_DETECTION_THRESHOLD_MS:-0}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      JWT_SECRET_BASE64: ${JWT_SECRET_BASE64:?JWT_SECRET_BASE64 is required}
+      REFRESH_TOKEN_HASH_SECRET_BASE64: ${REFRESH_TOKEN_HASH_SECRET_BASE64:?REFRESH_TOKEN_HASH_SECRET_BASE64 is required}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:?JWT_ACCESS_EXPIRATION is required}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:?JWT_REFRESH_EXPIRATION is required}
+      API_COINMARKETCAP_BASE_URL: ${API_COINMARKETCAP_BASE_URL}
+      COINMARKETCAP_API_KEY: ${COINMARKETCAP_API_KEY}
+      API_COINGECKO_BASE_URL: ${API_COINGECKO_BASE_URL:-https://api.coingecko.com}
+      COINGECKO_API_KEY: ${COINGECKO_API_KEY:-}
+      API_ALPHAVANTAGE_BASE_URL: ${API_ALPHAVANTAGE_BASE_URL}
+      API_ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY}
+      API_MASSIVE_BASE_URL: ${API_MASSIVE_BASE_URL}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      POLYGON_API_KEY: ${POLYGON_API_KEY}
+      POLYGON_BASE_URL: ${POLYGON_BASE_URL}
+      MENSSEGER_ASSETS: ${MENSSEGER_ASSETS}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-false}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      SPRINGDOC_API_DOCS_ENABLED: ${SPRINGDOC_API_DOCS_ENABLED:-false}
+      SPRINGDOC_SWAGGER_UI_ENABLED: ${SPRINGDOC_SWAGGER_UI_ENABLED:-false}
+    networks:
+      - app_network
+    ports:
+      - "${APP_HOST_PORT:-8080}:8080"
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  pg_data:
+  redis_data:

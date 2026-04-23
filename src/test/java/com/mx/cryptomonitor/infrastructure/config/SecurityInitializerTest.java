@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,11 +15,15 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.mx.cryptomonitor.user.domain.model.Permission;
 import com.mx.cryptomonitor.user.domain.model.Role;
+import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.PermissionRepository;
 import com.mx.cryptomonitor.user.domain.repository.RoleRepository;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 import com.mx.cryptomonitor.user.infrastructure.configuration.SecurityInitializer;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,11 +33,17 @@ public class SecurityInitializerTest {
 
   @Mock private PermissionRepository permissionRepository;
 
+  @Mock private UserRepository userRepository;
+
+  @Mock private PasswordEncoder passwordEncoder;
+
   @InjectMocks private SecurityInitializer securityInitializer;
 
   @Captor private ArgumentCaptor<List<Role>> rolesCaptor;
 
   @Captor private ArgumentCaptor<List<Permission>> permissionsCaptor;
+
+  @Captor private ArgumentCaptor<User> userCaptor;
 
   @BeforeEach
   void setUp() {
@@ -112,5 +123,30 @@ public class SecurityInitializerTest {
             .anyMatch(
                 permission -> permission.getName() != null && permission.getName().contains("Ver")),
         "Debería existir al menos un permiso de tipo READ");
+  }
+
+  @Test
+  void init_ShouldCreateBootstrapAdmin_WhenEnabledAndUserDoesNotExist() {
+    when(permissionRepository.count()).thenReturn(1L);
+    when(roleRepository.count()).thenReturn(1L);
+    Role adminRole = Role.builder().name("ROLE_ADMIN").description("Admin").build();
+    when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
+    when(userRepository.findByEmailIgnoreCase("admin@example.com")).thenReturn(Optional.empty());
+    when(passwordEncoder.encode("change-me-now")).thenReturn("encoded-password");
+
+    ReflectionTestUtils.setField(securityInitializer, "bootstrapAdminEnabled", true);
+    ReflectionTestUtils.setField(securityInitializer, "bootstrapAdminEmail", "admin@example.com");
+    ReflectionTestUtils.setField(securityInitializer, "bootstrapAdminUsername", "admin");
+    ReflectionTestUtils.setField(securityInitializer, "bootstrapAdminPassword", "change-me-now");
+
+    securityInitializer.init();
+
+    verify(userRepository).save(userCaptor.capture());
+    User savedAdmin = userCaptor.getValue();
+    assertEquals("admin", savedAdmin.getUsername());
+    assertEquals("admin@example.com", savedAdmin.getEmail());
+    assertEquals("encoded-password", savedAdmin.getPasswordHash());
+    assertTrue(savedAdmin.isActive());
+    assertTrue(savedAdmin.getRoles().contains(adminRole));
   }
 }

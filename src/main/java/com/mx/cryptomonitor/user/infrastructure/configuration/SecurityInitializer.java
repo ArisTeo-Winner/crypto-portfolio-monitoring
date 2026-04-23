@@ -1,17 +1,23 @@
 package com.mx.cryptomonitor.user.infrastructure.configuration;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import com.mx.cryptomonitor.user.domain.model.Permission;
 import com.mx.cryptomonitor.user.domain.model.Role;
+import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.PermissionRepository;
 import com.mx.cryptomonitor.user.domain.repository.RoleRepository;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +30,20 @@ public class SecurityInitializer {
 
   private final RoleRepository roleRepository;
   private final PermissionRepository permissionRepository;
+  private final UserRepository userRepository;
+  private final PasswordEncoder passwordEncoder;
+
+  @Value("${security.bootstrap-admin.enabled:false}")
+  private boolean bootstrapAdminEnabled;
+
+  @Value("${security.bootstrap-admin.email:}")
+  private String bootstrapAdminEmail;
+
+  @Value("${security.bootstrap-admin.username:}")
+  private String bootstrapAdminUsername;
+
+  @Value("${security.bootstrap-admin.password:}")
+  private String bootstrapAdminPassword;
 
   @PostConstruct
   @Transactional
@@ -44,7 +64,65 @@ public class SecurityInitializer {
       log.info("Roles predeterminados creados: {}", defaultRoles.size());
     }
 
+    bootstrapAdminIfRequested();
+
     log.info("Configuración de seguridad inicializada correctamente");
+  }
+
+  private void bootstrapAdminIfRequested() {
+    if (!bootstrapAdminEnabled) {
+      return;
+    }
+
+    if (!StringUtils.hasText(bootstrapAdminEmail) || !StringUtils.hasText(bootstrapAdminPassword)) {
+      throw new IllegalStateException(
+          "Bootstrap admin is enabled but email or password is missing.");
+    }
+
+    Role adminRole =
+        roleRepository
+            .findByName("ROLE_ADMIN")
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        "Bootstrap admin requires ROLE_ADMIN to exist before user creation."));
+
+    userRepository
+        .findByEmailIgnoreCase(bootstrapAdminEmail)
+        .ifPresentOrElse(
+            existingUser -> ensureAdminRole(existingUser, adminRole),
+            () -> createBootstrapAdmin(adminRole));
+  }
+
+  private void ensureAdminRole(User existingUser, Role adminRole) {
+    if (existingUser.addRole(adminRole)) {
+      userRepository.save(existingUser);
+      log.warn("Bootstrap admin role granted to existing user id={}", existingUser.getId());
+    }
+  }
+
+  private void createBootstrapAdmin(Role adminRole) {
+    String username =
+        StringUtils.hasText(bootstrapAdminUsername)
+            ? bootstrapAdminUsername
+            : defaultUsernameFromEmail();
+
+    User adminUser =
+        User.builder()
+            .username(username)
+            .email(bootstrapAdminEmail)
+            .passwordHash(passwordEncoder.encode(bootstrapAdminPassword))
+            .active(true)
+            .roles(new ArrayList<>(List.of(adminRole)))
+            .build();
+
+    userRepository.save(adminUser);
+    log.warn("Bootstrap admin user created with id={}", adminUser.getId());
+  }
+
+  private String defaultUsernameFromEmail() {
+    int atSignIndex = bootstrapAdminEmail.indexOf("@");
+    return atSignIndex > 0 ? bootstrapAdminEmail.substring(0, atSignIndex) : bootstrapAdminEmail;
   }
 
   private List<Permission> createDefaultPermissions() {
