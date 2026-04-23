@@ -185,3 +185,36 @@ isolated behind an outbound port to preserve architectural boundaries.
 Swagger/OpenAPI is provided through Springdoc. Once the backend is running,
 check the configured Swagger UI endpoint in your local environment.
 
+## Health Checks
+
+Public API health endpoint:
+
+```text
+GET /api/v1/health
+```
+
+Operational Actuator probes:
+
+```text
+GET /actuator/health
+GET /actuator/health/liveness
+GET /actuator/health/readiness
+```
+
+## Production Operations
+
+Production-shaped PostgreSQL and Redis configuration is documented in
+`docs/operations/POSTGRESQL_PRODUCTION_READINESS.md`.
+The concrete go/no-go database checklist is available in
+`docs/operations/DATABASE_PRODUCTION_CHECKLIST.md`.
+
+For staging or production-style validation:
+
+```powershell
+.\mvnw -B -DskipTests package
+docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+```
+
+The production compose keeps PostgreSQL and Redis off host ports, requires a
+Redis password, uses the `prod` profile, and keeps Flyway strict by default.
+

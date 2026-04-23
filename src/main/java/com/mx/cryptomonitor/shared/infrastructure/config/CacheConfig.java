@@ -3,6 +3,7 @@ package com.mx.cryptomonitor.shared.infrastructure.config;
 import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurerSupport;
 import org.springframework.cache.annotation.EnableCaching;
@@ -27,6 +28,7 @@ public class CacheConfig extends CachingConfigurerSupport {
   }
 
   @Bean
+  @ConditionalOnProperty(name = "spring.cache.type", havingValue = "redis", matchIfMissing = true)
   public CacheManager cacheManager(
       RedisConnectionFactory redisConnectionFactory,
       @Value("${app.cache.stock-prices-ttl:PT24H}") Duration stockPricesTtl,
