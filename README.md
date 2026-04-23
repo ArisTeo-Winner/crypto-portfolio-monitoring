@@ -168,6 +168,24 @@ isolated behind an outbound port to preserve architectural boundaries.
 .\mvnw clean compile
 ```
 
+### Run Jar Locally
+
+The local `java -jar` process runs from Windows, so database and Redis hosts must use
+`localhost`. Docker Compose uses the internal service name `java_db` automatically.
+
+If Docker backend is already exposing port `8080`, set `SERVER_PORT=8081` in `.env`
+or stop the backend container before running the jar.
+
+```powershell
+java -jar target\crypto-portfolio-monitoring-0.0.1-SNAPSHOT.jar
+```
+
+Then verify:
+
+```powershell
+Invoke-RestMethod http://localhost:8081/api/v1/health
+```
+
 ### Run tests
 
 ```powershell

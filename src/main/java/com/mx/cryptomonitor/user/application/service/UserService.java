@@ -44,7 +44,6 @@ public class UserService {
 
   // Método para obtener todos los usuarios
   public List<UserResponse> getAllUsers() {
-    logger.info("=== Ejecutando método getAllUsers() desde UserService ===");
 
     List<User> users = userRepository.findAll();
 
@@ -102,7 +101,6 @@ public class UserService {
 
   @Transactional(readOnly = true)
   public Optional<User> findById(UUID id) {
-    logger.info("Buscando usuario con ID: {}", id);
     Optional<User> user = userRepository.findById(id);
     if (user.isPresent()) {
       logger.info("Usuario encontrado: {}", user.get());
@@ -114,8 +112,6 @@ public class UserService {
 
   @Transactional
   public User updateUser(String email, User updatedUser) {
-    logger.info("=== Ejecutando método updateUser() desde UserService ===");
-    logger.info("Correo de usuario recibido: " + email);
 
     if (email == null || email.isBlank()) {
       throw new IllegalArgumentException("El correo electrónico no puede ser nulo o vacío.");
@@ -125,8 +121,6 @@ public class UserService {
 
     if (optionalUser.isPresent()) {
       User user = optionalUser.get();
-
-      logger.info("Usuario encontrado: " + user);
 
       user.setFirstName(
           updatedUser.getFirstName() != null ? updatedUser.getFirstName() : user.getFirstName());

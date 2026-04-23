@@ -142,9 +142,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             return;
           }
 
-          // Configurar la autenticación en el contexto de seguridad
-          logger.info("Token JWT validado con éxito para el usuario: {}", username);
-
           UsernamePasswordAuthenticationToken authentication =
               new UsernamePasswordAuthenticationToken(
                   userDetails, null, userDetails.getAuthorities());

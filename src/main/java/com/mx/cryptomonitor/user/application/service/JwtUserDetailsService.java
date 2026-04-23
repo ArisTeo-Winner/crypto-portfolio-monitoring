@@ -30,7 +30,6 @@ public class JwtUserDetailsService implements UserDetailsService {
   @Override
   public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
     String normalizedEmail = normalizeEmail(email);
-    logger.info("Intentando cargar el usuario con email: {}", normalizedEmail);
 
     User user =
         userRepository
@@ -41,8 +40,6 @@ public class JwtUserDetailsService implements UserDetailsService {
                   return new UsernameNotFoundException(
                       "User not found with email: " + normalizedEmail);
                 });
-
-    logger.info("Usuario encontrado: {}", user.getEmail());
 
     List<GrantedAuthority> authorities = new ArrayList<>();
     for (Role role : user.getRoles()) {

@@ -38,7 +38,6 @@ public class PriceUpdateService {
 
   @Scheduled(fixedRate = 300000)
   public void updatePrices() {
-    logger.info("=== Ejecutando metodo updatePrices() desde PriceUpdateService ===");
 
     for (PortfolioEntry entry : portfolioEntryRepository.findAll()) {
       Optional<BigDecimal> priceOpt = resolveCurrentAssetPrice(entry);

@@ -103,7 +103,6 @@ public class AuthService {
 
   @Transactional
   public void logout(String refreshTokenValue) {
-    logger.info("---AuthService >>> logout");
 
     RefreshTokenStoreService.StoredRefreshToken storedRefreshToken =
         refreshTokenStoreService

@@ -42,7 +42,6 @@ public class StockDataController {
   @ApiResponse(responseCode = "500", description = "Error interno")
   @GetMapping("/stock")
   public ResponseEntity<String> getStockPrice(@RequestParam("symbol") String symbol) {
-    logger.info("Solicitud para obtener precio de accion: {}", symbol);
 
     if (symbol == null || symbol.trim().isEmpty()) {
       return ResponseEntity.badRequest().body("El simbolo de la accion no debe ser nulo ni vacio.");
@@ -67,8 +66,7 @@ public class StockDataController {
   @ApiResponse(responseCode = "500", description = "Error interno")
   public ResponseEntity<String> getHistoricalStockPrice(
       @PathVariable("symbol") String symbol, @PathVariable("date") String date) {
-    logger.info(
-        "Solicitud para obtener precio historico de accion: {} en la fecha: {}", symbol, date);
+   
 
     if (symbol == null || symbol.trim().isEmpty()) {
       return ResponseEntity.badRequest().body("El simbolo de la accion no debe ser nulo ni vacio.");
