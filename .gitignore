@@ -58,6 +58,8 @@ src/main/resources/application.properties
 /src/main/resources/static/
 
 /src/main/resources/db/migration/
+!/src/main/resources/db/migration/
+!/src/main/resources/db/migration/*.sql
 
 # Publica la suite real de tests y oculta solo utilitarios/manuales locales
 /src/test/java/com/mx/cryptomonitor/*.java

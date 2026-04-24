@@ -36,17 +36,23 @@ class FlywayBaselineMigrationIT {
     MigrateResult result = flyway.migrate();
 
     assertThat(result.success).isTrue();
-    assertThat(result.migrationsExecuted).isGreaterThanOrEqualTo(2);
+    assertThat(result.migrationsExecuted).isGreaterThanOrEqualTo(3);
 
     try (Connection connection =
         DriverManager.getConnection(
             postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
       assertThat(tableExists(connection, "users")).isTrue();
+      assertThat(tableExists(connection, "audit_logs")).isTrue();
       assertThat(tableExists(connection, "portfolio_entry")).isTrue();
       assertThat(tableExists(connection, "transaction")).isTrue();
       assertThat(tableExists(connection, "flyway_schema_history")).isTrue();
       assertThat(indexExists(connection, "idx_transaction_user_date")).isTrue();
+      assertThat(indexExists(connection, "idx_audit_logs_user_timestamp")).isTrue();
       assertThat(indexExists(connection, "uq_users_email_lower")).isTrue();
+      assertThat(schemaHistoryContains(connection, "1")).isTrue();
+      assertThat(schemaHistoryContains(connection, "2")).isTrue();
+      assertThat(schemaHistoryContains(connection, "3")).isTrue();
+      assertThat(schemaHistoryContains(connection, "2026.02.18.01")).isTrue();
     }
   }
 
@@ -65,6 +71,17 @@ class FlywayBaselineMigrationIT {
     String sql =
         "select exists (select 1 from pg_indexes where schemaname = 'public' and indexname = '%s')"
             .formatted(indexName);
+    try (Statement statement = connection.createStatement();
+        var resultSet = statement.executeQuery(sql)) {
+      resultSet.next();
+      return resultSet.getBoolean(1);
+    }
+  }
+
+  private boolean schemaHistoryContains(Connection connection, String version) throws SQLException {
+    String sql =
+        "select exists (select 1 from flyway_schema_history where version = '%s' and success = true)"
+            .formatted(version);
     try (Statement statement = connection.createStatement();
         var resultSet = statement.executeQuery(sql)) {
       resultSet.next();
