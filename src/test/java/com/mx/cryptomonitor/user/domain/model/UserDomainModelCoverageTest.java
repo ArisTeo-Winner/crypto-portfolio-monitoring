@@ -50,6 +50,19 @@ class UserDomainModelCoverageTest {
   }
 
   @Test
+  void prePersistShouldInitializeUpdatedAtWhenNull() {
+    User user = new User();
+    user.setCreatedAt(null);
+    user.setUpdatedAt(null);
+
+    user.prePersist();
+
+    assertThat(user.getCreatedAt()).isNotNull();
+    assertThat(user.getUpdatedAt()).isNotNull();
+    assertThat(user.getUpdatedAt()).isEqualTo(user.getCreatedAt());
+  }
+
+  @Test
   void userToStringShouldNotLeakSensitiveFields() {
     User user = createFilledUser();
     String asText = user.toString();

@@ -168,7 +168,9 @@ public class UserService {
 
     // Encriptar la contraseña
     user.setPasswordHash(passwordEncoderBean.encode(request.password()));
-    user.setCreatedAt(LocalDateTime.now());
+    LocalDateTime now = LocalDateTime.now();
+    user.setCreatedAt(now);
+    user.setUpdatedAt(now);
 
     // 🔥 Asegurar que los roles no sean null
     if (user.getRoles() == null) {
