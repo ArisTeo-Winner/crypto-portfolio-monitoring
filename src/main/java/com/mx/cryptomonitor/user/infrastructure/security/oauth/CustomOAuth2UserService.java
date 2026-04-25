@@ -42,11 +42,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
   @Override
   @Transactional
   public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
+    return loadUserFromAttributes(super.loadUser(userRequest).getAttributes());
+  }
 
-    OAuth2User oauthUsr = super.loadUser(userRequest);
-
-    Map<String, Object> attr = oauthUsr.getAttributes();
-
+  AuthenticatedUserPrincipal loadUserFromAttributes(Map<String, Object> attr) {
     String sub = asString(attr.get("sub"));
     String email = asString(attr.get("email"));
     String givenName = asString(attr.get("given_name"));
@@ -69,15 +68,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     } else {
       user = userRepository.findByEmailIgnoreCase(email).orElse(null);
       if (user == null) {
+        LocalDateTime now = LocalDateTime.now();
         user = new User();
         user.setEmail(email);
         user.setUsername(safeUsernameFromEmail(email));
         user.setFirstName(givenName);
         user.setLastName(familyName);
         user.setActive(true);
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
-        user.setLastLogin(LocalDateTime.now());
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        user.setLastLogin(now);
         user.setPasswordHash(null);
         user = userRepository.save(user);
 

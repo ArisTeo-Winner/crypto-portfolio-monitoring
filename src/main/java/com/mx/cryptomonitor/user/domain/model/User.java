@@ -69,12 +69,14 @@ public class User {
 
   private String bio;
 
-  private boolean active = true;
+  @Builder.Default private boolean active = true;
 
-  @Column(name = "created_at")
+  @Builder.Default
+  @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt = LocalDateTime.now();
 
-  @Column(name = "updated_at")
+  @Builder.Default
+  @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt = LocalDateTime.now();
 
   private LocalDateTime lastLogin;
@@ -84,10 +86,26 @@ public class User {
       name = "user_roles",
       joinColumns = @JoinColumn(name = "user_id"),
       inverseJoinColumns = @JoinColumn(name = "role_id"))
-  private List<Role> roles = new ArrayList<>();
+  @Builder.Default private List<Role> roles = new ArrayList<>();
 
   public User(String string, String string2) {
     // TODO Auto-generated constructor stub
+  }
+
+  @PrePersist
+  void prePersist() {
+    LocalDateTime now = LocalDateTime.now();
+    if (createdAt == null) {
+      createdAt = now;
+    }
+    if (updatedAt == null) {
+      updatedAt = createdAt;
+    }
+  }
+
+  @PreUpdate
+  void preUpdate() {
+    updatedAt = LocalDateTime.now();
   }
 
   /**

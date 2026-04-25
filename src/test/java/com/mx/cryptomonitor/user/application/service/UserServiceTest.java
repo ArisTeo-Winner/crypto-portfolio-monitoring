@@ -3,6 +3,7 @@ package com.mx.cryptomonitor.user.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -248,7 +249,43 @@ class UserServiceTest {
     UserResponse response = userService.registerUser(request);
 
     assertThat(response).isEqualTo(testResponse);
+    verify(userRepository)
+        .save(
+            argThat(
+                savedUser ->
+                    savedUser.getCreatedAt() != null
+                        && savedUser.getUpdatedAt() != null
+                        && savedUser.getUpdatedAt().isEqual(savedUser.getCreatedAt())));
     verify(auditLogService).log(any(AuditEventType.class), anyString(), any());
+  }
+
+  @Test
+  void registerUserShouldForceUpdatedAtWhenMapperReturnsNullTimestamps() {
+    UserRegistrationRequest request = registrationRequest();
+    Role role = Role.builder().name("ROLE_USER").build();
+    User mappedUser = new User();
+    mappedUser.setUsername(request.username());
+    mappedUser.setEmail(request.email());
+    mappedUser.setCreatedAt(null);
+    mappedUser.setUpdatedAt(null);
+
+    when(userRepository.findByEmailIgnoreCase(request.email())).thenReturn(Optional.empty());
+    when(userRepository.findByUsername(request.username())).thenReturn(Optional.empty());
+    when(userMapper.toEntity(request)).thenReturn(mappedUser);
+    when(roleRepository.findByName("ROLE_USER")).thenReturn(Optional.of(role));
+    when(passwordEncoderBean.encode(request.password())).thenReturn("encoded-password");
+    when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(userMapper.toResponse(any(User.class))).thenReturn(testResponse);
+
+    userService.registerUser(request);
+
+    verify(userRepository)
+        .save(
+            argThat(
+                savedUser ->
+                    savedUser.getCreatedAt() != null
+                        && savedUser.getUpdatedAt() != null
+                        && savedUser.getUpdatedAt().isEqual(savedUser.getCreatedAt())));
   }
 
   @Test

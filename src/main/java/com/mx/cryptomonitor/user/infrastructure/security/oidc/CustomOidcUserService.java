@@ -14,7 +14,6 @@ import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
@@ -45,10 +44,10 @@ public class CustomOidcUserService extends OidcUserService {
   @Override
   @Transactional
   public OidcUser loadUser(OidcUserRequest userRequest) {
-    // TODO Auto-generated method stub
+    return loadUserFromOidcUser(super.loadUser(userRequest));
+  }
 
-    OidcUser oidc = super.loadUser(userRequest);
-
+  OidcUserWithDomain loadUserFromOidcUser(OidcUser oidc) {
     String sub = oidc.getSubject();
     String email = oidc.getEmail();
     String givenName = (String) oidc.getClaims().getOrDefault("given_name", null);
@@ -73,15 +72,16 @@ public class CustomOidcUserService extends OidcUserService {
       if (byEmail.isPresent()) {
         user = byEmail.get();
       } else {
+        LocalDateTime now = LocalDateTime.now();
         user = new User();
         user.setEmail(email);
         user.setUsername(buildUsername(email, sub));
         user.setFirstName(givenName);
         user.setLastName(familyName);
         user.setActive(true);
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
-        user.setLastLogin(LocalDateTime.now());
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        user.setLastLogin(now);
         user = userRepository.save(user);
 
         Role r =
@@ -113,9 +113,6 @@ public class CustomOidcUserService extends OidcUserService {
               .map(r -> new SimpleGrantedAuthority(r.getName()))
               .collect(Collectors.toSet()));
     }
-
-    DefaultOidcUser delegate =
-        new DefaultOidcUser(authorities, oidc.getIdToken(), oidc.getUserInfo());
 
     return new OidcUserWithDomain(user, authorities, oidc.getIdToken(), oidc.getUserInfo());
   }
