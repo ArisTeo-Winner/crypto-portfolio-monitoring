@@ -42,6 +42,7 @@ out.txt
 jacoco_*.csv
 jacoco.exec
 dependency-reduced-pom.xml
+backup_*.sql
 
 logsTest/
 Query/

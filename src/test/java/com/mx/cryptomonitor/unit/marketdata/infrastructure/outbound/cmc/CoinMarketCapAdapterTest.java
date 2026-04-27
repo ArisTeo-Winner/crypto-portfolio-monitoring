@@ -8,6 +8,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.marketdata.domain.exception.CoinMarketCapInvalidParamException;
@@ -74,6 +75,40 @@ class CoinMarketCapAdapterTest {
     assertThat(result.price().amount()).isEqualByComparingTo("69512.67");
     assertThat(result.price().currency()).isEqualTo("USD");
     assertThat(result.provider()).isEqualTo(ProviderId.COINMARKETCAP);
+  }
+
+  @Test
+  void getCryptoPriceShouldReturnCachedQuoteWhenSameSymbolIsRequestedAgain() {
+    CoinMarketCapAdapter adapter = newAdapter(true);
+    int requestsBefore = mockWebServer.getRequestCount();
+    mockWebServer.enqueue(
+        new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {
+                  "status": {"error_code": 0, "error_message": null},
+                  "data": {
+                    "BTC": [
+                      {
+                        "symbol": "BTC",
+                        "quote": {
+                          "USD": {
+                            "price": 69512.67
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+                """));
+
+    var first = adapter.getCryptoPrice("btc").block();
+    var second = adapter.getCryptoPrice("BTC").block();
+
+    assertThat(second).isEqualTo(first);
+    assertThat(mockWebServer.getRequestCount() - requestsBefore).isEqualTo(1);
   }
 
   @Test
@@ -254,6 +289,7 @@ class CoinMarketCapAdapterTest {
     CoinMarketCapProperties props =
         new CoinMarketCapProperties(
             baseUrl, "demo-key", Duration.ofSeconds(2), Duration.ofMinutes(1), "USD", enabled);
-    return new CoinMarketCapAdapter(webClient, props, meterRegistry);
+    return new CoinMarketCapAdapter(
+        webClient, props, meterRegistry, new ConcurrentMapCacheManager(CoinMarketCapAdapter.CACHE_NAME));
   }
 }

@@ -326,7 +326,7 @@ class GoogleAuthorizationCodeOidcIT {
     // wrong state -> should fail before invoking success handler
     mockMvc
         .perform(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(session)
                 .param("code", "test-code")
@@ -382,7 +382,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -407,7 +407,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -432,7 +432,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -460,7 +460,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")

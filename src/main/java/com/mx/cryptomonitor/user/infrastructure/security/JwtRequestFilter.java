@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.user.infrastructure.security;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -42,10 +44,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
   @Autowired private SessionRepository sessionRepository;
 
+  @Value("${springdoc.api-docs.enabled:false}")
+  private boolean springdocApiDocsEnabled;
+
+  @Value("${springdoc.swagger-ui.enabled:false}")
+  private boolean springdocSwaggerUiEnabled;
+
   private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
   // Lista de endpoints públicos que no requieren autenticación
-  private static final List<String> PUBLIC_ENDPOINTS =
+  private static final List<String> BASE_PUBLIC_ENDPOINTS =
       List.of(
           "/api/v1/auth/login",
           "/api/v1/auth/refresh",
@@ -62,13 +70,17 @@ public class JwtRequestFilter extends OncePerRequestFilter {
           "/actuator/health/**",
           "/actuator/prometheus",
           "/actuator/info",
-          "/swagger-ui/**",
-          "/v3/api-docs/**",
-          "/swagger-ui.html",
           "/error");
 
+  private static final List<String> SPRINGDOC_PUBLIC_ENDPOINTS =
+      List.of("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html");
+
   private boolean isPublic(String uri) {
-    return PUBLIC_ENDPOINTS.stream().anyMatch(p -> pathMatcher.match(p, uri));
+    List<String> publicEndpoints = new ArrayList<>(BASE_PUBLIC_ENDPOINTS);
+    if (springdocApiDocsEnabled || springdocSwaggerUiEnabled) {
+      publicEndpoints.addAll(SPRINGDOC_PUBLIC_ENDPOINTS);
+    }
+    return publicEndpoints.stream().anyMatch(p -> pathMatcher.match(p, uri));
   }
 
   @Override
