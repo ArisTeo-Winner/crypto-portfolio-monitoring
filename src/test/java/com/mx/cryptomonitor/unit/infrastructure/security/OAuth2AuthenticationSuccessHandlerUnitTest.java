@@ -1,10 +1,14 @@
 package com.mx.cryptomonitor.unit.infrastructure.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+
+import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,6 +29,7 @@ class OAuth2AuthenticationSuccessHandlerUnitTest {
   void shouldRedirectToFrontendCallbackWithTokens() throws Exception {
     AuthService authService = mock(AuthService.class);
     UserRepository userRepository = mock(UserRepository.class);
+    ArgumentCaptor<User> savedUserCaptor = ArgumentCaptor.forClass(User.class);
 
     OAuth2AuthenticationSuccessHandler handler =
         new OAuth2AuthenticationSuccessHandler(
@@ -45,6 +50,32 @@ class OAuth2AuthenticationSuccessHandlerUnitTest {
     assertThat(response.getRedirectedUrl())
         .isEqualTo("http://localhost:3000/auth/callback#accessToken=A&refreshToken=R");
 
-    verify(userRepository).save(any());
+    verify(userRepository).save(savedUserCaptor.capture());
+    assertThat(savedUserCaptor.getValue()).isSameAs(user);
+    assertThat(savedUserCaptor.getValue().getLastLogin()).isNotNull();
+    assertThat(savedUserCaptor.getValue().getLastLogin()).isBeforeOrEqualTo(LocalDateTime.now());
+    verify(authService).issueTokensForUser(eq(user), eq(request));
+  }
+
+  @Test
+  void shouldRedirectToLoginWithErrorWhenPrincipalIsUnexpected() throws Exception {
+    AuthService authService = mock(AuthService.class);
+    UserRepository userRepository = mock(UserRepository.class);
+
+    OAuth2AuthenticationSuccessHandler handler =
+        new OAuth2AuthenticationSuccessHandler(
+            userRepository, authService, "http://localhost:3000");
+
+    var auth = new UsernamePasswordAuthenticationToken("unexpected-principal", null);
+    var request = mock(HttpServletRequest.class);
+    var response = new MockHttpServletResponse();
+
+    handler.onAuthenticationSuccess(request, response, auth);
+
+    assertThat(response.getStatus()).isEqualTo(302);
+    assertThat(response.getRedirectedUrl())
+        .isEqualTo("http://localhost:3000/login?oauth_error=OAUTH2_PRINCIPAL_INVALID");
+
+    verifyNoInteractions(userRepository, authService);
   }
 }

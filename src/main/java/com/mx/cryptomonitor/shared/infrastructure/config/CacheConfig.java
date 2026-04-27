@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.shared.infrastructure.config;
 
 import java.time.Duration;
 
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
@@ -15,6 +16,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
@@ -33,6 +35,10 @@ public class CacheConfig extends CachingConfigurerSupport {
       RedisConnectionFactory redisConnectionFactory,
       @Value("${app.cache.stock-prices-ttl:PT24H}") Duration stockPricesTtl,
       @Value("${external.providers.coingecko.cache-ttl:PT15M}") Duration coinGeckoHistoricalTtl) {
+    RedisSerializer<Object> jsonSerializer =
+        new GenericJackson2JsonRedisSerializer()
+            .configure(objectMapper -> objectMapper.registerModule(new JavaTimeModule()));
+
     // ConfiguraciÃ³n general del cachÃ©
     RedisCacheConfiguration defaultConfig =
         RedisCacheConfiguration.defaultCacheConfig()
@@ -43,8 +49,7 @@ public class CacheConfig extends CachingConfigurerSupport {
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()));
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
     // Configuraciones especÃ­ficas para diferentes cachÃ©s
     RedisCacheConfiguration cryptoPriceConfig =
@@ -54,8 +59,7 @@ public class CacheConfig extends CachingConfigurerSupport {
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()));
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
     RedisCacheConfiguration stockPriceConfig =
         RedisCacheConfiguration.defaultCacheConfig()
@@ -64,8 +68,7 @@ public class CacheConfig extends CachingConfigurerSupport {
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()));
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
     RedisCacheConfiguration historicalConfig =
         RedisCacheConfiguration.defaultCacheConfig()
@@ -74,8 +77,7 @@ public class CacheConfig extends CachingConfigurerSupport {
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()));
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
     RedisCacheConfiguration coinGeckoHistoricalConfig =
         RedisCacheConfiguration.defaultCacheConfig()
@@ -85,8 +87,7 @@ public class CacheConfig extends CachingConfigurerSupport {
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()));
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
 
     RedisCacheConfiguration base =
         RedisCacheConfiguration.defaultCacheConfig()
@@ -95,8 +96,7 @@ public class CacheConfig extends CachingConfigurerSupport {
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()))
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer))
             .computePrefixWith(name -> "test::" + name + "::");
 
     RedisCacheConfiguration testCache = base.entryTtl(Duration.ofSeconds(30));

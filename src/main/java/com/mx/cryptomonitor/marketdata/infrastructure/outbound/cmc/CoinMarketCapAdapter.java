@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -32,17 +34,22 @@ import reactor.util.retry.Retry;
 @Slf4j
 public class CoinMarketCapAdapter implements AssetPricePort {
 
+  public static final String CACHE_NAME = "cryptoPrices";
+
   private final WebClient webClient;
   private final CoinMarketCapProperties props;
   private final MeterRegistry meterRegistry;
+  private final CacheManager cacheManager;
 
   public CoinMarketCapAdapter(
       @Qualifier("coinMarketCapWebClient") WebClient webClient,
       CoinMarketCapProperties props,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      CacheManager cacheManager) {
     this.webClient = webClient;
     this.props = props;
     this.meterRegistry = meterRegistry;
+    this.cacheManager = cacheManager;
   }
 
   @Override
@@ -52,6 +59,10 @@ public class CoinMarketCapAdapter implements AssetPricePort {
     }
 
     String normalizedSymbol = normalizeSymbol(symbol);
+    PriceQuote cachedQuote = getCachedQuote(normalizedSymbol);
+    if (cachedQuote != null) {
+      return Mono.just(cachedQuote);
+    }
 
     return Mono.defer(
         () -> {
@@ -118,6 +129,7 @@ public class CoinMarketCapAdapter implements AssetPricePort {
                                   "External service failed after max retries",
                                   retrySignal.failure())))
               .flatMap(response -> extractPrice(response, normalizedSymbol))
+              .doOnSuccess(priceQuote -> putCachedQuote(normalizedSymbol, priceQuote))
               .doOnSuccess(
                   pq -> {
                     sample.stop(
@@ -180,5 +192,29 @@ public class CoinMarketCapAdapter implements AssetPricePort {
       throw new CoinMarketCapInvalidParamException("Symbol cannot be empty");
     }
     return symbol.trim().toUpperCase();
+  }
+
+  private PriceQuote getCachedQuote(String symbol) {
+    try {
+      Cache cache = cacheManager.getCache(CACHE_NAME);
+      if (cache == null) {
+        return null;
+      }
+      return cache.get(symbol, PriceQuote.class);
+    } catch (RuntimeException ex) {
+      log.warn("CoinMarketCap price cache read failed for {}", symbol, ex);
+      return null;
+    }
+  }
+
+  private void putCachedQuote(String symbol, PriceQuote priceQuote) {
+    try {
+      Cache cache = cacheManager.getCache(CACHE_NAME);
+      if (cache != null) {
+        cache.put(symbol, priceQuote);
+      }
+    } catch (RuntimeException ex) {
+      log.warn("CoinMarketCap price cache write failed for {}", symbol, ex);
+    }
   }
 }

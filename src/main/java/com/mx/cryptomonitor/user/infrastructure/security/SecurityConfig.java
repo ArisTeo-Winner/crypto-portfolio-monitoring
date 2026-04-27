@@ -58,6 +58,12 @@ public class SecurityConfig {
   @Value("${app.frontend-base-url:http://localhost:3000}")
   private String frontendBaseUrl;
 
+  @Value("${springdoc.api-docs.enabled:false}")
+  private boolean springdocApiDocsEnabled;
+
+  @Value("${springdoc.swagger-ui.enabled:false}")
+  private boolean springdocSwaggerUiEnabled;
+
   @Autowired private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
   @Autowired private CustomAccessDeniedHandler customAccessDeniedHandler;
@@ -86,68 +92,67 @@ public class SecurityConfig {
                     .addHeaderWriter(
                         new StaticHeadersWriter("Permissions-Policy", API_PERMISSIONS_POLICY)))
         .authorizeHttpRequests(
-            authorizeRequests ->
+            authorizeRequests -> {
+              authorizeRequests.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+              authorizeRequests
+                  .requestMatchers(HttpMethod.GET, "/api/v1/crypto/{symbol}/price")
+                  .permitAll();
+              authorizeRequests
+                  .requestMatchers(
+                      "/api/v1/auth/login",
+                      "/api/v1/users/{id}/test",
+                      "/api/v1/users/register",
+                      "/api/v1/users/password/reset",
+                      "/api/v1/users/email/verify",
+                      "/api/v1/marketdata/stock",
+                      "/api/v1/marketdata/**",
+                      "/api/v1/marketdata/stock/historical/{symbol}/{date}",
+                      "/api/v1/auth/logout",
+                      "/api/v1/users/public/test-get",
+                      "/api/v1/users/public/test-post",
+                      "/oauth/authorize/**",
+                      "/oauth/callback/**",
+                      "/api/v1/assets/search",
+                      "/api/v1/health",
+                      "/api/v1/oauth2/**",
+                      "/actuator/health/**",
+                      "/actuator/prometheus",
+                      "/actuator/info",
+                      "/api/v1/tokens/revoke",
+                      "/api/v1/tokens/refresh",
+                      "/error")
+                  .permitAll();
+              if (springdocApiDocsEnabled || springdocSwaggerUiEnabled) {
                 authorizeRequests
-                    .requestMatchers(HttpMethod.OPTIONS, "/**")
-                    .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/crypto/{symbol}/price")
-                    .permitAll()
-                    .requestMatchers(
-                        "/api/v1/auth/login",
-                        "/api/v1/users/{id}/test",
-                        "/api/v1/users/register",
-                        "/api/v1/users/password/reset",
-                        "/api/v1/users/email/verify",
-                        "/api/v1/marketdata/stock",
-                        "/api/v1/marketdata/**",
-                        "/api/v1/marketdata/stock/historical/{symbol}/{date}",
-                        "/api/v1/auth/logout",
-                        "/api/v1/users/public/test-get",
-                        "/api/v1/users/public/test-post",
-                        "/oauth/authorize/**",
-                        "/oauth/callback/**",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**",
-                        "/swagger-ui.html",
-                        "/api/v1/assets/search",
-                        "/api/v1/health",
-                        "/api/v1/oauth2/**",
-                        "/actuator/health/**",
-                        "/actuator/prometheus",
-                        "/actuator/info",
-                        "/api/v1/tokens/revoke",
-                        "/api/v1/tokens/refresh",
-                        "/error")
-                    .permitAll()
-                    .requestMatchers(
-                        HttpMethod.GET, "/api/v1/me/transactions/{userId}/{assetSymbol}")
-                    .hasRole("USER")
-                    .requestMatchers("/api/v1/roles/**")
-                    .hasRole("ADMIN")
-                    .requestMatchers("/api/v1/users")
-                    .hasRole("ADMIN")
-                    .requestMatchers("/api/v1/users/me")
-                    .hasRole("USER")
-                    .requestMatchers("/api/v1/users/{id:\\d+}")
-                    .hasAuthority("USER:DELETE")
-                    .requestMatchers("/api/v1/me/portfolio/**")
-                    .hasRole("USER")
-                    .requestMatchers("/api/v1/me/transactions/**")
-                    .hasRole("USER")
-                    .requestMatchers(
-                        HttpMethod.DELETE,
-                        "/api/v1/auth/**",
-                        "/api/v1/users/refresh",
-                        "/api/v1/users/{id}",
-                        "/api/v1/users/{email}",
-                        "/api/v1/users/profile",
-                        "/api/v1/users/password/change",
-                        "/api/v1/users/me",
-                        "/api/v1/me/transactions/{userId}",
-                        "/api/v1/crypto/**")
-                    .authenticated()
-                    .anyRequest()
-                    .authenticated())
+                    .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html")
+                    .permitAll();
+              }
+              authorizeRequests
+                  .requestMatchers(HttpMethod.GET, "/api/v1/me/transactions/{userId}/{assetSymbol}")
+                  .hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/roles/**").hasRole("ADMIN");
+              authorizeRequests.requestMatchers("/api/v1/users").hasRole("ADMIN");
+              authorizeRequests.requestMatchers("/api/v1/users/me").hasRole("USER");
+              authorizeRequests
+                  .requestMatchers("/api/v1/users/{id:\\d+}")
+                  .hasAuthority("USER:DELETE");
+              authorizeRequests.requestMatchers("/api/v1/me/portfolio/**").hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/me/transactions/**").hasRole("USER");
+              authorizeRequests
+                  .requestMatchers(
+                      HttpMethod.DELETE,
+                      "/api/v1/auth/**",
+                      "/api/v1/users/refresh",
+                      "/api/v1/users/{id}",
+                      "/api/v1/users/{email}",
+                      "/api/v1/users/profile",
+                      "/api/v1/users/password/change",
+                      "/api/v1/users/me",
+                      "/api/v1/me/transactions/{userId}",
+                      "/api/v1/crypto/**")
+                  .authenticated();
+              authorizeRequests.anyRequest().authenticated();
+            })
         .oauth2Login(
             oauth2 ->
                 oauth2
@@ -167,7 +172,7 @@ public class SecurityConfig {
                     .accessDeniedHandler(customAccessDeniedHandler)
                     .authenticationEntryPoint(jwtAuthenticationEntryPoint))
         .sessionManagement(
-            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
 
     http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
