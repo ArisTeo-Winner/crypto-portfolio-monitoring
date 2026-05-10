@@ -71,6 +71,10 @@ public class Transaction {
   @Column(name = "fee", precision = 18, scale = 2)
   private BigDecimal fee = BigDecimal.ZERO;
 
+  @Builder.Default
+  @Column(name = "realized_pnl", precision = 18, scale = 2)
+  private BigDecimal realizedPnl = BigDecimal.ZERO;
+
   @Column(name = "notes")
   private String notes;
 

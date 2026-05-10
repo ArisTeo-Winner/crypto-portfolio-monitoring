@@ -77,7 +77,10 @@ class UserModuleArchitectureTest {
       noClasses()
           .that()
           .resideOutsideOfPackages(
-              "..user.application.service..", "..shared.infrastructure.security.ratelimit..")
+              "..user.application.service..",
+              "..shared.infrastructure.security.ratelimit..",
+              "..portfolio.infrastructure.outbound.redis..",
+              "..marketdata.infrastructure.outbound..")
           .should()
           .dependOnClassesThat()
           .belongToAnyOf(StringRedisTemplate.class);

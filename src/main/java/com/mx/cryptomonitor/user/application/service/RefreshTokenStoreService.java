@@ -4,7 +4,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -88,6 +90,42 @@ public class RefreshTokenStoreService {
     }
   }
 
+  public List<SessionRedisEntry> findAllActiveByUserId(UUID userId) {
+    String userIndexKey = userIndexKey(userId);
+    Set<String> tokenHashes = redisTemplate.opsForSet().members(userIndexKey);
+    if (tokenHashes == null || tokenHashes.isEmpty()) {
+      return List.of();
+    }
+    return tokenHashes.stream()
+        .map(hash -> {
+          String tokenKey = tokenKey(hash);
+          Map<Object, Object> entries = redisTemplate.opsForHash().entries(tokenKey);
+          if (entries.isEmpty()) return null;
+          if ("true".equals(entries.get("revoked"))) return null;
+          String sessionIdStr = (String) entries.get("sessionId");
+          if (sessionIdStr == null || sessionIdStr.isBlank()) return null;
+          return new SessionRedisEntry(
+              UUID.fromString(sessionIdStr),
+              (String) entries.getOrDefault("ipAddress", ""),
+              (String) entries.getOrDefault("userAgent", ""));
+        })
+        .filter(Objects::nonNull)
+        .toList();
+  }
+
+  public void revokeBySessionId(UUID userId, UUID targetSessionId) {
+    String userIndexKey = userIndexKey(userId);
+    Set<String> tokenHashes = redisTemplate.opsForSet().members(userIndexKey);
+    if (tokenHashes == null) return;
+    tokenHashes.forEach(hash -> {
+      String tokenKey = tokenKey(hash);
+      Object sid = redisTemplate.opsForHash().get(tokenKey, "sessionId");
+      if (targetSessionId.toString().equals(String.valueOf(sid))) {
+        redisTemplate.opsForHash().put(tokenKey, "revoked", "true");
+      }
+    });
+  }
+
   public void revokeAllByUserId(UUID userId) {
     String userIndexKey = userIndexKey(userId);
     Set<String> tokenHashes = redisTemplate.opsForSet().members(userIndexKey);
@@ -115,4 +153,6 @@ public class RefreshTokenStoreService {
   }
 
   public record StoredRefreshToken(UUID tokenId, UUID userId, UUID sessionId, boolean revoked) {}
+
+  public record SessionRedisEntry(UUID sessionId, String ipAddress, String userAgent) {}
 }

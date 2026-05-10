@@ -41,6 +41,7 @@ import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjection
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionAuditPort;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistrationPort;
 import com.mx.cryptomonitor.transaction.application.service.TransactionIdempotencyService;
+import com.mx.cryptomonitor.transaction.application.service.TransactionRealizedPnlService;
 import com.mx.cryptomonitor.transaction.application.service.TransactionService;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
@@ -59,6 +60,7 @@ class TransactionServiceTest {
   @Mock private PortfolioProjectionSyncPort portfolioProjectionSyncPort;
   @Mock private TransactionIdempotencyService transactionIdempotencyService;
   @Mock private TransactionAuditPort transactionAuditPort;
+  @Mock private TransactionRealizedPnlService transactionRealizedPnlService;
 
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
@@ -77,7 +79,8 @@ class TransactionServiceTest {
             portfolioProjectionSyncPort,
             transactionMapper,
             transactionIdempotencyService,
-            transactionAuditPort);
+            transactionAuditPort,
+            transactionRealizedPnlService);
     lenient()
         .doAnswer(invocation -> invocation.<Supplier<TransactionResponse>>getArgument(4).get())
         .when(transactionIdempotencyService)

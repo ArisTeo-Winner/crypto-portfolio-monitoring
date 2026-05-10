@@ -177,7 +177,52 @@ exit /b 1'''
 					'SPRING_DATASOURCE_USERNAME=',
 					'SPRING_DATASOURCE_PASSWORD='
 				]) {
-					bat 'mvn -B test -Dspring.profiles.active=test'
+					bat 'mvn -B test -Dspring.profiles.active=test -DexcludedGroups=contract'
+				}
+			}
+			post {
+				always {
+					junit 'target/surefire-reports/*.xml'
+				}
+			}
+		}
+
+		stage('Contract Tests - Consumer') {
+			when {
+				expression {
+					return env.PIPELINE_GIT_BRANCH == 'dev'
+				}
+			}
+			steps {
+				withEnv([
+					'SPRING_DATASOURCE_URL=',
+					'SPRING_DATASOURCE_USERNAME=',
+					'SPRING_DATASOURCE_PASSWORD='
+				]) {
+					bat 'mvn -B test -Dspring.profiles.active=test -Dtest=AuthLoginConsumerPactTest'
+				}
+			}
+			post {
+				always {
+					junit 'target/surefire-reports/*.xml'
+					archiveArtifacts artifacts: 'pacts/*.json', allowEmptyArchive: true
+				}
+			}
+		}
+
+		stage('Contract Tests - Provider') {
+			when {
+				expression {
+					return env.PIPELINE_GIT_BRANCH == 'dev'
+				}
+			}
+			steps {
+				withEnv([
+					'SPRING_DATASOURCE_URL=',
+					'SPRING_DATASOURCE_USERNAME=',
+					'SPRING_DATASOURCE_PASSWORD='
+				]) {
+					bat 'mvn -B test -Dspring.profiles.active=test -Dtest=AuthLoginProviderPactIT'
 				}
 			}
 			post {

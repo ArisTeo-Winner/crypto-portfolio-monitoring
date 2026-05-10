@@ -50,6 +50,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final TransactionMapper transactionMapper;
   private final TransactionIdempotencyService transactionIdempotencyService;
   private final TransactionAuditPort transactionAuditPort;
+  private final TransactionRealizedPnlService transactionRealizedPnlService;
 
   @Override
   public TransactionResponse registerTransaction(
@@ -128,6 +129,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
             Transaction saved = transactionRepository.save(transaction);
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
+            transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
+            portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             portfolioProjectionSyncPort
                 .resolvePortfolioEntryId(userId, saved.getAssetSymbol())
                 .ifPresent(saved::setPortfolioEntryId);
@@ -276,6 +279,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
             transactionRepository.deleteById(transaction.getTransactionId());
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
+            transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
+            portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             transactionAuditPort.logDeleteSuccess(userId, describeDeletedTransaction(transaction));
           } catch (RuntimeException ex) {
             log.error(
@@ -310,6 +315,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
           try {
             TransactionResponse response =
                 transactionRegistrationPort.registerTransaction(userId, request);
+            transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
+            portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             transactionAuditPort.logCreateSuccess(
                 userId, describeSuccessfulMutation(actionLabel, response));
             return response;

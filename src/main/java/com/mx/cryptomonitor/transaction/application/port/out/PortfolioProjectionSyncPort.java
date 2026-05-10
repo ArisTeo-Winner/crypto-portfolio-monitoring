@@ -7,5 +7,7 @@ public interface PortfolioProjectionSyncPort {
 
   void reconcileUserPortfolio(UUID userId);
 
+  void recordUserPortfolioSnapshot(UUID userId);
+
   Optional<UUID> resolvePortfolioEntryId(UUID userId, String assetSymbol);
 }

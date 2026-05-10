@@ -23,6 +23,9 @@ public interface TransactionRepository
 
   List<Transaction> findByUserIdAndAssetSymbol(UUID userId, String assetSymbol, Sort sort);
 
+  List<Transaction> findByUserIdAndAssetSymbolOrderByTransactionDateAscCreatedAtAsc(
+      UUID userId, String assetSymbol);
+
   List<Transaction> findByUserIdAndAssetType(UUID userId, AssetType assetType, Sort sort);
 
   List<Transaction> findByUserIdAndTransactionType(UUID userId, String transactionType, Sort sort);

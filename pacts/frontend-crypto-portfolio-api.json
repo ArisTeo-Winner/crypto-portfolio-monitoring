@@ -1,0 +1,110 @@
+{
+  "consumer": {
+    "name": "frontend"
+  },
+  "interactions": [
+    {
+      "description": "POST /api/v1/auth/login con credenciales validas",
+      "providerStates": [
+        {
+          "name": "un usuario registrado con email valid@test.com"
+        }
+      ],
+      "request": {
+        "body": {
+          "email": "valid@test.com",
+          "password": "Secret123!"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.email": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.password": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/v1/auth/login"
+      },
+      "response": {
+        "body": {
+          "accessToken": "string",
+          "refreshToken": "string"
+        },
+        "generators": {
+          "body": {
+            "$.accessToken": {
+              "size": 20,
+              "type": "RandomString"
+            },
+            "$.refreshToken": {
+              "size": 20,
+              "type": "RandomString"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json; charset=UTF-8"
+        },
+        "matchingRules": {
+          "body": {
+            "$.accessToken": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.refreshToken": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "application/json(;\\s?charset=[\\w\\-]+)?"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    }
+  ],
+  "metadata": {
+    "pact-jvm": {
+      "version": "4.6.9"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "crypto-portfolio-api"
+  }
+}

@@ -63,6 +63,7 @@ class TransactionCoverageTest {
             t -> t.setTotalValue(new BigDecimal("810000.00")),
             t -> t.setTransactionDate(LocalDateTime.of(2025, 1, 2, 10, 0)),
             t -> t.setFee(new BigDecimal("1.00")),
+            t -> t.setRealizedPnl(new BigDecimal("2.00")),
             t -> t.setNotes("different notes"),
             t -> t.setCreatedAt(LocalDateTime.of(2025, 1, 3, 10, 0)),
             t -> t.setUpdatedAt(LocalDateTime.of(2025, 1, 4, 10, 0))));
@@ -82,6 +83,7 @@ class TransactionCoverageTest {
             t -> t.setTotalValue(null),
             t -> t.setTransactionDate(null),
             t -> t.setFee(null),
+            t -> t.setRealizedPnl(null),
             t -> t.setNotes(null),
             t -> t.setCreatedAt(null),
             t -> t.setUpdatedAt(null)));
@@ -118,6 +120,7 @@ class TransactionCoverageTest {
             t -> t.setTotalValue(BigDecimal.TEN),
             t -> t.setTransactionDate(LocalDateTime.of(2025, 2, 1, 10, 0)),
             t -> t.setFee(BigDecimal.ONE),
+            t -> t.setRealizedPnl(BigDecimal.ONE),
             t -> t.setNotes("note"),
             t -> t.setCreatedAt(LocalDateTime.of(2025, 2, 1, 10, 1)),
             t -> t.setUpdatedAt(LocalDateTime.of(2025, 2, 1, 10, 2))));
@@ -173,6 +176,7 @@ class TransactionCoverageTest {
     target.setTotalValue(source.getTotalValue());
     target.setTransactionDate(source.getTransactionDate());
     target.setFee(source.getFee());
+    target.setRealizedPnl(source.getRealizedPnl());
     target.setNotes(source.getNotes());
     target.setCreatedAt(source.getCreatedAt());
     target.setUpdatedAt(source.getUpdatedAt());

@@ -20,6 +20,9 @@ public interface PortfolioEntryRepository extends JpaRepository<PortfolioEntry, 
   @Query("SELECT DISTINCT p.assetSymbol FROM PortfolioEntry p")
   List<String> findDistinctAssetSymbols();
 
+  @Query("SELECT DISTINCT p.userId FROM PortfolioEntry p")
+  List<UUID> findDistinctUserIds();
+
   // Nuevo mÃ©todo para obtener entradas por sÃ­mbolo de activo
   @Query("SELECT p FROM PortfolioEntry p WHERE p.assetSymbol = :symbol")
   List<PortfolioEntry> findByAssetSymbol(@Param("symbol") String symbol);

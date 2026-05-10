@@ -34,7 +34,9 @@ class SharedModuleArchitectureTest {
           .resideOutsideOfPackages(
               "..shared.infrastructure.config..",
               "..user.application.service..",
-              "..shared.infrastructure.security.ratelimit..")
+              "..shared.infrastructure.security.ratelimit..",
+              "..portfolio.infrastructure.outbound.redis..",
+              "..marketdata.infrastructure.outbound..")
           .should()
           .dependOnClassesThat()
           .belongToAnyOf(StringRedisTemplate.class, RedisConnectionFactory.class);

@@ -10,7 +10,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 @AnalyzeClasses(
-    packages = "com.mx.cryptomonitor",
+    packages = "com.mx.cryptomonitor.marketdata",
     importOptions = {ImportOption.DoNotIncludeTests.class})
 class MarketDataModuleArchitectureTest {
 
@@ -20,7 +20,7 @@ class MarketDataModuleArchitectureTest {
           .that()
           .haveSimpleNameEndingWith("Controller")
           .and()
-          .resideInAPackage("..marketdata..")
+          .resideInAnyPackage("com.mx.cryptomonitor.marketdata..")
           .should()
           .resideInAPackage("..marketdata.infrastructure.inbound.rest..");
 
@@ -30,7 +30,7 @@ class MarketDataModuleArchitectureTest {
           .that()
           .haveSimpleNameEndingWith("ExceptionHandler")
           .and()
-          .resideInAPackage("..marketdata..")
+          .resideInAnyPackage("com.mx.cryptomonitor.marketdata..")
           .should()
           .resideInAPackage("..marketdata.infrastructure.inbound.rest.problem..");
 
@@ -40,7 +40,7 @@ class MarketDataModuleArchitectureTest {
           .that()
           .haveSimpleNameEndingWith("Service")
           .and()
-          .resideInAPackage("..marketdata..")
+          .resideInAnyPackage("com.mx.cryptomonitor.marketdata..")
           .should()
           .resideInAPackage("..marketdata.application.service..");
 
@@ -50,7 +50,7 @@ class MarketDataModuleArchitectureTest {
           .that()
           .haveSimpleNameEndingWith("Port")
           .and()
-          .resideInAPackage("..marketdata..")
+          .resideInAnyPackage("com.mx.cryptomonitor.marketdata..")
           .should()
           .resideInAPackage("..marketdata.application.port..");
 
@@ -60,7 +60,7 @@ class MarketDataModuleArchitectureTest {
           .that()
           .haveSimpleNameEndingWith("Adapter")
           .and()
-          .resideInAPackage("..marketdata..")
+          .resideInAnyPackage("com.mx.cryptomonitor.marketdata..")
           .should()
           .resideInAPackage("..marketdata.infrastructure.outbound..");
 
@@ -70,7 +70,7 @@ class MarketDataModuleArchitectureTest {
           .that()
           .haveSimpleNameEndingWith("Config")
           .and()
-          .resideInAPackage("..marketdata..")
+          .resideInAnyPackage("com.mx.cryptomonitor.marketdata..")
           .should()
           .resideInAPackage("..marketdata.infrastructure.configuration..");
 

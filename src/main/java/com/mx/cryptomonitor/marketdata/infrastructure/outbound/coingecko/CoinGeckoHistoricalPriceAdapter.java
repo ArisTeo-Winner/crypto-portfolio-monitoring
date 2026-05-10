@@ -4,12 +4,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -36,28 +38,32 @@ public class CoinGeckoHistoricalPriceAdapter implements CryptoHistoricalPricePor
 
   public static final String CACHE_NAME = "cryptoHistoricalPrices";
   private static final Duration DEFAULT_RESPONSE_TIMEOUT = Duration.ofSeconds(8);
+  private static final Duration PRICE_HISTORY_LOCK_TTL = Duration.ofSeconds(30);
   private static final String USD = "usd";
 
   private final WebClient webClient;
   private final CoinGeckoProperties properties;
   private final CacheManager cacheManager;
   private final MeterRegistry meterRegistry;
+  private final StringRedisTemplate redisTemplate;
 
   @Autowired
   public CoinGeckoHistoricalPriceAdapter(
       @Qualifier("coinGeckoWebClient") WebClient webClient,
       CoinGeckoProperties properties,
       CacheManager cacheManager,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      @Autowired(required = false) StringRedisTemplate redisTemplate) {
     this.webClient = webClient;
     this.properties = properties;
     this.cacheManager = cacheManager;
     this.meterRegistry = meterRegistry;
+    this.redisTemplate = redisTemplate;
   }
 
   public CoinGeckoHistoricalPriceAdapter(
       WebClient webClient, CoinGeckoProperties properties, CacheManager cacheManager) {
-    this(webClient, properties, cacheManager, new SimpleMeterRegistry());
+    this(webClient, properties, cacheManager, new SimpleMeterRegistry(), null);
   }
 
   @Override
@@ -103,6 +109,20 @@ public class CoinGeckoHistoricalPriceAdapter implements CryptoHistoricalPricePor
     }
 
     String cacheKey = buildDaysCacheKey(normalizedAssetId, normalizedDays);
+    CryptoHistoricalPriceSeries redisSeries =
+        getRedisPriceHistory(normalizedAssetId, normalizedDays);
+    if (redisSeries != null) {
+      recordRequest("days", "redis", "success", null);
+      return Mono.just(redisSeries);
+    }
+
+    boolean lockAcquired = acquireRedisPriceHistoryLock(normalizedAssetId, normalizedDays);
+    if (!lockAcquired) {
+      return Mono.error(
+          new CoinGeckoServerException(
+              "CoinGecko historical price load already in progress for " + normalizedAssetId));
+    }
+
     return fetchSeries(
         "days",
         normalizedAssetId,
@@ -112,7 +132,9 @@ public class CoinGeckoHistoricalPriceAdapter implements CryptoHistoricalPricePor
                 .path("/coins/{id}/market_chart")
                 .queryParam("vs_currency", USD)
                 .queryParam("days", normalizedDays)
-                .build(normalizedAssetId));
+                .build(normalizedAssetId))
+        .doOnNext(series -> putRedisPriceHistory(normalizedAssetId, normalizedDays, series))
+        .doFinally(signal -> releaseRedisPriceHistoryLock(normalizedAssetId, normalizedDays));
   }
 
   private CryptoHistoricalPriceSeries mapSeries(
@@ -326,5 +348,93 @@ public class CoinGeckoHistoricalPriceAdapter implements CryptoHistoricalPricePor
             "error",
             error)
         .increment();
+  }
+
+  private CryptoHistoricalPriceSeries getRedisPriceHistory(String assetId, int days) {
+    if (redisTemplate == null) {
+      return null;
+    }
+    try {
+      Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> tuples =
+          redisTemplate.opsForZSet().rangeWithScores(redisPriceHistoryKey(assetId, days), 0, -1);
+      if (tuples == null || tuples.isEmpty()) {
+        return null;
+      }
+      List<CryptoHistoricalPricePoint> points =
+          tuples.stream()
+              .filter(tuple -> tuple.getValue() != null && tuple.getScore() != null)
+              .map(
+                  tuple ->
+                      new CryptoHistoricalPricePoint(
+                          Instant.ofEpochMilli(tuple.getScore().longValue()),
+                          new java.math.BigDecimal(tuple.getValue())))
+              .sorted(Comparator.comparing(CryptoHistoricalPricePoint::timestamp))
+              .toList();
+      if (points.isEmpty()) {
+        return null;
+      }
+      return new CryptoHistoricalPriceSeries(assetId, USD, points);
+    } catch (RuntimeException ex) {
+      log.warn("Redis asset price history read failed for {} days {}", assetId, days, ex);
+      return null;
+    }
+  }
+
+  private void putRedisPriceHistory(
+      String assetId, int days, CryptoHistoricalPriceSeries series) {
+    if (redisTemplate == null || series == null || series.points().isEmpty()) {
+      return;
+    }
+    try {
+      String key = redisPriceHistoryKey(assetId, days);
+      redisTemplate.delete(key);
+      for (CryptoHistoricalPricePoint point : series.points()) {
+        redisTemplate
+            .opsForZSet()
+            .add(key, point.priceUsd().toPlainString(), point.timestamp().toEpochMilli());
+      }
+      redisTemplate.expire(key, redisPriceHistoryTtl(days));
+    } catch (RuntimeException ex) {
+      log.warn("Redis asset price history write failed for {} days {}", assetId, days, ex);
+    }
+  }
+
+  private boolean acquireRedisPriceHistoryLock(String assetId, int days) {
+    if (redisTemplate == null) {
+      return true;
+    }
+    try {
+      Boolean acquired =
+          redisTemplate
+              .opsForValue()
+              .setIfAbsent(redisPriceHistoryLockKey(assetId, days), "1", PRICE_HISTORY_LOCK_TTL);
+      return Boolean.TRUE.equals(acquired);
+    } catch (RuntimeException ex) {
+      log.warn("Redis asset price history lock failed for {} days {}", assetId, days, ex);
+      return true;
+    }
+  }
+
+  private void releaseRedisPriceHistoryLock(String assetId, int days) {
+    if (redisTemplate == null) {
+      return;
+    }
+    try {
+      redisTemplate.delete(redisPriceHistoryLockKey(assetId, days));
+    } catch (RuntimeException ex) {
+      log.debug("Redis asset price history lock release failed for {} days {}", assetId, days, ex);
+    }
+  }
+
+  private String redisPriceHistoryKey(String assetId, int days) {
+    return "asset:price:history:" + assetId + ":" + days;
+  }
+
+  private String redisPriceHistoryLockKey(String assetId, int days) {
+    return redisPriceHistoryKey(assetId, days) + ":lock";
+  }
+
+  private Duration redisPriceHistoryTtl(int days) {
+    return Duration.ofDays(Math.max(days + 1L, 2L));
   }
 }
