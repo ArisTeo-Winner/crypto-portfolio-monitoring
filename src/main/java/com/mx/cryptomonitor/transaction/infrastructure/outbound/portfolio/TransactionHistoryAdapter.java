@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.AssetTransactionHistoryPort;
+import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioMarkersPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 
@@ -14,7 +15,8 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-public class TransactionHistoryAdapter implements TransactionHistoryPort, AssetTransactionHistoryPort {
+public class TransactionHistoryAdapter
+    implements TransactionHistoryPort, AssetTransactionHistoryPort, PortfolioMarkersPort {
 
   private final TransactionRepository transactionRepository;
 

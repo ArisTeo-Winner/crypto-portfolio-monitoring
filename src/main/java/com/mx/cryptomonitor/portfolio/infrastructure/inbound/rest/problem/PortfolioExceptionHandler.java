@@ -11,6 +11,7 @@ import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitExcept
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
 import com.mx.cryptomonitor.portfolio.domain.exception.PortfolioEntryNotFoundException;
 import com.mx.cryptomonitor.portfolio.domain.exception.InsufficientFundsException;
+import com.mx.cryptomonitor.portfolio.domain.exception.PortfolioInvalidRequestException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioAssetHistoryController;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioChartController;
@@ -49,6 +50,21 @@ public class PortfolioExceptionHandler {
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ProblemDetail> handleBadRequest(
       IllegalArgumentException ex, HttpServletRequest request) {
+    ProblemDetail problem =
+        ApiProblemDetailsFactory.create(
+            HttpStatus.BAD_REQUEST,
+            "portfolio-invalid-request",
+            "Invalid Portfolio Request",
+            ex.getMessage(),
+            request,
+            "PORTFOLIO_INVALID_REQUEST",
+            null);
+    return ApiProblemDetailsFactory.toProblemResponse(problem);
+  }
+
+  @ExceptionHandler(PortfolioInvalidRequestException.class)
+  public ResponseEntity<ProblemDetail> handlePortfolioInvalidRequest(
+      PortfolioInvalidRequestException ex, HttpServletRequest request) {
     ProblemDetail problem =
         ApiProblemDetailsFactory.create(
             HttpStatus.BAD_REQUEST,
