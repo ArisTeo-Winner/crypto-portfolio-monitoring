@@ -352,7 +352,7 @@ class PortfolioControllerIntegrationTest {
     transactionRepository.saveAndFlush(otherSell);
 
     mockMvc
-        .perform(get("/api/v1/portfolio/markers").param("range", "30").with(authentication(userAuthentication())))
+        .perform(get("/api/v1/me/portfolio/markers").param("range", "30").with(authentication(userAuthentication())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", Matchers.hasSize(2)))
         .andExpect(jsonPath("$[0].type").value("buy"))
@@ -361,7 +361,7 @@ class PortfolioControllerIntegrationTest {
         .andExpect(jsonPath("$[1].label").value("Sell 1 SOL"));
 
     mockMvc
-        .perform(get("/api/v1/portfolio/realized").param("range", "30").with(authentication(userAuthentication())))
+        .perform(get("/api/v1/me/portfolio/realized").param("range", "30").with(authentication(userAuthentication())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", Matchers.hasSize(1)))
         .andExpect(jsonPath("$[0].value").value(24.50));
@@ -371,7 +371,7 @@ class PortfolioControllerIntegrationTest {
   void chartHistoryRejectsInvalidRange() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/portfolio/history")
+            get("/api/v1/me/portfolio/history")
                 .param("range", "999")
                 .with(authentication(userAuthentication())))
         .andExpect(status().isBadRequest())
@@ -414,7 +414,7 @@ class PortfolioControllerIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/{userId}/assets/{symbol}/history", testUser.getId(), "SOL")
+            get("/api/v1/me/portfolio/{userId}/assets/{symbol}/history", testUser.getId(), "SOL")
                 .param("range", "180d")
                 .with(authentication(userAuthentication())))
         .andExpect(status().isOk())
@@ -487,7 +487,7 @@ class PortfolioControllerIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/{userId}/history", testUser.getId())
+            get("/api/v1/me/portfolio/{userId}/history", testUser.getId())
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(userAuthentication())))
@@ -497,6 +497,26 @@ class PortfolioControllerIntegrationTest {
         .andExpect(jsonPath("$[0].value").value(20.00))
         .andExpect(jsonPath("$[1].value").value(120.00))
         .andExpect(jsonPath("$[2].value").value(124.00));
+  }
+
+  @Test
+  void getPortfolioTotalHistoryRejectsDifferentAuthenticatedUser() throws Exception {
+    User otherUser =
+        userRepository.saveAndFlush(
+            User.builder()
+                .username("portfolio-total-forbidden-" + UUID.randomUUID())
+                .email("portfolio-total-forbidden-" + UUID.randomUUID() + "@example.com")
+                .passwordHash("hash")
+                .build());
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/{userId}/history", otherUser.getId())
+                .param("range", "30d")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
   }
 
   private Transaction transaction(

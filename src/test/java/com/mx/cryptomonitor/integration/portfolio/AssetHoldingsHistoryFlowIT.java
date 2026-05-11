@@ -94,7 +94,7 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/{userId}/assets/{symbol}/history", firstUser.getId(), "BTC")
+            get("/api/v1/me/portfolio/{userId}/assets/{symbol}/history", firstUser.getId(), "BTC")
                 .param("range", "30d")
                 .with(authentication(userAuthentication(firstUser))))
         .andExpect(status().isOk())
@@ -103,7 +103,7 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/{userId}/assets/{symbol}/history", secondUser.getId(), "BTC")
+            get("/api/v1/me/portfolio/{userId}/assets/{symbol}/history", secondUser.getId(), "BTC")
                 .param("range", "30d")
                 .with(authentication(userAuthentication(secondUser))))
         .andExpect(status().isOk())

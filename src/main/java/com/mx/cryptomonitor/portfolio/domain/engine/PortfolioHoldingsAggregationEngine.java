@@ -61,7 +61,7 @@ public class PortfolioHoldingsAggregationEngine {
     if (asset.priceSeries() == null || asset.priceSeries().points().isEmpty()) {
       return List.of();
     }
-    return holdingsValueCalculator.calculate(
+    return holdingsValueCalculator.calculateUnrounded(
         asset.priceSeries().points(), quantityTimelineEngine.buildQuantityTimeline(asset.transactions()));
   }
 

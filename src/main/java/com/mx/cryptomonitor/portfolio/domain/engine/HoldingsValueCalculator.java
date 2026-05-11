@@ -16,6 +16,16 @@ public class HoldingsValueCalculator {
 
   public List<TimeValuePoint> calculate(
       List<PricePoint> priceSeries, List<QuantityTimelinePoint> quantityTimeline) {
+    return calculate(priceSeries, quantityTimeline, true);
+  }
+
+  public List<TimeValuePoint> calculateUnrounded(
+      List<PricePoint> priceSeries, List<QuantityTimelinePoint> quantityTimeline) {
+    return calculate(priceSeries, quantityTimeline, false);
+  }
+
+  private List<TimeValuePoint> calculate(
+      List<PricePoint> priceSeries, List<QuantityTimelinePoint> quantityTimeline, boolean roundValue) {
     List<QuantityTimelinePoint> quantityEvents =
         quantityTimeline.stream().sorted(Comparator.comparing(QuantityTimelinePoint::time)).toList();
     List<PricePoint> orderedPrices =
@@ -32,8 +42,10 @@ public class HoldingsValueCalculator {
         quantityIndex++;
       }
 
-      BigDecimal value =
-          currentQuantity.multiply(pricePoint.price()).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+      BigDecimal value = currentQuantity.multiply(pricePoint.price());
+      if (roundValue) {
+        value = value.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+      }
       values.add(new TimeValuePoint(pricePoint.time().getEpochSecond(), value));
     }
 

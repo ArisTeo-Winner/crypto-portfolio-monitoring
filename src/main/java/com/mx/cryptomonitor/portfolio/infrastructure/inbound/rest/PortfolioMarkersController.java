@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
-import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
+import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioMarkersUseCase;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioMarker;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
@@ -30,33 +30,32 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/me/portfolio")
 @RequiredArgsConstructor
-public class PortfolioTotalHistoryController {
+public class PortfolioMarkersController {
 
-  private final GetPortfolioTotalHistoryUseCase getPortfolioTotalHistoryUseCase;
+  private final GetPortfolioMarkersUseCase getPortfolioMarkersUseCase;
   private final CurrentUserPort currentUserPort;
   private final PortfolioHistoryRateLimiter portfolioHistoryRateLimiter;
 
   @Operation(
-      summary = "Obtener historico agregado del portafolio",
+      summary = "Obtener marcadores BUY/SELL del historico total del portafolio",
       description =
-          "Agrega el valor historico total del portafolio usando transacciones del usuario y precios compartidos por activo.")
+          "Devuelve marcadores de transacciones del usuario alineados al timeline del chart total.")
   @ApiResponses(
       value = {
         @ApiResponse(
             responseCode = "200",
-            description = "Historico agregado calculado exitosamente",
+            description = "Marcadores calculados exitosamente",
             content =
                 @Content(
                     mediaType = "application/json",
-                    array = @ArraySchema(schema = @Schema(implementation = TimeValuePoint.class)))),
+                    array = @ArraySchema(schema = @Schema(implementation = PortfolioMarker.class)))),
         @ApiResponse(responseCode = "400", description = "Rango o assetTypes invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
-        @ApiResponse(responseCode = "403", description = "Usuario no autorizado"),
-        @ApiResponse(responseCode = "409", description = "Transacciones inconsistentes")
+        @ApiResponse(responseCode = "403", description = "Usuario no autorizado")
       })
-  @GetMapping("/{userId}/history")
+  @GetMapping("/{userId}/markers")
   @PreAuthorize("hasRole('USER')")
-  public List<TimeValuePoint> getTotalHistory(
+  public List<PortfolioMarker> getMarkers(
       @PathVariable UUID userId,
       @RequestParam(defaultValue = "30d") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
@@ -67,6 +66,6 @@ public class PortfolioTotalHistoryController {
     if (!currentUserId.equals(userId)) {
       throw new AccessDeniedException("Authenticated user cannot read another user's portfolio");
     }
-    return getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, assetTypes);
+    return getPortfolioMarkersUseCase.getMarkers(userId, range, assetTypes);
   }
 }

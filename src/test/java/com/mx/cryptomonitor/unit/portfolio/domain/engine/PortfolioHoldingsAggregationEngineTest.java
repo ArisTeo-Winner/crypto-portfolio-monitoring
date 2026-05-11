@@ -83,6 +83,18 @@ class PortfolioHoldingsAggregationEngineTest {
             new TimeValuePoint(1767312000L, new BigDecimal("0.00")));
   }
 
+  @Test
+  void appliesFinalRoundingAfterAggregatingAssets() {
+    List<TimeValuePoint> result =
+        engine.aggregate(
+            List.of(
+                input("A", buy("A", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "0.005")),
+                input("B", buy("B", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "0.005")),
+                input("C", buy("C", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "0.005"))));
+
+    assertThat(result).containsExactly(new TimeValuePoint(1767225600L, new BigDecimal("0.02")));
+  }
+
   private PortfolioAssetHistoryInput input(
       String symbol, PortfolioAccountingTransaction transaction, PricePoint... prices) {
     return input(symbol, List.of(transaction), prices);

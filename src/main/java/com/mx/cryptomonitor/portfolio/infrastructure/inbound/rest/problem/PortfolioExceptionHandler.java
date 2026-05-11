@@ -3,6 +3,7 @@ package com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.problem;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -14,6 +15,7 @@ import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolExcepti
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioAssetHistoryController;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioChartController;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioController;
+import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioMarkersController;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioTotalHistoryController;
 import com.mx.cryptomonitor.shared.infrastructure.problem.ApiProblemDetailsFactory;
 
@@ -24,6 +26,7 @@ import jakarta.servlet.http.HttpServletRequest;
       PortfolioController.class,
       PortfolioChartController.class,
       PortfolioAssetHistoryController.class,
+      PortfolioMarkersController.class,
       PortfolioTotalHistoryController.class
     })
 public class PortfolioExceptionHandler {
@@ -54,6 +57,21 @@ public class PortfolioExceptionHandler {
             ex.getMessage(),
             request,
             "PORTFOLIO_INVALID_REQUEST",
+            null);
+    return ApiProblemDetailsFactory.toProblemResponse(problem);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ProblemDetail> handleForbidden(
+      AccessDeniedException ex, HttpServletRequest request) {
+    ProblemDetail problem =
+        ApiProblemDetailsFactory.create(
+            HttpStatus.FORBIDDEN,
+            "portfolio-access-denied",
+            "Forbidden",
+            ex.getMessage(),
+            request,
+            "FORBIDDEN",
             null);
     return ApiProblemDetailsFactory.toProblemResponse(problem);
   }

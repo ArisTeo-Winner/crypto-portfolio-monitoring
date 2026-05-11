@@ -5,6 +5,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +34,7 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
   private final boolean enabled;
   private final Duration responseTimeout;
   private final AssetCatalogQueryPort assetCatalogQueryPort;
+  private final Map<String, String> resolvedCoinIds = new ConcurrentHashMap<>();
 
   public CoinGeckoMarketPriceHistoryAdapter(
       @Qualifier("coinGeckoWebClient") WebClient webClient,
@@ -51,11 +55,58 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
   @Override
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
-    String assetId =
-        assetCatalogQueryPort
-            .findAssetIdBySymbol(symbol)
-            .orElseThrow(() -> new UnknownAssetSymbolException("Unknown asset symbol: " + symbol));
+    String assetId = resolveAssetId(symbol);
     return fetchCoinGeckoPrices(assetId, range.days());
+  }
+
+  private String resolveAssetId(String symbol) {
+    String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
+    return resolvedCoinIds.computeIfAbsent(
+        normalizedSymbol,
+        key -> assetCatalogQueryPort.findAssetIdBySymbol(key).orElseGet(() -> searchCoinGeckoAssetId(key)));
+  }
+
+  private String searchCoinGeckoAssetId(String symbol) {
+    if (!enabled) {
+      throw new MarketDataServerException("CoinGecko historical integration is disabled");
+    }
+
+    CoinGeckoSearchResponse response =
+        webClient
+            .get()
+            .uri(uriBuilder -> uriBuilder.path("/search").queryParam("query", symbol).build())
+            .retrieve()
+            .onStatus(
+                status -> status.value() == 429,
+                clientResponse ->
+                    clientResponse
+                        .bodyToMono(String.class)
+                        .defaultIfEmpty("CoinGecko rate limit exceeded")
+                        .map(MarketDataRateLimitException::new))
+            .onStatus(
+                HttpStatusCode::isError,
+                clientResponse ->
+                    clientResponse
+                        .bodyToMono(String.class)
+                        .defaultIfEmpty("CoinGecko search error")
+                        .map(MarketDataServerException::new))
+            .bodyToMono(CoinGeckoSearchResponse.class)
+            .timeout(responseTimeout)
+            .block();
+
+    if (response == null || response.coins() == null || response.coins().isEmpty()) {
+      throw new UnknownAssetSymbolException("Unknown asset symbol: " + symbol);
+    }
+
+    return response.coins().stream()
+        .filter(coin -> coin.id() != null && symbol.equalsIgnoreCase(coin.symbol()))
+        .min(Comparator.comparingInt(this::marketRank))
+        .or(() ->
+            response.coins().stream()
+                .filter(coin -> coin.id() != null && symbol.equalsIgnoreCase(coin.id()))
+                .findFirst())
+        .orElseThrow(() -> new UnknownAssetSymbolException("Unknown asset symbol: " + symbol))
+        .id();
   }
 
   private List<PricePoint> fetchCoinGeckoPrices(String assetId, int days) {
@@ -105,5 +156,9 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
 
   private BigDecimal price(BigDecimal value) {
     return value != null ? value : BigDecimal.ZERO;
+  }
+
+  private int marketRank(CoinGeckoSearchCoin coin) {
+    return coin.marketCapRank() == null ? Integer.MAX_VALUE : coin.marketCapRank();
   }
 }

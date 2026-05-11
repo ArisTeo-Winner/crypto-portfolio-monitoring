@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
+import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
+import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort.PortfolioAssetReference;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.domain.engine.PortfolioHoldingsAggregationEngine;
@@ -32,12 +34,16 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
 
   private final TransactionHistoryPort transactionHistoryPort;
   private final MarketPriceHistoryPort marketPriceHistoryPort;
+  private final PortfolioAssetUniversePort portfolioAssetUniversePort;
   private final PortfolioHoldingsAggregationEngine aggregationEngine;
 
   public GetPortfolioTotalHistoryService(
-      TransactionHistoryPort transactionHistoryPort, MarketPriceHistoryPort marketPriceHistoryPort) {
+      TransactionHistoryPort transactionHistoryPort,
+      MarketPriceHistoryPort marketPriceHistoryPort,
+      PortfolioAssetUniversePort portfolioAssetUniversePort) {
     this.transactionHistoryPort = transactionHistoryPort;
     this.marketPriceHistoryPort = marketPriceHistoryPort;
+    this.portfolioAssetUniversePort = portfolioAssetUniversePort;
     this.aggregationEngine = new PortfolioHoldingsAggregationEngine();
   }
 
@@ -45,21 +51,29 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   public List<TimeValuePoint> getTotalHistory(UUID userId, String range, String assetTypes) {
     long started = System.nanoTime();
     HoldingsHistoryRange parsedRange = HoldingsHistoryRange.parse(range);
+    EnumSet<AssetType> requestedTypes = parseAssetTypes(assetTypes);
     List<PortfolioTransactionSnapshot> snapshots =
-        filterByAssetTypes(transactionHistoryPort.getTransactionsByUser(userId), parseAssetTypes(assetTypes));
-    if (snapshots.isEmpty()) {
-      logGenerated(userId, 0, 0, started);
-      return List.of();
-    }
-
-    List<PortfolioAssetHistoryInput> assets =
+        filterByAssetTypes(transactionHistoryPort.getTransactionsByUser(userId), requestedTypes);
+    Map<AssetIdentity, List<PortfolioTransactionSnapshot>> snapshotsByAsset =
         snapshots.stream()
             .collect(
                 java.util.stream.Collectors.groupingBy(
                     snapshot -> new AssetIdentity(AssetType.from(snapshot.assetType()), snapshot.assetSymbol()),
                     LinkedHashMap::new,
-                    java.util.stream.Collectors.toList()))
-            .entrySet()
+                    java.util.stream.Collectors.toList()));
+
+    portfolioAssetUniversePort.getAssetsByUser(userId).stream()
+        .filter(asset -> requestedTypes == null || requestedTypes.contains(asset.assetType()))
+        .map(this::toAssetIdentity)
+        .forEach(identity -> snapshotsByAsset.putIfAbsent(identity, List.of()));
+
+    if (snapshotsByAsset.isEmpty()) {
+      logGenerated(userId, 0, 0, started);
+      return List.of();
+    }
+
+    List<PortfolioAssetHistoryInput> assets =
+        snapshotsByAsset.entrySet()
             .stream()
             .map(entry -> toAssetInput(entry.getKey(), entry.getValue(), parsedRange))
             .filter(input -> !input.priceSeries().points().isEmpty())
@@ -95,6 +109,10 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
         snapshot.pricePerUnit(),
         snapshot.totalValue(),
         snapshot.fee());
+  }
+
+  private AssetIdentity toAssetIdentity(PortfolioAssetReference asset) {
+    return new AssetIdentity(asset.assetType(), asset.symbol());
   }
 
   private List<PortfolioTransactionSnapshot> filterByAssetTypes(

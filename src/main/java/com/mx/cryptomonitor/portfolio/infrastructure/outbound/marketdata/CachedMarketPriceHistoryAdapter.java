@@ -16,6 +16,8 @@ import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
 
   private static final Duration LOAD_LOCK_TTL = Duration.ofSeconds(30);
+  private static final Duration CACHE_LOAD_WAIT_TIMEOUT = Duration.ofSeconds(10);
+  private static final Duration CACHE_LOAD_POLL_INTERVAL = Duration.ofMillis(50);
 
   private final PriceHistoryCachePort priceHistoryCachePort;
   private final List<MarketPriceHistoryProvider> providers;
@@ -36,7 +38,7 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
 
     if (!priceHistoryCachePort.acquireLoadLock(
         assetType, symbol, parsedRange.value(), LOAD_LOCK_TTL)) {
-      return getCached(assetType, symbol, parsedRange.value());
+      return waitForCachedLoad(assetType, symbol, parsedRange.value());
     }
 
     try {
@@ -73,5 +75,25 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
         .map(point -> new PricePoint(point.time(), point.price()))
         .sorted(Comparator.comparing(PricePoint::time))
         .toList();
+  }
+
+  private List<PricePoint> waitForCachedLoad(AssetType assetType, String symbol, String range) {
+    long deadline = System.nanoTime() + CACHE_LOAD_WAIT_TIMEOUT.toNanos();
+    while (System.nanoTime() < deadline && !Thread.currentThread().isInterrupted()) {
+      List<PricePoint> cached = getCached(assetType, symbol, range);
+      if (!cached.isEmpty()) {
+        return cached;
+      }
+      sleepBeforeRetry();
+    }
+    return getCached(assetType, symbol, range);
+  }
+
+  private void sleepBeforeRetry() {
+    try {
+      Thread.sleep(CACHE_LOAD_POLL_INTERVAL.toMillis());
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+    }
   }
 }

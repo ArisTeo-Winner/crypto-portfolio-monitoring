@@ -109,7 +109,7 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/{userId}/history", firstUser.getId())
+            get("/api/v1/me/portfolio/{userId}/history", firstUser.getId())
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(authToken(firstUser))))
@@ -120,7 +120,7 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/{userId}/history", secondUser.getId())
+            get("/api/v1/me/portfolio/{userId}/history", secondUser.getId())
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(authToken(secondUser))))

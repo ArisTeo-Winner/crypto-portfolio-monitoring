@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest;
 
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,7 +25,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/portfolio")
+@RequestMapping("/api/v1/me/portfolio")
 @RequiredArgsConstructor
 public class PortfolioAssetHistoryController {
 
@@ -60,7 +61,7 @@ public class PortfolioAssetHistoryController {
     portfolioHistoryRateLimiter.validate(request);
     UUID currentUserId = currentUserPort.resolveUserId(authentication);
     if (!currentUserId.equals(userId)) {
-      throw new IllegalArgumentException("Authenticated user cannot read another user's portfolio");
+      throw new AccessDeniedException("Authenticated user cannot read another user's portfolio");
     }
     return getAssetHoldingsHistoryUseCase.getAssetHoldingsHistory(userId, symbol, range);
   }
