@@ -100,7 +100,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/assets/{symbol}/markers", "SOL")
+            get("/api/v1/me/portfolio/assets/{symbol}/markers", "SOL")
                 .param("range", "30d")
                 .with(authentication(authToken(firstUser))))
         .andExpect(status().isOk())
@@ -131,7 +131,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/portfolio/assets/{symbol}/markers", "SOL")
+            get("/api/v1/me/portfolio/assets/{symbol}/markers", "SOL")
                 .param("range", "30d")
                 .with(authentication(authToken(secondUser))))
         .andExpect(status().isOk())
@@ -143,7 +143,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
   void invalidRangeReturnsBadRequest() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/portfolio/assets/{symbol}/markers", "SOL")
+            get("/api/v1/me/portfolio/assets/{symbol}/markers", "SOL")
                 .param("range", "180")
                 .with(authentication(authToken(firstUser))))
         .andExpect(status().isBadRequest())
@@ -155,7 +155,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
   void returnsEmptyListWhenNoAssetTransactionsExist() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/portfolio/assets/{symbol}/markers", "SOL")
+            get("/api/v1/me/portfolio/assets/{symbol}/markers", "SOL")
                 .param("range", "30d")
                 .with(authentication(authToken(firstUser))))
         .andExpect(status().isOk())
@@ -167,7 +167,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
     for (int attempt = 0; attempt < 3; attempt++) {
       mockMvc
           .perform(
-              get("/api/v1/portfolio/assets/{symbol}/markers", "SOL")
+              get("/api/v1/me/portfolio/assets/{symbol}/markers", "SOL")
                   .param("range", "30d")
                   .with(authentication(authToken(firstUser))))
           .andExpect(status().isOk());

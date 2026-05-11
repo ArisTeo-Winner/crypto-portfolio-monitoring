@@ -75,7 +75,7 @@ class PortfolioMarkersIntegrationIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/markers", firstUser.getId())
+            get("/api/v1/me/portfolio/markers")
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO,STOCK")
                 .with(authentication(authToken(firstUser))))
@@ -98,22 +98,25 @@ class PortfolioMarkersIntegrationIT extends InfraIntegrationTest {
   }
 
   @Test
-  void rejectsMarkersRequestWhenAuthenticatedUserDoesNotMatchPathUser() throws Exception {
+  void rejectsMarkersRequestWhenPrincipalDoesNotHaveUserRole() throws Exception {
+    TestingAuthenticationToken adminOnly =
+        new TestingAuthenticationToken(firstUser.getEmail(), null, "ROLE_ADMIN");
+    adminOnly.setAuthenticated(true);
+
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/markers", secondUser.getId())
+            get("/api/v1/me/portfolio/markers")
                 .param("range", "30d")
-                .with(authentication(authToken(firstUser))))
+                .with(authentication(adminOnly)))
         .andExpect(status().isForbidden())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
   }
 
   @Test
   void rejectsInvalidAssetTypes() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/markers", firstUser.getId())
+            get("/api/v1/me/portfolio/markers")
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO,BOND")
                 .with(authentication(authToken(firstUser))))
@@ -126,7 +129,7 @@ class PortfolioMarkersIntegrationIT extends InfraIntegrationTest {
   void rejectsInvalidRange() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/markers", firstUser.getId())
+            get("/api/v1/me/portfolio/markers")
                 .param("range", "999d")
                 .with(authentication(authToken(firstUser))))
         .andExpect(status().isBadRequest())
@@ -168,7 +171,7 @@ class PortfolioMarkersIntegrationIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/markers", firstUser.getId())
+            get("/api/v1/me/portfolio/markers")
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(authToken(firstUser))))

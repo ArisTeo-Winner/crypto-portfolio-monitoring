@@ -57,8 +57,10 @@ public class PortfolioHistoricalService implements PortfolioChartPort {
             snapshot ->
                 new PortfolioMarkerResponse(
                     snapshot.transactionDate().toInstant(ZoneOffset.UTC).getEpochSecond(),
-                    snapshot.transactionType().trim().toLowerCase(Locale.ROOT),
-                    markerLabel(snapshot)))
+                    markerPosition(snapshot.transactionType()),
+                    markerColor(snapshot.transactionType()),
+                    markerShape(snapshot.transactionType()),
+                    markerText(snapshot)))
         .toList();
   }
 
@@ -103,11 +105,22 @@ public class PortfolioHistoricalService implements PortfolioChartPort {
     return "BUY".equalsIgnoreCase(transactionType) || "SELL".equalsIgnoreCase(transactionType);
   }
 
-  private String markerLabel(PortfolioTransactionSnapshot snapshot) {
+  private String markerPosition(String transactionType) {
+    return "BUY".equalsIgnoreCase(transactionType) ? "belowBar" : "aboveBar";
+  }
+
+  private String markerColor(String transactionType) {
+    return "BUY".equalsIgnoreCase(transactionType) ? "#22c55e" : "#ef4444";
+  }
+
+  private String markerShape(String transactionType) {
+    return "BUY".equalsIgnoreCase(transactionType) ? "arrowUp" : "arrowDown";
+  }
+
+  private String markerText(PortfolioTransactionSnapshot snapshot) {
     BigDecimal quantity = snapshot.quantity() != null ? snapshot.quantity() : BigDecimal.ZERO;
-    String type = snapshot.transactionType().trim().toLowerCase(Locale.ROOT);
-    String labelType = type.substring(0, 1).toUpperCase(Locale.ROOT) + type.substring(1);
-    return labelType
+    String type = snapshot.transactionType().trim().toUpperCase(Locale.ROOT);
+    return type
         + " "
         + quantity.stripTrailingZeros().toPlainString()
         + " "

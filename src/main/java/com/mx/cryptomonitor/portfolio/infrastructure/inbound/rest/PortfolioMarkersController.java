@@ -3,17 +3,16 @@ package com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioMarkerResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioMarkersUseCase;
-import com.mx.cryptomonitor.portfolio.domain.model.PortfolioMarker;
+import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
@@ -48,24 +47,24 @@ public class PortfolioMarkersController {
             content =
                 @Content(
                     mediaType = "application/json",
-                    array = @ArraySchema(schema = @Schema(implementation = PortfolioMarker.class)))),
+                    array =
+                        @ArraySchema(
+                            schema = @Schema(implementation = PortfolioMarkerResponse.class)))),
         @ApiResponse(responseCode = "400", description = "Rango o assetTypes invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
         @ApiResponse(responseCode = "403", description = "Usuario no autorizado")
       })
-  @GetMapping("/{userId}/markers")
+  @GetMapping("/markers")
   @PreAuthorize("hasRole('USER')")
-  public List<PortfolioMarker> getMarkers(
-      @PathVariable UUID userId,
+  public List<PortfolioMarkerResponse> getMarkers(
       @RequestParam(defaultValue = "30d") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
-    UUID currentUserId = currentUserPort.resolveUserId(authentication);
-    if (!currentUserId.equals(userId)) {
-      throw new AccessDeniedException("Authenticated user cannot read another user's portfolio");
-    }
-    return getPortfolioMarkersUseCase.getMarkers(userId, range, assetTypes);
+    UUID userId = currentUserPort.resolveUserId(authentication);
+    return getPortfolioMarkersUseCase.getMarkers(userId, range, assetTypes).stream()
+        .map(PortfolioResponseMapper::toMarker)
+        .toList();
   }
 }

@@ -94,21 +94,21 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/assets/{symbol}/history", firstUser.getId(), "BTC")
+            get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
                 .param("range", "30d")
                 .with(authentication(userAuthentication(firstUser))))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.series[0].value").value(100.00))
-        .andExpect(jsonPath("$.series[2].value").value(120.00));
+        .andExpect(jsonPath("$[0].value").value(100.00))
+        .andExpect(jsonPath("$[2].value").value(120.00));
 
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/assets/{symbol}/history", secondUser.getId(), "BTC")
+            get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
                 .param("range", "30d")
                 .with(authentication(userAuthentication(secondUser))))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.series[0].value").value(200.00))
-        .andExpect(jsonPath("$.series[2].value").value(240.00));
+        .andExpect(jsonPath("$[0].value").value(200.00))
+        .andExpect(jsonPath("$[2].value").value(240.00));
 
     coinGecko.verify(
         1,

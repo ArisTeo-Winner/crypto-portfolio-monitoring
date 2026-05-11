@@ -3,17 +3,16 @@ package com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryPointResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
-import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
+import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
@@ -48,25 +47,25 @@ public class PortfolioTotalHistoryController {
             content =
                 @Content(
                     mediaType = "application/json",
-                    array = @ArraySchema(schema = @Schema(implementation = TimeValuePoint.class)))),
+                    array =
+                        @ArraySchema(
+                            schema = @Schema(implementation = PortfolioHistoryPointResponse.class)))),
         @ApiResponse(responseCode = "400", description = "Rango o assetTypes invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
         @ApiResponse(responseCode = "403", description = "Usuario no autorizado"),
         @ApiResponse(responseCode = "409", description = "Transacciones inconsistentes")
       })
-  @GetMapping("/{userId}/history")
+  @GetMapping("/history")
   @PreAuthorize("hasRole('USER')")
-  public List<TimeValuePoint> getTotalHistory(
-      @PathVariable UUID userId,
+  public List<PortfolioHistoryPointResponse> getTotalHistory(
       @RequestParam(defaultValue = "30d") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
-    UUID currentUserId = currentUserPort.resolveUserId(authentication);
-    if (!currentUserId.equals(userId)) {
-      throw new AccessDeniedException("Authenticated user cannot read another user's portfolio");
-    }
-    return getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, assetTypes);
+    UUID userId = currentUserPort.resolveUserId(authentication);
+    return getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, assetTypes).stream()
+        .map(PortfolioResponseMapper::toHistoryPoint)
+        .toList();
   }
 }

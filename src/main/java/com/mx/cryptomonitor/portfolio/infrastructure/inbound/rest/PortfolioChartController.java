@@ -10,9 +10,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioChartPointResponse;
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryPointResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioMarkerResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioChartPort;
+import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
@@ -30,19 +31,21 @@ public class PortfolioChartController {
   private final PortfolioHistoryRateLimiter portfolioHistoryRateLimiter;
 
   @Operation(summary = "Obtener curva de equity del portfolio autenticado")
-  @GetMapping("/history")
+  @GetMapping("/equity/history")
   @PreAuthorize("hasRole('USER')")
-  public List<PortfolioChartPointResponse> getHistory(
+  public List<PortfolioHistoryPointResponse> getHistory(
       @RequestParam(defaultValue = "180") String range,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
     UUID userId = currentUserPort.resolveUserId(authentication);
-    return portfolioChartPort.getEquityHistory(userId, range);
+    return portfolioChartPort.getEquityHistory(userId, range).stream()
+        .map(PortfolioResponseMapper::toHistoryPoint)
+        .toList();
   }
 
   @Operation(summary = "Obtener marcadores BUY/SELL del portfolio autenticado")
-  @GetMapping("/markers")
+  @GetMapping("/equity/markers")
   @PreAuthorize("hasRole('USER')")
   public List<PortfolioMarkerResponse> getMarkers(
       @RequestParam(defaultValue = "180") String range,
@@ -56,12 +59,14 @@ public class PortfolioChartController {
   @Operation(summary = "Obtener PnL realizado del portfolio autenticado")
   @GetMapping("/realized")
   @PreAuthorize("hasRole('USER')")
-  public List<PortfolioChartPointResponse> getRealizedPnl(
+  public List<PortfolioHistoryPointResponse> getRealizedPnl(
       @RequestParam(defaultValue = "180") String range,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
     UUID userId = currentUserPort.resolveUserId(authentication);
-    return portfolioChartPort.getRealizedPnl(userId, range);
+    return portfolioChartPort.getRealizedPnl(userId, range).stream()
+        .map(PortfolioResponseMapper::toHistoryPoint)
+        .toList();
   }
 }

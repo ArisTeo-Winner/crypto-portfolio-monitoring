@@ -3,7 +3,6 @@ package com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,10 +11,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHoldingsHistoryResponse;
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryPointResponse;
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioMarkerResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetMarkersUseCase;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetHoldingsHistoryUseCase;
-import com.mx.cryptomonitor.portfolio.domain.model.PortfolioMarker;
+import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
@@ -29,7 +29,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/me/portfolio")
 @RequiredArgsConstructor
 public class PortfolioAssetHistoryController {
 
@@ -50,25 +50,28 @@ public class PortfolioAssetHistoryController {
             content =
                 @Content(
                     mediaType = "application/json",
-                    schema = @Schema(implementation = AssetHoldingsHistoryResponse.class))),
+                    array =
+                        @ArraySchema(
+                            schema = @Schema(implementation = PortfolioHistoryPointResponse.class)))),
         @ApiResponse(responseCode = "400", description = "Rango invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
         @ApiResponse(responseCode = "403", description = "Usuario no autorizado")
       })
-  @GetMapping("/me/portfolio/{userId}/assets/{symbol}/history")
+  @GetMapping("/assets/{symbol}/history")
   @PreAuthorize("hasRole('USER')")
-  public AssetHoldingsHistoryResponse getAssetHoldingsHistory(
-      @PathVariable UUID userId,
+  public List<PortfolioHistoryPointResponse> getAssetHoldingsHistory(
       @PathVariable String symbol,
       @RequestParam(defaultValue = "180d") String range,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
-    UUID currentUserId = currentUserPort.resolveUserId(authentication);
-    if (!currentUserId.equals(userId)) {
-      throw new AccessDeniedException("Authenticated user cannot read another user's portfolio");
-    }
-    return getAssetHoldingsHistoryUseCase.getAssetHoldingsHistory(userId, symbol, range);
+    UUID userId = currentUserPort.resolveUserId(authentication);
+    return getAssetHoldingsHistoryUseCase
+        .getAssetHoldingsHistory(userId, symbol, range)
+        .series()
+        .stream()
+        .map(PortfolioResponseMapper::toHistoryPoint)
+        .toList();
   }
 
   @Operation(
@@ -83,20 +86,24 @@ public class PortfolioAssetHistoryController {
             content =
                 @Content(
                     mediaType = "application/json",
-                    array = @ArraySchema(schema = @Schema(implementation = PortfolioMarker.class)))),
+                    array =
+                        @ArraySchema(
+                            schema = @Schema(implementation = PortfolioMarkerResponse.class)))),
         @ApiResponse(responseCode = "400", description = "Rango invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
         @ApiResponse(responseCode = "403", description = "Usuario no autorizado")
       })
-  @GetMapping("/portfolio/assets/{symbol}/markers")
+  @GetMapping("/assets/{symbol}/markers")
   @PreAuthorize("hasRole('USER')")
-  public List<PortfolioMarker> getAssetMarkers(
+  public List<PortfolioMarkerResponse> getAssetMarkers(
       @PathVariable String symbol,
       @RequestParam(defaultValue = "180d") String range,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
     UUID userId = currentUserPort.resolveUserId(authentication);
-    return getAssetMarkersUseCase.getAssetMarkers(userId, symbol, range);
+    return getAssetMarkersUseCase.getAssetMarkers(userId, symbol, range).stream()
+        .map(PortfolioResponseMapper::toMarker)
+        .toList();
   }
 }

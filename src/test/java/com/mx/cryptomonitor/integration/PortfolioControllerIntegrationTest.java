@@ -352,13 +352,20 @@ class PortfolioControllerIntegrationTest {
     transactionRepository.saveAndFlush(otherSell);
 
     mockMvc
-        .perform(get("/api/v1/me/portfolio/markers").param("range", "30").with(authentication(userAuthentication())))
+        .perform(
+            get("/api/v1/me/portfolio/equity/markers")
+                .param("range", "30")
+                .with(authentication(userAuthentication())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", Matchers.hasSize(2)))
-        .andExpect(jsonPath("$[0].type").value("buy"))
-        .andExpect(jsonPath("$[0].label").value("Buy 2 SOL"))
-        .andExpect(jsonPath("$[1].type").value("sell"))
-        .andExpect(jsonPath("$[1].label").value("Sell 1 SOL"));
+        .andExpect(jsonPath("$[0].position").value("belowBar"))
+        .andExpect(jsonPath("$[0].color").value("#22c55e"))
+        .andExpect(jsonPath("$[0].shape").value("arrowUp"))
+        .andExpect(jsonPath("$[0].text").value("BUY 2 SOL"))
+        .andExpect(jsonPath("$[1].position").value("aboveBar"))
+        .andExpect(jsonPath("$[1].color").value("#ef4444"))
+        .andExpect(jsonPath("$[1].shape").value("arrowDown"))
+        .andExpect(jsonPath("$[1].text").value("SELL 1 SOL"));
 
     mockMvc
         .perform(get("/api/v1/me/portfolio/realized").param("range", "30").with(authentication(userAuthentication())))
@@ -379,7 +386,7 @@ class PortfolioControllerIntegrationTest {
   }
 
   @Test
-  void getAssetHoldingsHistoryReturnsUnixSecondSeriesAndMarkers() throws Exception {
+  void getAssetHoldingsHistoryReturnsUnixSecondSeries() throws Exception {
     LocalDateTime buyDate = LocalDateTime.of(2026, 1, 1, 0, 0);
     LocalDateTime sellDate = LocalDateTime.of(2026, 1, 3, 0, 0);
     transactionRepository.saveAndFlush(
@@ -414,18 +421,14 @@ class PortfolioControllerIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/assets/{symbol}/history", testUser.getId(), "SOL")
+            get("/api/v1/me/portfolio/assets/{symbol}/history", "SOL")
                 .param("range", "180d")
                 .with(authentication(userAuthentication())))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.series", Matchers.hasSize(3)))
-        .andExpect(jsonPath("$.series[0].time").value(1767225600L))
-        .andExpect(jsonPath("$.series[0].value").value(21.00))
-        .andExpect(jsonPath("$.series[2].value").value(12.00))
-        .andExpect(jsonPath("$.markers", Matchers.hasSize(2)))
-        .andExpect(jsonPath("$.markers[0].type").value("BUY"))
-        .andExpect(jsonPath("$.markers[0].quantity").value(2))
-        .andExpect(jsonPath("$.markers[0].price").value(10.00));
+        .andExpect(jsonPath("$", Matchers.hasSize(3)))
+        .andExpect(jsonPath("$[0].time").value(1767225600L))
+        .andExpect(jsonPath("$[0].value").value(21.00))
+        .andExpect(jsonPath("$[2].value").value(12.00));
   }
 
   @Test
@@ -487,7 +490,7 @@ class PortfolioControllerIntegrationTest {
 
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/history", testUser.getId())
+            get("/api/v1/me/portfolio/history")
                 .param("range", "30d")
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(userAuthentication())))
@@ -500,23 +503,17 @@ class PortfolioControllerIntegrationTest {
   }
 
   @Test
-  void getPortfolioTotalHistoryRejectsDifferentAuthenticatedUser() throws Exception {
-    User otherUser =
-        userRepository.saveAndFlush(
-            User.builder()
-                .username("portfolio-total-forbidden-" + UUID.randomUUID())
-                .email("portfolio-total-forbidden-" + UUID.randomUUID() + "@example.com")
-                .passwordHash("hash")
-                .build());
-
+  void getPortfolioTotalHistoryRejectsPrincipalWithoutUserRole() throws Exception {
+    TestingAuthenticationToken authentication =
+        new TestingAuthenticationToken(testUser.getEmail(), null, "ROLE_ADMIN");
+    authentication.setAuthenticated(true);
     mockMvc
         .perform(
-            get("/api/v1/me/portfolio/{userId}/history", otherUser.getId())
+            get("/api/v1/me/portfolio/history")
                 .param("range", "30d")
-                .with(authentication(userAuthentication())))
+                .with(authentication(authentication)))
         .andExpect(status().isForbidden())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
   }
 
   private Transaction transaction(

@@ -1,3 +1,4 @@
 package com.mx.cryptomonitor.portfolio.application.dto.response;
 
-public record PortfolioMarkerResponse(long time, String type, String label) {}
+public record PortfolioMarkerResponse(
+    long time, String position, String color, String shape, String text) {}
