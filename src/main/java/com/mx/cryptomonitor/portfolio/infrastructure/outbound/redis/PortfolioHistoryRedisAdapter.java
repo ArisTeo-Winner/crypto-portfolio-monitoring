@@ -58,7 +58,9 @@ public class PortfolioHistoryRedisAdapter implements PortfolioHistoryStorePort {
   public void trimEquityHistory(UUID userId, Instant beforeExclusive, Duration ttl) {
     try {
       String redisKey = key(userId);
-      redisTemplate.opsForZSet().removeRangeByScore(redisKey, 0, beforeExclusive.toEpochMilli() - 1);
+      redisTemplate
+          .opsForZSet()
+          .removeRangeByScore(redisKey, 0, beforeExclusive.toEpochMilli() - 1);
       redisTemplate.expire(redisKey, ttl);
     } catch (RuntimeException ex) {
       log.warn("Redis trim failed for portfolio history user {}", userId, ex);

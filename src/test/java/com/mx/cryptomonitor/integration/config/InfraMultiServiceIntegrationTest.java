@@ -86,10 +86,8 @@ class InfraMultiServiceIntegrationTest {
     r.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     r.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add("spring.flyway.enabled", () -> "false");
-
   }
 
   @Test

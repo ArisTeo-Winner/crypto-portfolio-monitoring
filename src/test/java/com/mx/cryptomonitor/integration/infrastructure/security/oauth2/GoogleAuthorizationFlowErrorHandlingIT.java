@@ -26,7 +26,10 @@ class GoogleAuthorizationFlowErrorHandlingIT {
   @Test
   void authorizationEndpointShouldCreateSessionForGoogleFlow() throws Exception {
     MvcResult start =
-        mockMvc.perform(get("/oauth2/authorization/google")).andExpect(status().is3xxRedirection()).andReturn();
+        mockMvc
+            .perform(get("/oauth2/authorization/google"))
+            .andExpect(status().is3xxRedirection())
+            .andReturn();
 
     assertThat(start.getRequest().getSession(false)).isNotNull();
     assertThat(start.getResponse().getHeader("Location"))
@@ -36,7 +39,10 @@ class GoogleAuthorizationFlowErrorHandlingIT {
   @Test
   void callbackWithoutAuthorizationSessionShouldRedirectWithUsefulErrorCode() throws Exception {
     MvcResult start =
-        mockMvc.perform(get("/oauth2/authorization/google")).andExpect(status().is3xxRedirection()).andReturn();
+        mockMvc
+            .perform(get("/oauth2/authorization/google"))
+            .andExpect(status().is3xxRedirection())
+            .andReturn();
 
     String location = start.getResponse().getHeader("Location");
     assertThat(location).isNotBlank();

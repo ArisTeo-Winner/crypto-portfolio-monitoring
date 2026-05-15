@@ -1,5 +1,7 @@
 package com.mx.cryptomonitor.contract.consumer.auth;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 
 import org.junit.jupiter.api.Tag;
@@ -20,8 +22,6 @@ import au.com.dius.pact.consumer.junit5.PactTestFor;
 import au.com.dius.pact.core.model.PactSpecVersion;
 import au.com.dius.pact.core.model.RequestResponsePact;
 import au.com.dius.pact.core.model.annotations.Pact;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Consumer-side Pact test for POST /api/v1/auth/login.

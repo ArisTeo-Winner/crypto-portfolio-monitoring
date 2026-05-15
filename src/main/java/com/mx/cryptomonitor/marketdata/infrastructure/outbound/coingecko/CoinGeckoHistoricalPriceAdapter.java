@@ -124,15 +124,15 @@ public class CoinGeckoHistoricalPriceAdapter implements CryptoHistoricalPricePor
     }
 
     return fetchSeries(
-        "days",
-        normalizedAssetId,
-        cacheKey,
-        uriBuilder ->
-            uriBuilder
-                .path("/coins/{id}/market_chart")
-                .queryParam("vs_currency", USD)
-                .queryParam("days", normalizedDays)
-                .build(normalizedAssetId))
+            "days",
+            normalizedAssetId,
+            cacheKey,
+            uriBuilder ->
+                uriBuilder
+                    .path("/coins/{id}/market_chart")
+                    .queryParam("vs_currency", USD)
+                    .queryParam("days", normalizedDays)
+                    .build(normalizedAssetId))
         .doOnNext(series -> putRedisPriceHistory(normalizedAssetId, normalizedDays, series))
         .doFinally(signal -> releaseRedisPriceHistoryLock(normalizedAssetId, normalizedDays));
   }
@@ -380,8 +380,7 @@ public class CoinGeckoHistoricalPriceAdapter implements CryptoHistoricalPricePor
     }
   }
 
-  private void putRedisPriceHistory(
-      String assetId, int days, CryptoHistoricalPriceSeries series) {
+  private void putRedisPriceHistory(String assetId, int days, CryptoHistoricalPriceSeries series) {
     if (redisTemplate == null || series == null || series.points().isEmpty()) {
       return;
     }

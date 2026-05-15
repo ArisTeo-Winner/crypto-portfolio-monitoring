@@ -50,18 +50,21 @@ public class SessionService {
     List<SessionRedisEntry> redisEntries = refreshTokenStoreService.findAllActiveByUserId(userId);
 
     return redisEntries.stream()
-        .map(entry -> {
-          OffsetDateTime loginTime = sessionRepository.findById(entry.sessionId())
-              .map(Session::getLoginTime)
-              .orElse(OffsetDateTime.now());
-          return new SessionSummaryResponse(
-              entry.sessionId(),
-              entry.userAgent(),
-              entry.ipAddress(),
-              loginTime,
-              loginTime,
-              entry.sessionId().equals(currentSessionId));
-        })
+        .map(
+            entry -> {
+              OffsetDateTime loginTime =
+                  sessionRepository
+                      .findById(entry.sessionId())
+                      .map(Session::getLoginTime)
+                      .orElse(OffsetDateTime.now());
+              return new SessionSummaryResponse(
+                  entry.sessionId(),
+                  entry.userAgent(),
+                  entry.ipAddress(),
+                  loginTime,
+                  loginTime,
+                  entry.sessionId().equals(currentSessionId));
+            })
         .toList();
   }
 
@@ -71,10 +74,13 @@ public class SessionService {
       throw new IllegalArgumentException("No puedes revocar tu sesion actual");
     }
     refreshTokenStoreService.revokeBySessionId(userId, sessionIdToRevoke);
-    sessionRepository.findById(sessionIdToRevoke).ifPresent(session -> {
-      session.setLogoutTime(OffsetDateTime.now());
-      session.setActive(false);
-      sessionRepository.save(session);
-    });
+    sessionRepository
+        .findById(sessionIdToRevoke)
+        .ifPresent(
+            session -> {
+              session.setLogoutTime(OffsetDateTime.now());
+              session.setActive(false);
+              sessionRepository.save(session);
+            });
   }
 }

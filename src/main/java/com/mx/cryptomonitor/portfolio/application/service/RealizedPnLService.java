@@ -61,7 +61,8 @@ public class RealizedPnLService {
     return points;
   }
 
-  public List<RealizedPnLPoint> fromPersistedSnapshots(List<PortfolioTransactionSnapshot> snapshots) {
+  public List<RealizedPnLPoint> fromPersistedSnapshots(
+      List<PortfolioTransactionSnapshot> snapshots) {
     return snapshots.stream()
         .filter(snapshot -> "SELL".equalsIgnoreCase(snapshot.transactionType()))
         .map(

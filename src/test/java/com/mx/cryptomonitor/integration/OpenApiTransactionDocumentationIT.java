@@ -16,10 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @TestPropertySource(
-    properties = {
-      "springdoc.api-docs.enabled=true",
-      "springdoc.swagger-ui.enabled=true"
-    })
+    properties = {"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"})
 class OpenApiTransactionDocumentationIT {
 
   @Autowired private MockMvc mockMvc;

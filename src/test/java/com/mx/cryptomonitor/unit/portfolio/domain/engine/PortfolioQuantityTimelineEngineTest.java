@@ -28,9 +28,11 @@ class PortfolioQuantityTimelineEngineTest {
   void reconstructsSingleAndMultipleBuys() {
     List<QuantityTimelinePoint> timeline =
         engine.buildQuantityTimeline(
-            List.of(tx("2026-01-01T00:00:00Z", "BUY", "1"), tx("2026-01-02T00:00:00Z", "BUY", "2")));
+            List.of(
+                tx("2026-01-01T00:00:00Z", "BUY", "1"), tx("2026-01-02T00:00:00Z", "BUY", "2")));
 
-    assertThat(timeline).extracting(QuantityTimelinePoint::quantity)
+    assertThat(timeline)
+        .extracting(QuantityTimelinePoint::quantity)
         .containsExactly(new BigDecimal("1"), new BigDecimal("3"));
   }
 
@@ -52,11 +54,13 @@ class PortfolioQuantityTimelineEngineTest {
   void sortsUnorderedInputByTime() {
     List<QuantityTimelinePoint> timeline =
         engine.buildQuantityTimeline(
-            List.of(tx("2026-01-02T00:00:00Z", "SELL", "1"), tx("2026-01-01T00:00:00Z", "BUY", "2")));
+            List.of(
+                tx("2026-01-02T00:00:00Z", "SELL", "1"), tx("2026-01-01T00:00:00Z", "BUY", "2")));
 
     assertThat(timeline)
         .extracting(QuantityTimelinePoint::time)
-        .containsExactly(Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-02T00:00:00Z"));
+        .containsExactly(
+            Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-02T00:00:00Z"));
     assertThat(timeline)
         .extracting(QuantityTimelinePoint::quantity)
         .containsExactly(new BigDecimal("2"), new BigDecimal("1"));
@@ -68,10 +72,7 @@ class PortfolioQuantityTimelineEngineTest {
 
     List<QuantityTimelinePoint> timeline =
         engine.buildQuantityTimeline(
-            List.of(
-                tx(sameTime, "BUY", "2"),
-                tx(sameTime, "SELL", "1"),
-                tx(sameTime, "BUY", "3")));
+            List.of(tx(sameTime, "BUY", "2"), tx(sameTime, "SELL", "1"), tx(sameTime, "BUY", "3")));
 
     assertThat(timeline)
         .extracting(QuantityTimelinePoint::quantity)

@@ -37,7 +37,9 @@ public class PolygonMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
 
   @Override
   public boolean supports(AssetType assetType) {
-    return assetType == AssetType.STOCK || assetType == AssetType.ETF || assetType == AssetType.INDEX;
+    return assetType == AssetType.STOCK
+        || assetType == AssetType.ETF
+        || assetType == AssetType.INDEX;
   }
 
   @Override

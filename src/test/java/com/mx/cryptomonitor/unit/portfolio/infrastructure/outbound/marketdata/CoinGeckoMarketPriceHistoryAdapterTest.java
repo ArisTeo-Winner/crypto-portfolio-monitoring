@@ -75,8 +75,7 @@ class CoinGeckoMarketPriceHistoryAdapterTest {
     assertThat(result)
         .containsExactly(
             new PricePoint(
-                java.time.Instant.parse("2026-01-01T00:00:00Z"),
-                new BigDecimal("21.47")));
+                java.time.Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("21.47")));
 
     RecordedRequest searchRequest = mockWebServer.takeRequest();
     assertThat(searchRequest.getRequestUrl().encodedPath()).isEqualTo("/search");
@@ -84,9 +83,14 @@ class CoinGeckoMarketPriceHistoryAdapterTest {
 
     RecordedRequest chartRequest = mockWebServer.takeRequest();
     assertThat(chartRequest.getRequestUrl().encodedPath())
-        .isEqualTo("/coins/hyperliquid/market_chart");
+        .isEqualTo("/coins/hyperliquid/market_chart/range");
     assertThat(chartRequest.getRequestUrl().queryParameter("vs_currency")).isEqualTo("usd");
-    assertThat(chartRequest.getRequestUrl().queryParameter("days")).isEqualTo("30");
+    assertThat(chartRequest.getRequestUrl().queryParameter("from")).isNotNull();
+    assertThat(chartRequest.getRequestUrl().queryParameter("to")).isNotNull();
+    long from = Long.parseLong(chartRequest.getRequestUrl().queryParameter("from"));
+    long to = Long.parseLong(chartRequest.getRequestUrl().queryParameter("to"));
+    assertThat(to).isGreaterThan(from);
+    assertThat(to - from).isCloseTo(30L * 86400, org.assertj.core.data.Offset.offset(120L));
   }
 
   private MockResponse json(String body) {

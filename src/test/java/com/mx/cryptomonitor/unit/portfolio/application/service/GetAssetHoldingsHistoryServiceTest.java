@@ -86,8 +86,7 @@ class GetAssetHoldingsHistoryServiceTest {
             new PricePoint(Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("12.00")));
     when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
         .thenReturn(snapshots);
-    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d"))
-        .thenReturn(prices);
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d")).thenReturn(prices);
 
     assertThat(service.getAssetHoldingsHistory(userId, "BTC", "30d"))
         .isEqualTo(service.getAssetHoldingsHistory(userId, "BTC", "30d"));

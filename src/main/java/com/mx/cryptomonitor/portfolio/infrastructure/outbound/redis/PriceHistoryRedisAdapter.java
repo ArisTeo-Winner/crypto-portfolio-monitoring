@@ -69,7 +69,8 @@ public class PriceHistoryRedisAdapter implements PriceHistoryCachePort {
   @Override
   public boolean acquireLoadLock(AssetType assetType, String symbol, String range, Duration ttl) {
     try {
-      Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey(assetType, symbol, range), "1", ttl);
+      Boolean acquired =
+          redisTemplate.opsForValue().setIfAbsent(lockKey(assetType, symbol, range), "1", ttl);
       return Boolean.TRUE.equals(acquired);
     } catch (RuntimeException ex) {
       log.warn("Redis price history lock failed for {} {} {}", assetType, symbol, range, ex);
@@ -82,7 +83,8 @@ public class PriceHistoryRedisAdapter implements PriceHistoryCachePort {
     try {
       redisTemplate.delete(lockKey(assetType, symbol, range));
     } catch (RuntimeException ex) {
-      log.debug("Redis price history lock release failed for {} {} {}", assetType, symbol, range, ex);
+      log.debug(
+          "Redis price history lock release failed for {} {} {}", assetType, symbol, range, ex);
     }
   }
 

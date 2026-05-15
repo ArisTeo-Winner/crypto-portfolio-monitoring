@@ -40,7 +40,8 @@ class CustomOAuth2UserServiceTest {
     Role defaultRole = defaultRole();
     List<TimestampSnapshot> persistedSnapshots = new ArrayList<>();
 
-    when(userAuthProviderRepository.findByAuthProviderAndProviderId(AuthProvider.GOOGLE, "google-sub"))
+    when(userAuthProviderRepository.findByAuthProviderAndProviderId(
+            AuthProvider.GOOGLE, "google-sub"))
         .thenReturn(Optional.empty());
     when(userRepository.findByEmailIgnoreCase("oauth@example.com")).thenReturn(Optional.empty());
     when(roleRepository.findByName("ROLE_USER")).thenReturn(Optional.of(defaultRole));
@@ -48,7 +49,8 @@ class CustomOAuth2UserServiceTest {
         .thenAnswer(
             invocation -> {
               User user = invocation.getArgument(0);
-              persistedSnapshots.add(new TimestampSnapshot(user.getCreatedAt(), user.getUpdatedAt()));
+              persistedSnapshots.add(
+                  new TimestampSnapshot(user.getCreatedAt(), user.getUpdatedAt()));
               if (user.getId() == null) {
                 user.setId(UUID.randomUUID());
               }
@@ -71,7 +73,8 @@ class CustomOAuth2UserServiceTest {
               assertThat(snapshot.createdAt()).isNotNull();
               assertThat(snapshot.updatedAt()).isNotNull();
             });
-    assertThat(persistedSnapshots.get(0).updatedAt()).isEqualTo(persistedSnapshots.get(0).createdAt());
+    assertThat(persistedSnapshots.get(0).updatedAt())
+        .isEqualTo(persistedSnapshots.get(0).createdAt());
     assertThat(principal.getDomainUser().getCreatedAt()).isNotNull();
     assertThat(principal.getDomainUser().getUpdatedAt()).isNotNull();
 

@@ -33,10 +33,11 @@ public class UserSessionController {
       HttpServletRequest request, Authentication authentication) {
 
     String email = authentication.getName();
-    UUID userId = userRepository
-        .findByEmail(email)
-        .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
-        .getId();
+    UUID userId =
+        userRepository
+            .findByEmail(email)
+            .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
+            .getId();
 
     UUID currentSessionId = extractSessionId(request);
     return ResponseEntity.ok(sessionService.listActiveSessions(userId, currentSessionId));
@@ -44,15 +45,14 @@ public class UserSessionController {
 
   @DeleteMapping("/{sessionId}")
   public ResponseEntity<Void> revokeSession(
-      @PathVariable UUID sessionId,
-      HttpServletRequest request,
-      Authentication authentication) {
+      @PathVariable UUID sessionId, HttpServletRequest request, Authentication authentication) {
 
     String email = authentication.getName();
-    UUID userId = userRepository
-        .findByEmail(email)
-        .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
-        .getId();
+    UUID userId =
+        userRepository
+            .findByEmail(email)
+            .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
+            .getId();
 
     UUID currentSessionId = extractSessionId(request);
     sessionService.revokeSession(userId, sessionId, currentSessionId);

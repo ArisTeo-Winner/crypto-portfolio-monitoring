@@ -86,7 +86,8 @@ public class User {
       name = "user_roles",
       joinColumns = @JoinColumn(name = "user_id"),
       inverseJoinColumns = @JoinColumn(name = "role_id"))
-  @Builder.Default private List<Role> roles = new ArrayList<>();
+  @Builder.Default
+  private List<Role> roles = new ArrayList<>();
 
   public User(String string, String string2) {
     // TODO Auto-generated constructor stub

@@ -18,15 +18,22 @@ import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 
 class PortfolioHoldingsAggregationEngineTest {
 
-  private final PortfolioHoldingsAggregationEngine engine = new PortfolioHoldingsAggregationEngine();
+  private final PortfolioHoldingsAggregationEngine engine =
+      new PortfolioHoldingsAggregationEngine();
 
   @Test
   void aggregatesMultiAssetSeriesWithSameTimestamp() {
     List<TimeValuePoint> result =
         engine.aggregate(
             List.of(
-                input("BTC", buy("BTC", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "100")),
-                input("ETH", buy("ETH", "2026-01-01T00:00:00Z", "2"), price("2026-01-01T00:00:00Z", "50"))));
+                input(
+                    "BTC",
+                    buy("BTC", "2026-01-01T00:00:00Z", "1"),
+                    price("2026-01-01T00:00:00Z", "100")),
+                input(
+                    "ETH",
+                    buy("ETH", "2026-01-01T00:00:00Z", "2"),
+                    price("2026-01-01T00:00:00Z", "50"))));
 
     assertThat(result).containsExactly(new TimeValuePoint(1767225600L, new BigDecimal("200.00")));
   }
@@ -88,9 +95,18 @@ class PortfolioHoldingsAggregationEngineTest {
     List<TimeValuePoint> result =
         engine.aggregate(
             List.of(
-                input("A", buy("A", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "0.005")),
-                input("B", buy("B", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "0.005")),
-                input("C", buy("C", "2026-01-01T00:00:00Z", "1"), price("2026-01-01T00:00:00Z", "0.005"))));
+                input(
+                    "A",
+                    buy("A", "2026-01-01T00:00:00Z", "1"),
+                    price("2026-01-01T00:00:00Z", "0.005")),
+                input(
+                    "B",
+                    buy("B", "2026-01-01T00:00:00Z", "1"),
+                    price("2026-01-01T00:00:00Z", "0.005")),
+                input(
+                    "C",
+                    buy("C", "2026-01-01T00:00:00Z", "1"),
+                    price("2026-01-01T00:00:00Z", "0.005"))));
 
     assertThat(result).containsExactly(new TimeValuePoint(1767225600L, new BigDecimal("0.02")));
   }

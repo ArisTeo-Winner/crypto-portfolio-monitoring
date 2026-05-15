@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryPointResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioMarkerResponse;
-import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetMarkersUseCase;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetHoldingsHistoryUseCase;
+import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetMarkersUseCase;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
@@ -52,7 +52,8 @@ public class PortfolioAssetHistoryController {
                     mediaType = "application/json",
                     array =
                         @ArraySchema(
-                            schema = @Schema(implementation = PortfolioHistoryPointResponse.class)))),
+                            schema =
+                                @Schema(implementation = PortfolioHistoryPointResponse.class)))),
         @ApiResponse(responseCode = "400", description = "Rango invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
         @ApiResponse(responseCode = "403", description = "Usuario no autorizado")

@@ -41,12 +41,13 @@ class CachedMarketPriceHistoryAdapterTest {
   void cacheHitReturnsSharedRedisSeriesWithoutCallingProvider() {
     Instant time = Instant.parse("2026-01-01T00:00:00Z");
     when(cache.getPriceHistory(AssetType.CRYPTO, "SOL", "180d"))
-        .thenReturn(List.of(new PriceHistoryCachePort.PriceHistoryPoint(time, new BigDecimal("101.25"))));
+        .thenReturn(
+            List.of(new PriceHistoryCachePort.PriceHistoryPoint(time, new BigDecimal("101.25"))));
 
     List<PricePoint> result = adapter.getPriceHistory(AssetType.CRYPTO, "SOL", "180d");
 
     assertThat(result).containsExactly(new PricePoint(time, new BigDecimal("101.25")));
-    verify(provider, never()).fetchPriceHistory(any(), any(), any());
+    org.mockito.Mockito.verifyNoInteractions(provider);
   }
 
   @Test
@@ -57,7 +58,8 @@ class CachedMarketPriceHistoryAdapterTest {
     when(cache.acquireLoadLock(eq(AssetType.CRYPTO), eq("SOL"), eq("180d"), any(Duration.class)))
         .thenReturn(true);
     when(provider.supports(AssetType.CRYPTO)).thenReturn(true);
-    when(provider.fetchPriceHistory(eq(AssetType.CRYPTO), eq("SOL"), any(HoldingsHistoryRange.class)))
+    when(provider.fetchPriceHistory(
+            eq(AssetType.CRYPTO), eq("SOL"), any(HoldingsHistoryRange.class)))
         .thenReturn(List.of(point));
 
     List<PricePoint> result = adapter.getPriceHistory(AssetType.CRYPTO, "SOL", "180d");
@@ -140,7 +142,8 @@ class CachedMarketPriceHistoryAdapterTest {
     }
 
     @Override
-    public List<PriceHistoryPoint> getPriceHistory(AssetType assetType, String symbol, String range) {
+    public List<PriceHistoryPoint> getPriceHistory(
+        AssetType assetType, String symbol, String range) {
       return values.getOrDefault(key(assetType, symbol, range), List.of());
     }
 

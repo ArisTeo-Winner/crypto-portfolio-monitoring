@@ -39,7 +39,8 @@ class PortfolioHistoricalServiceTest {
     List<PortfolioHistoryStorePort.PortfolioHistoryPoint> sampled = service.downsample(points);
 
     assertThat(sampled).hasSizeLessThanOrEqualTo(501);
-    assertThat(sampled.get(sampled.size() - 1).timestamp()).isEqualTo(points.get(points.size() - 1).timestamp());
+    assertThat(sampled.get(sampled.size() - 1).timestamp())
+        .isEqualTo(points.get(points.size() - 1).timestamp());
   }
 
   @Test
@@ -48,7 +49,9 @@ class PortfolioHistoricalServiceTest {
 
     assertThat(validator.validate("180")).isEqualTo(180);
     assertThatThrownBy(() -> validator.validate("0")).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> validator.validate("30d")).isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> validator.validate("366")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> validator.validate("30d"))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> validator.validate("366"))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }

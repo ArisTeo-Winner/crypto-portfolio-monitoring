@@ -32,8 +32,8 @@ import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
-import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
+import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
@@ -368,7 +368,10 @@ class PortfolioControllerIntegrationTest {
         .andExpect(jsonPath("$[1].text").value("SELL 1 SOL"));
 
     mockMvc
-        .perform(get("/api/v1/me/portfolio/realized").param("range", "30").with(authentication(userAuthentication())))
+        .perform(
+            get("/api/v1/me/portfolio/realized")
+                .param("range", "30")
+                .with(authentication(userAuthentication())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", Matchers.hasSize(1)))
         .andExpect(jsonPath("$[0].value").value(24.50));
@@ -415,9 +418,12 @@ class PortfolioControllerIntegrationTest {
                 org.mockito.ArgumentMatchers.eq("180d")))
         .thenReturn(
             java.util.List.of(
-                new PricePoint(java.time.Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.50")),
-                new PricePoint(java.time.Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("11.00")),
-                new PricePoint(java.time.Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("12.00"))));
+                new PricePoint(
+                    java.time.Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.50")),
+                new PricePoint(
+                    java.time.Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("11.00")),
+                new PricePoint(
+                    java.time.Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("12.00"))));
 
     mockMvc
         .perform(
@@ -474,19 +480,27 @@ class PortfolioControllerIntegrationTest {
             marketPriceHistoryPort.getPriceHistory(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq("SOL"),
-                org.mockito.ArgumentMatchers.eq("30d")))
-        .thenReturn(
-            java.util.List.of(
-                new PricePoint(java.time.Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.00")),
-                new PricePoint(java.time.Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("12.00"))));
+                org.mockito.ArgumentMatchers.any(
+                    com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              com.mx.cryptomonitor.portfolio.domain.model.ChartResolution cr = inv.getArgument(2);
+              return java.util.List.of(
+                  new PricePoint(cr.start(), new BigDecimal("10.00")),
+                  new PricePoint(cr.start().plusSeconds(2 * 86400L), new BigDecimal("12.00")));
+            });
     org.mockito.Mockito.when(
             marketPriceHistoryPort.getPriceHistory(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq("ETH"),
-                org.mockito.ArgumentMatchers.eq("30d")))
-        .thenReturn(
-            java.util.List.of(
-                new PricePoint(java.time.Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("100.00"))));
+                org.mockito.ArgumentMatchers.any(
+                    com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              com.mx.cryptomonitor.portfolio.domain.model.ChartResolution cr = inv.getArgument(2);
+              return java.util.List.of(
+                  new PricePoint(cr.start().plusSeconds(86400L), new BigDecimal("100.00")));
+            });
 
     mockMvc
         .perform(
@@ -495,11 +509,14 @@ class PortfolioControllerIntegrationTest {
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(userAuthentication())))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$", Matchers.hasSize(3)))
-        .andExpect(jsonPath("$[0].time").value(1767225600L))
-        .andExpect(jsonPath("$[0].value").value(20.00))
-        .andExpect(jsonPath("$[1].value").value(120.00))
-        .andExpect(jsonPath("$[2].value").value(124.00));
+        .andExpect(jsonPath("$.meta.range").value("30d"))
+        .andExpect(jsonPath("$.meta.resolution").value("INTRADAY"))
+        .andExpect(jsonPath("$.meta.currency").value("USD"))
+        .andExpect(jsonPath("$.meta.points").value(3))
+        .andExpect(jsonPath("$.series", Matchers.hasSize(3)))
+        .andExpect(jsonPath("$.series[0].value").value(20.00))
+        .andExpect(jsonPath("$.series[1].value").value(120.00))
+        .andExpect(jsonPath("$.series[2].value").value(124.00));
   }
 
   @Test

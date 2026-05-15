@@ -1,7 +1,9 @@
 package com.mx.cryptomonitor.portfolio.application.service;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -20,9 +22,12 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionS
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.domain.engine.PortfolioHoldingsAggregationEngine;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
+import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
+import com.mx.cryptomonitor.portfolio.domain.model.ChartResolutionStrategy;
 import com.mx.cryptomonitor.portfolio.domain.model.HistoricalPriceSeries;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAccountingTransaction;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAssetHistoryInput;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 
@@ -32,10 +37,14 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistoryUseCase {
 
+  private static final int DOWNSAMPLE_THRESHOLD = 1200;
+  private static final int DOWNSAMPLE_TARGET = 1000;
+
   private final TransactionHistoryPort transactionHistoryPort;
   private final MarketPriceHistoryPort marketPriceHistoryPort;
   private final PortfolioAssetUniversePort portfolioAssetUniversePort;
   private final PortfolioHoldingsAggregationEngine aggregationEngine;
+  private final ChartResolutionStrategy chartResolutionStrategy;
 
   public GetPortfolioTotalHistoryService(
       TransactionHistoryPort transactionHistoryPort,
@@ -45,20 +54,25 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     this.marketPriceHistoryPort = marketPriceHistoryPort;
     this.portfolioAssetUniversePort = portfolioAssetUniversePort;
     this.aggregationEngine = new PortfolioHoldingsAggregationEngine();
+    this.chartResolutionStrategy = new ChartResolutionStrategy();
   }
 
   @Override
-  public List<TimeValuePoint> getTotalHistory(UUID userId, String range, String assetTypes) {
+  public PortfolioHistoryResult getTotalHistory(UUID userId, String range, String assetTypes) {
     long started = System.nanoTime();
     HoldingsHistoryRange parsedRange = HoldingsHistoryRange.parse(range);
     EnumSet<AssetType> requestedTypes = parseAssetTypes(assetTypes);
+
     List<PortfolioTransactionSnapshot> snapshots =
         filterByAssetTypes(transactionHistoryPort.getTransactionsByUser(userId), requestedTypes);
+
     Map<AssetIdentity, List<PortfolioTransactionSnapshot>> snapshotsByAsset =
         snapshots.stream()
             .collect(
                 java.util.stream.Collectors.groupingBy(
-                    snapshot -> new AssetIdentity(AssetType.from(snapshot.assetType()), snapshot.assetSymbol()),
+                    snapshot ->
+                        new AssetIdentity(
+                            AssetType.from(snapshot.assetType()), snapshot.assetSymbol()),
                     LinkedHashMap::new,
                     java.util.stream.Collectors.toList()));
 
@@ -67,30 +81,85 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
         .map(this::toAssetIdentity)
         .forEach(identity -> snapshotsByAsset.putIfAbsent(identity, List.of()));
 
+    Instant end = Instant.now();
+    long todayAligned = alignToUtcDayStart(end.getEpochSecond());
+
     if (snapshotsByAsset.isEmpty()) {
-      logGenerated(userId, 0, 0, started);
-      return List.of();
+      logGenerated(userId, parsedRange.value(), null, 0, 0, started);
+      return new PortfolioHistoryResult(
+          parsedRange.value(), parsedRange.resolution(), todayAligned, todayAligned, List.of());
     }
 
+    Instant start = determineStart(parsedRange, snapshots, end);
+    ChartResolution chartResolution = chartResolutionStrategy.resolve(start, end);
+
     List<PortfolioAssetHistoryInput> assets =
-        snapshotsByAsset.entrySet()
-            .stream()
-            .map(entry -> toAssetInput(entry.getKey(), entry.getValue(), parsedRange))
+        snapshotsByAsset.entrySet().stream()
+            .map(entry -> toAssetInput(entry.getKey(), entry.getValue(), chartResolution))
             .filter(input -> !input.priceSeries().points().isEmpty())
             .sorted(Comparator.comparing(PortfolioAssetHistoryInput::symbol))
             .toList();
 
-    List<TimeValuePoint> series = aggregationEngine.aggregate(assets);
-    logGenerated(userId, assets.size(), series.size(), started);
-    return series;
+    List<TimeValuePoint> series =
+        aggregationEngine.aggregate(assets, chartResolution.toAggregationResolution());
+
+    // Remove any points that precede the chart start (safety net for ALL range alignment)
+    long startEpoch = start.getEpochSecond();
+    series = series.stream().filter(p -> p.time() >= startEpoch).toList();
+
+    series = downsample(series);
+
+    long from = series.isEmpty() ? todayAligned : series.get(0).time();
+    long to = series.isEmpty() ? todayAligned : series.get(series.size() - 1).time();
+
+    logGenerated(
+        userId, parsedRange.value(), chartResolution.providerIntervalCode(), assets.size(), series.size(), started);
+    return new PortfolioHistoryResult(
+        parsedRange.value(), chartResolution.toAggregationResolution(), from, to, series);
+  }
+
+  private Instant determineStart(
+      HoldingsHistoryRange range, List<PortfolioTransactionSnapshot> snapshots, Instant end) {
+    if (!range.isAll()) {
+      return end.minus(Duration.ofDays(range.days()));
+    }
+    if (snapshots.isEmpty()) {
+      return end.minus(Duration.ofDays(365));
+    }
+    long firstTxEpoch =
+        snapshots.stream()
+            .map(s -> s.transactionDate().toInstant(ZoneOffset.UTC).getEpochSecond())
+            .min(Long::compareTo)
+            .orElse(end.getEpochSecond() - Duration.ofDays(365).getSeconds());
+    return Instant.ofEpochSecond(alignToUtcDayStart(firstTxEpoch));
+  }
+
+  private List<TimeValuePoint> downsample(List<TimeValuePoint> series) {
+    if (series.size() <= DOWNSAMPLE_THRESHOLD) {
+      return series;
+    }
+    // step >= 2 guarantees effective reduction; never produces more than ~DOWNSAMPLE_TARGET points
+    int step = Math.max(2, series.size() / DOWNSAMPLE_TARGET);
+    List<TimeValuePoint> result = new ArrayList<>(DOWNSAMPLE_TARGET + 2);
+    result.add(series.get(0));
+    for (int i = step; i < series.size() - 1; i += step) {
+      result.add(series.get(i));
+    }
+    result.add(series.get(series.size() - 1));
+    return result;
+  }
+
+  private static long alignToUtcDayStart(long epochSeconds) {
+    return epochSeconds - (epochSeconds % 86400L);
   }
 
   private PortfolioAssetHistoryInput toAssetInput(
       AssetIdentity identity,
       List<PortfolioTransactionSnapshot> snapshots,
-      HoldingsHistoryRange range) {
+      ChartResolution chartResolution) {
     List<PricePoint> prices =
-        marketPriceHistoryPort.getPriceHistory(identity.assetType(), identity.symbol(), range.value());
+        marketPriceHistoryPort.getPriceHistory(
+            identity.assetType(), identity.symbol(), chartResolution);
     return new PortfolioAssetHistoryInput(
         identity.assetType(),
         identity.symbol(),
@@ -142,13 +211,21 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     return parsed;
   }
 
-  private void logGenerated(UUID userId, int assetCount, int timePoints, long started) {
+  private void logGenerated(
+      UUID userId,
+      String range,
+      String interval,
+      int assetCount,
+      int points,
+      long started) {
     long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
     log.info(
-        "portfolio.history.total.generated userId={} assetCount={} timePoints={} durationMs={}",
+        "portfolio.history.generated userId={} range={} interval={} points={} assetCount={} durationMs={}",
         userId,
+        range,
+        interval,
+        points,
         assetCount,
-        timePoints,
         durationMs);
   }
 

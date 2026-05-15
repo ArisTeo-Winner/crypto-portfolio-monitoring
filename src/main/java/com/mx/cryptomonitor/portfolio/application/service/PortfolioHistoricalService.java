@@ -42,7 +42,10 @@ public class PortfolioHistoricalService implements PortfolioChartPort {
       points = equitySnapshotService.getEquityHistory(userId, rangeDays);
     }
     return downsample(points).stream()
-        .map(point -> new PortfolioChartPointResponse(point.timestamp().getEpochSecond(), money(point.value())))
+        .map(
+            point ->
+                new PortfolioChartPointResponse(
+                    point.timestamp().getEpochSecond(), money(point.value())))
         .toList();
   }
 
@@ -68,9 +71,14 @@ public class PortfolioHistoricalService implements PortfolioChartPort {
   public List<PortfolioChartPointResponse> getRealizedPnl(UUID userId, String range) {
     int rangeDays = rangeValidator.validate(range);
     Instant cutoff = Instant.now().minusSeconds((long) rangeDays * 24L * 60L * 60L);
-    return realizedPnLService.fromPersistedSnapshots(transactionHistoryPort.getTransactionsByUser(userId)).stream()
+    return realizedPnLService
+        .fromPersistedSnapshots(transactionHistoryPort.getTransactionsByUser(userId))
+        .stream()
         .filter(point -> !point.time().isBefore(cutoff))
-        .map(point -> new PortfolioChartPointResponse(point.time().getEpochSecond(), money(point.value())))
+        .map(
+            point ->
+                new PortfolioChartPointResponse(
+                    point.time().getEpochSecond(), money(point.value())))
         .toList();
   }
 

@@ -63,7 +63,8 @@ class PortfolioMarkersIntegrationIT extends InfraIntegrationTest {
 
   @Test
   void returnsLightweightChartMarkersFromUserTransactionsOnly() throws Exception {
-    Instant base = Instant.now().minus(Duration.ofDays(1)).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+    Instant base =
+        Instant.now().minus(Duration.ofDays(1)).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
     transactionRepository.saveAndFlush(
         transaction(firstUser, "BTC", AssetType.CRYPTO, "BUY", "1.0", base));
     transactionRepository.saveAndFlush(

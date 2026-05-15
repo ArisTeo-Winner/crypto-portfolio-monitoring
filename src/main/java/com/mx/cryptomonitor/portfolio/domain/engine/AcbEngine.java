@@ -25,7 +25,10 @@ public class AcbEngine {
     BigDecimal consumed = min(amount(sellQuantity), quantity);
     BigDecimal averageCost = averageCost();
     BigDecimal realized =
-        consumed.multiply(amount(sellPrice)).subtract(consumed.multiply(averageCost)).subtract(amount(fee));
+        consumed
+            .multiply(amount(sellPrice))
+            .subtract(consumed.multiply(averageCost))
+            .subtract(amount(fee));
     quantity = quantity.subtract(consumed);
     openCostBasis = clampToZero(openCostBasis.subtract(consumed.multiply(averageCost)));
     if (quantity.compareTo(BigDecimal.ZERO) == 0) {

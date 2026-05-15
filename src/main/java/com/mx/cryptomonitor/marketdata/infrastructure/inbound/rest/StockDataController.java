@@ -66,7 +66,6 @@ public class StockDataController {
   @ApiResponse(responseCode = "500", description = "Error interno")
   public ResponseEntity<String> getHistoricalStockPrice(
       @PathVariable("symbol") String symbol, @PathVariable("date") String date) {
-   
 
     if (symbol == null || symbol.trim().isEmpty()) {
       return ResponseEntity.badRequest().body("El simbolo de la accion no debe ser nulo ni vacio.");

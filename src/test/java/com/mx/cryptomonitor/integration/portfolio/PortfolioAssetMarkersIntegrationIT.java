@@ -66,8 +66,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
 
   @Test
   void returnsOnlyAuthenticatedUsersMarkersForRequestedAsset() throws Exception {
-    Instant base =
-        Instant.now().minus(Duration.ofDays(1)).truncatedTo(ChronoUnit.SECONDS);
+    Instant base = Instant.now().minus(Duration.ofDays(1)).truncatedTo(ChronoUnit.SECONDS);
     transactionRepository.saveAndFlush(
         transaction(firstUser, "SOL", AssetType.CRYPTO, "BUY", "2.0", "154.46000000", base));
     transactionRepository.saveAndFlush(
@@ -122,8 +121,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
 
   @Test
   void authenticatedUsersCannotSeeEachOthersAssetMarkers() throws Exception {
-    Instant base =
-        Instant.now().minus(Duration.ofDays(1)).truncatedTo(ChronoUnit.SECONDS);
+    Instant base = Instant.now().minus(Duration.ofDays(1)).truncatedTo(ChronoUnit.SECONDS);
     transactionRepository.saveAndFlush(
         transaction(firstUser, "SOL", AssetType.CRYPTO, "BUY", "2.0", "154.46000000", base));
     transactionRepository.saveAndFlush(

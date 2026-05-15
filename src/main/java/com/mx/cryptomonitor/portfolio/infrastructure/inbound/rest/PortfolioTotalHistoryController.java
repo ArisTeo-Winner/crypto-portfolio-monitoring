@@ -1,8 +1,8 @@
 package com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest;
 
-import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,26 +10,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryPointResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/me/portfolio")
 @RequiredArgsConstructor
 public class PortfolioTotalHistoryController {
+
+  private static final String LEGACY_MEDIA_TYPE = "application/vnd.portfolio.v1+json";
 
   private final GetPortfolioTotalHistoryUseCase getPortfolioTotalHistoryUseCase;
   private final CurrentUserPort currentUserPort;
@@ -38,18 +39,14 @@ public class PortfolioTotalHistoryController {
   @Operation(
       summary = "Obtener historico agregado del portafolio",
       description =
-          "Agrega el valor historico total del portafolio usando transacciones del usuario y precios compartidos por activo.")
+          "Agrega el valor historico total del portafolio usando transacciones del usuario y"
+              + " precios compartidos por activo. Devuelve estructura enriquecida por defecto;"
+              + " Accept: application/vnd.portfolio.v1+json para formato legado.")
   @ApiResponses(
       value = {
         @ApiResponse(
             responseCode = "200",
-            description = "Historico agregado calculado exitosamente",
-            content =
-                @Content(
-                    mediaType = "application/json",
-                    array =
-                        @ArraySchema(
-                            schema = @Schema(implementation = PortfolioHistoryPointResponse.class)))),
+            description = "Historico agregado calculado exitosamente"),
         @ApiResponse(responseCode = "400", description = "Rango o assetTypes invalido"),
         @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
         @ApiResponse(responseCode = "403", description = "Usuario no autorizado"),
@@ -57,15 +54,31 @@ public class PortfolioTotalHistoryController {
       })
   @GetMapping("/history")
   @PreAuthorize("hasRole('USER')")
-  public List<PortfolioHistoryPointResponse> getTotalHistory(
+  public ResponseEntity<Object> getTotalHistory(
       @RequestParam(defaultValue = "30d") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
     UUID userId = currentUserPort.resolveUserId(authentication);
-    return getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, assetTypes).stream()
-        .map(PortfolioResponseMapper::toHistoryPoint)
-        .toList();
+
+    long started = System.currentTimeMillis();
+    PortfolioHistoryResult result =
+        getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, assetTypes);
+    long durationMs = System.currentTimeMillis() - started;
+
+    log.info(
+        "portfolio.history.generated userId={} range={} resolution={} points={} durationMs={}",
+        userId,
+        result.rangeLabel(),
+        result.resolution(),
+        result.series().size(),
+        durationMs);
+
+    String acceptHeader = request.getHeader("Accept");
+    if (LEGACY_MEDIA_TYPE.equals(acceptHeader)) {
+      return ResponseEntity.ok(PortfolioResponseMapper.toLegacySeries(result));
+    }
+    return ResponseEntity.ok(PortfolioResponseMapper.toEnrichedResponse(result));
   }
 }

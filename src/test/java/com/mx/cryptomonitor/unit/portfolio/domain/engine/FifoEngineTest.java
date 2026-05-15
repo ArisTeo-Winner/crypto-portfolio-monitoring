@@ -16,7 +16,8 @@ class FifoEngineTest {
     engine.buy(new BigDecimal("2"), new BigDecimal("100"));
     engine.buy(new BigDecimal("1"), new BigDecimal("130"));
 
-    BigDecimal realized = engine.sell(new BigDecimal("2.5"), new BigDecimal("140"), new BigDecimal("1.00"));
+    BigDecimal realized =
+        engine.sell(new BigDecimal("2.5"), new BigDecimal("140"), new BigDecimal("1.00"));
 
     assertThat(realized).isEqualByComparingTo("84.00");
     assertThat(engine.holdings()).isEqualByComparingTo("0.5");

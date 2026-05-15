@@ -97,18 +97,19 @@ public class RefreshTokenStoreService {
       return List.of();
     }
     return tokenHashes.stream()
-        .map(hash -> {
-          String tokenKey = tokenKey(hash);
-          Map<Object, Object> entries = redisTemplate.opsForHash().entries(tokenKey);
-          if (entries.isEmpty()) return null;
-          if ("true".equals(entries.get("revoked"))) return null;
-          String sessionIdStr = (String) entries.get("sessionId");
-          if (sessionIdStr == null || sessionIdStr.isBlank()) return null;
-          return new SessionRedisEntry(
-              UUID.fromString(sessionIdStr),
-              (String) entries.getOrDefault("ipAddress", ""),
-              (String) entries.getOrDefault("userAgent", ""));
-        })
+        .map(
+            hash -> {
+              String tokenKey = tokenKey(hash);
+              Map<Object, Object> entries = redisTemplate.opsForHash().entries(tokenKey);
+              if (entries.isEmpty()) return null;
+              if ("true".equals(entries.get("revoked"))) return null;
+              String sessionIdStr = (String) entries.get("sessionId");
+              if (sessionIdStr == null || sessionIdStr.isBlank()) return null;
+              return new SessionRedisEntry(
+                  UUID.fromString(sessionIdStr),
+                  (String) entries.getOrDefault("ipAddress", ""),
+                  (String) entries.getOrDefault("userAgent", ""));
+            })
         .filter(Objects::nonNull)
         .toList();
   }
@@ -117,13 +118,14 @@ public class RefreshTokenStoreService {
     String userIndexKey = userIndexKey(userId);
     Set<String> tokenHashes = redisTemplate.opsForSet().members(userIndexKey);
     if (tokenHashes == null) return;
-    tokenHashes.forEach(hash -> {
-      String tokenKey = tokenKey(hash);
-      Object sid = redisTemplate.opsForHash().get(tokenKey, "sessionId");
-      if (targetSessionId.toString().equals(String.valueOf(sid))) {
-        redisTemplate.opsForHash().put(tokenKey, "revoked", "true");
-      }
-    });
+    tokenHashes.forEach(
+        hash -> {
+          String tokenKey = tokenKey(hash);
+          Object sid = redisTemplate.opsForHash().get(tokenKey, "sessionId");
+          if (targetSessionId.toString().equals(String.valueOf(sid))) {
+            redisTemplate.opsForHash().put(tokenKey, "revoked", "true");
+          }
+        });
   }
 
   public void revokeAllByUserId(UUID userId) {

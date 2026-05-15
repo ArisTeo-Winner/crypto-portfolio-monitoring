@@ -30,8 +30,12 @@ public class PriceHistoryCacheService {
   }
 
   public void storePriceHistory(
-      AssetType assetType, String symbol, int rangeDays, List<PriceHistoryCachePort.PriceHistoryPoint> points) {
-    priceHistoryCachePort.storePriceHistory(assetType, symbol, rangeKey(rangeDays), points, ttlForRange(rangeDays));
+      AssetType assetType,
+      String symbol,
+      int rangeDays,
+      List<PriceHistoryCachePort.PriceHistoryPoint> points) {
+    priceHistoryCachePort.storePriceHistory(
+        assetType, symbol, rangeKey(rangeDays), points, ttlForRange(rangeDays));
   }
 
   public void releaseLoadLock(AssetType assetType, String symbol, int rangeDays) {

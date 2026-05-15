@@ -7,10 +7,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.mx.cryptomonitor.portfolio.domain.exception.InsufficientFundsException;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
 import com.mx.cryptomonitor.portfolio.domain.exception.PortfolioEntryNotFoundException;
-import com.mx.cryptomonitor.portfolio.domain.exception.InsufficientFundsException;
 import com.mx.cryptomonitor.portfolio.domain.exception.PortfolioInvalidRequestException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.PortfolioAssetHistoryController;

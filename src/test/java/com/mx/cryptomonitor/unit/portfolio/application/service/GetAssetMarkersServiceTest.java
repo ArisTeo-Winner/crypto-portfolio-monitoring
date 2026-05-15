@@ -24,7 +24,8 @@ class GetAssetMarkersServiceTest {
   private static final UUID USER_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
   private static final Instant NOW = Instant.parse("2026-05-11T00:00:00Z");
 
-  private final InMemoryPortfolioMarkersPort portfolioMarkersPort = new InMemoryPortfolioMarkersPort();
+  private final InMemoryPortfolioMarkersPort portfolioMarkersPort =
+      new InMemoryPortfolioMarkersPort();
   private final GetAssetMarkersService service =
       new GetAssetMarkersService(portfolioMarkersPort, Clock.fixed(NOW, ZoneOffset.UTC));
 
@@ -38,11 +39,7 @@ class GetAssetMarkersServiceTest {
     assertThat(markers)
         .containsExactly(
             new PortfolioMarker(
-                time.getEpochSecond(),
-                "belowBar",
-                "#16a34a",
-                "arrowUp",
-                "BUY 2 SOL @ 154.46"));
+                time.getEpochSecond(), "belowBar", "#16a34a", "arrowUp", "BUY 2 SOL @ 154.46"));
   }
 
   @Test
@@ -55,11 +52,7 @@ class GetAssetMarkersServiceTest {
     assertThat(markers)
         .containsExactly(
             new PortfolioMarker(
-                time.getEpochSecond(),
-                "aboveBar",
-                "#ef4444",
-                "arrowDown",
-                "SELL 0.5 SOL @ 160"));
+                time.getEpochSecond(), "aboveBar", "#ef4444", "arrowDown", "SELL 0.5 SOL @ 160"));
   }
 
   @Test
@@ -155,7 +148,8 @@ class GetAssetMarkersServiceTest {
     private List<PortfolioTransactionSnapshot> snapshots = List.of();
 
     @Override
-    public List<PortfolioTransactionSnapshot> getTransactionsByUserAndSymbol(UUID userId, String symbol) {
+    public List<PortfolioTransactionSnapshot> getTransactionsByUserAndSymbol(
+        UUID userId, String symbol) {
       assertThat(userId).isEqualTo(USER_ID);
       assertThat(symbol).isEqualTo("SOL");
       return snapshots;

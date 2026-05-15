@@ -1,11 +1,10 @@
 package com.mx.cryptomonitor.portfolio.application.port.in;
 
-import java.util.List;
 import java.util.UUID;
 
-import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
 
 public interface GetPortfolioTotalHistoryUseCase {
 
-  List<TimeValuePoint> getTotalHistory(UUID userId, String range, String assetTypes);
+  PortfolioHistoryResult getTotalHistory(UUID userId, String range, String assetTypes);
 }

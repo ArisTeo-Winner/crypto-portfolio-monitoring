@@ -10,7 +10,11 @@ import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 public interface PriceHistoryCachePort {
 
   void storePriceHistory(
-      AssetType assetType, String symbol, String range, List<PriceHistoryPoint> points, Duration ttl);
+      AssetType assetType,
+      String symbol,
+      String range,
+      List<PriceHistoryPoint> points,
+      Duration ttl);
 
   List<PriceHistoryPoint> getPriceHistory(AssetType assetType, String symbol, String range);
 

@@ -31,7 +31,8 @@ public class HealthController {
 
   @Operation(
       summary = "Public health check",
-      description = "Returns a sanitized health status suitable for load balancers and uptime checks.")
+      description =
+          "Returns a sanitized health status suitable for load balancers and uptime checks.")
   @ApiResponses(
       value = {
         @ApiResponse(
@@ -52,7 +53,8 @@ public class HealthController {
   @GetMapping
   public ResponseEntity<HealthResponse> health() {
     HealthComponent health = healthEndpoint.health();
-    HttpStatus httpStatus = Status.UP.equals(health.getStatus()) ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+    HttpStatus httpStatus =
+        Status.UP.equals(health.getStatus()) ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
     return ResponseEntity.status(httpStatus)
         .body(new HealthResponse(health.getStatus().getCode(), SERVICE_NAME, Instant.now()));

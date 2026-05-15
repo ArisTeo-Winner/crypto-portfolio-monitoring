@@ -24,6 +24,7 @@ import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 public class AlphaVantageMarketPriceHistoryAdapter implements MarketPriceHistoryProvider {
 
   private static final String TIME_SERIES_DAILY_KEY = "Time Series (Daily)";
+  private static final LocalDate EPOCH_DATE = LocalDate.of(1970, 1, 1);
 
   private final WebClient webClient;
   private final String baseUrl;
@@ -40,22 +41,21 @@ public class AlphaVantageMarketPriceHistoryAdapter implements MarketPriceHistory
 
   @Override
   public boolean supports(AssetType assetType) {
-    return assetType == AssetType.STOCK || assetType == AssetType.ETF || assetType == AssetType.INDEX;
+    return assetType == AssetType.STOCK
+        || assetType == AssetType.ETF
+        || assetType == AssetType.INDEX;
   }
 
   @Override
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
+    String outputSize = (range.isAll() || range.days() > 100) ? "full" : "compact";
     Map<String, Object> json =
         webClient
             .get()
             .uri(
                 "%s/query?function=TIME_SERIES_DAILY&symbol=%s&outputsize=%s&apikey=%s"
-                    .formatted(
-                        baseUrl,
-                        symbol.trim().toUpperCase(),
-                        range.days() > 100 ? "full" : "compact",
-                        apiKey))
+                    .formatted(baseUrl, symbol.trim().toUpperCase(), outputSize, apiKey))
             .retrieve()
             .bodyToMono(Map.class)
             .map(Map.class::cast)
@@ -74,7 +74,8 @@ public class AlphaVantageMarketPriceHistoryAdapter implements MarketPriceHistory
       return List.of();
     }
 
-    LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).minusDays(range.days());
+    LocalDate cutoff =
+        range.isAll() ? EPOCH_DATE : LocalDate.now(ZoneOffset.UTC).minusDays(range.days());
     return series.entrySet().stream()
         .filter(entry -> entry.getKey() != null && entry.getValue() instanceof Map<?, ?>)
         .map(entry -> toPoint(String.valueOf(entry.getKey()), (Map<?, ?>) entry.getValue()))

@@ -90,7 +90,8 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
   void totalHistorySharesRedisPriceCacheAndKeepsUserQuantitiesIsolated() throws Exception {
     LocalDateTime buyDate = LocalDateTime.of(2026, 1, 1, 0, 0);
     transactionRepository.saveAndFlush(transaction(firstUser, "BTC", new BigDecimal("1"), buyDate));
-    transactionRepository.saveAndFlush(transaction(secondUser, "BTC", new BigDecimal("2"), buyDate));
+    transactionRepository.saveAndFlush(
+        transaction(secondUser, "BTC", new BigDecimal("2"), buyDate));
 
     coinGecko.stubFor(
         WireMock.get(urlPathEqualTo("/coins/bitcoin/market_chart"))
@@ -141,7 +142,8 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
             .build());
   }
 
-  private Transaction transaction(User user, String symbol, BigDecimal quantity, LocalDateTime time) {
+  private Transaction transaction(
+      User user, String symbol, BigDecimal quantity, LocalDateTime time) {
     return Transaction.builder()
         .user(user)
         .portfolioEntryId(UUID.randomUUID())

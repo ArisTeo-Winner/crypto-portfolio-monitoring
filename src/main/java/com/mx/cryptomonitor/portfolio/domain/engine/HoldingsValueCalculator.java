@@ -25,9 +25,13 @@ public class HoldingsValueCalculator {
   }
 
   private List<TimeValuePoint> calculate(
-      List<PricePoint> priceSeries, List<QuantityTimelinePoint> quantityTimeline, boolean roundValue) {
+      List<PricePoint> priceSeries,
+      List<QuantityTimelinePoint> quantityTimeline,
+      boolean roundValue) {
     List<QuantityTimelinePoint> quantityEvents =
-        quantityTimeline.stream().sorted(Comparator.comparing(QuantityTimelinePoint::time)).toList();
+        quantityTimeline.stream()
+            .sorted(Comparator.comparing(QuantityTimelinePoint::time))
+            .toList();
     List<PricePoint> orderedPrices =
         priceSeries.stream().sorted(Comparator.comparing(PricePoint::time)).toList();
 

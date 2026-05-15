@@ -19,10 +19,8 @@ class HoldingsValueCalculatorTest {
   void combinesPriceSeriesWithLatestQuantityAtOrBeforePriceTime() {
     List<QuantityTimelinePoint> quantities =
         List.of(
-            new QuantityTimelinePoint(
-                Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("2")),
-            new QuantityTimelinePoint(
-                Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("1")));
+            new QuantityTimelinePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("2")),
+            new QuantityTimelinePoint(Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("1")));
 
     List<TimeValuePoint> values =
         new HoldingsValueCalculator()
@@ -44,13 +42,13 @@ class HoldingsValueCalculatorTest {
   void valuesBeforeFirstTransactionAreZero() {
     List<QuantityTimelinePoint> quantities =
         List.of(
-            new QuantityTimelinePoint(
-                Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("2")));
+            new QuantityTimelinePoint(Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("2")));
 
     List<TimeValuePoint> values =
         new HoldingsValueCalculator()
             .calculate(
-                List.of(new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.50"))),
+                List.of(
+                    new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.50"))),
                 quantities);
 
     assertThat(values).containsExactly(new TimeValuePoint(1767225600L, new BigDecimal("0.00")));

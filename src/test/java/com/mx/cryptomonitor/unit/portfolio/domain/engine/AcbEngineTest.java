@@ -16,7 +16,8 @@ class AcbEngineTest {
     engine.buy(new BigDecimal("2"), new BigDecimal("100"), new BigDecimal("0.50"));
     engine.buy(new BigDecimal("1"), new BigDecimal("130"), BigDecimal.ZERO);
 
-    BigDecimal realized = engine.sell(new BigDecimal("1.5"), new BigDecimal("140"), new BigDecimal("1.00"));
+    BigDecimal realized =
+        engine.sell(new BigDecimal("1.5"), new BigDecimal("140"), new BigDecimal("1.00"));
 
     assertThat(realized).isEqualByComparingTo("43.75");
     assertThat(engine.holdings()).isEqualByComparingTo("1.5");

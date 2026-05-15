@@ -9,10 +9,15 @@ import org.springframework.stereotype.Component;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort;
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
+import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
+import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Component
+@Slf4j
 public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
 
   private static final Duration LOAD_LOCK_TTL = Duration.ofSeconds(30);
@@ -31,62 +36,119 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
   @Override
   public List<PricePoint> getPriceHistory(AssetType assetType, String symbol, String range) {
     HoldingsHistoryRange parsedRange = HoldingsHistoryRange.parse(range);
-    List<PricePoint> cached = getCached(assetType, symbol, parsedRange.value());
+    List<PricePoint> cached = getCachedByKey(assetType, symbol, parsedRange.value());
     if (!cached.isEmpty()) {
       return cached;
     }
-
     if (!priceHistoryCachePort.acquireLoadLock(
         assetType, symbol, parsedRange.value(), LOAD_LOCK_TTL)) {
       return waitForCachedLoad(assetType, symbol, parsedRange.value());
     }
-
     try {
-      MarketPriceHistoryProvider provider =
-          providers.stream()
-              .filter(candidate -> candidate.supports(assetType))
-              .findFirst()
-              .orElseThrow(
-                  () ->
-                      new IllegalStateException(
-                          "No market price history provider configured for " + assetType));
-      List<PricePoint> prices =
-          provider.fetchPriceHistory(assetType, symbol, parsedRange).stream()
-              .sorted(Comparator.comparing(PricePoint::time))
-              .toList();
-      if (!prices.isEmpty()) {
-        priceHistoryCachePort.storePriceHistory(
-            assetType,
-            symbol,
-            parsedRange.value(),
-            prices.stream()
-                .map(point -> new PriceHistoryCachePort.PriceHistoryPoint(point.time(), point.price()))
-                .toList(),
-            parsedRange.ttl());
-      }
+      List<PricePoint> prices = fetchFirstSupporting(assetType, symbol, parsedRange);
+      storeIfNonEmpty(assetType, symbol, parsedRange.value(), prices, parsedRange.ttl());
       return prices;
     } finally {
       priceHistoryCachePort.releaseLoadLock(assetType, symbol, parsedRange.value());
     }
   }
 
-  private List<PricePoint> getCached(AssetType assetType, String symbol, String range) {
-    return priceHistoryCachePort.getPriceHistory(assetType, symbol, range).stream()
+  @Override
+  public List<PricePoint> getPriceHistory(
+      AssetType assetType, String symbol, ChartResolution chartResolution) {
+    String cacheKey = buildDynamicKey(chartResolution);
+    List<PricePoint> cached = getCachedByKey(assetType, symbol, cacheKey);
+    if (!cached.isEmpty()) {
+      return cached;
+    }
+    if (!priceHistoryCachePort.acquireLoadLock(assetType, symbol, cacheKey, LOAD_LOCK_TTL)) {
+      return waitForCachedLoad(assetType, symbol, cacheKey);
+    }
+    try {
+      List<PricePoint> prices = fetchWithFallback(assetType, symbol, chartResolution);
+      storeIfNonEmpty(assetType, symbol, cacheKey, prices, deriveTtl(chartResolution));
+      return prices;
+    } finally {
+      priceHistoryCachePort.releaseLoadLock(assetType, symbol, cacheKey);
+    }
+  }
+
+  // Tries providers in @Order sequence; falls back to next on UnknownAssetSymbolException.
+  private List<PricePoint> fetchWithFallback(
+      AssetType assetType, String symbol, ChartResolution chartResolution) {
+    UnknownAssetSymbolException lastSymbolError = null;
+    for (MarketPriceHistoryProvider provider : providers) {
+      if (!provider.supports(assetType)) {
+        continue;
+      }
+      try {
+        return provider.fetchPriceHistory(assetType, symbol, chartResolution).stream()
+            .sorted(Comparator.comparing(PricePoint::time))
+            .toList();
+      } catch (UnknownAssetSymbolException e) {
+        log.debug(
+            "Provider {} unknown symbol {}, trying next", provider.getClass().getSimpleName(), symbol);
+        lastSymbolError = e;
+      }
+    }
+    if (lastSymbolError != null) {
+      throw lastSymbolError;
+    }
+    throw new IllegalStateException(
+        "No market price history provider configured for " + assetType);
+  }
+
+  private List<PricePoint> fetchFirstSupporting(
+      AssetType assetType, String symbol, HoldingsHistoryRange range) {
+    return providers.stream()
+        .filter(p -> p.supports(assetType))
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "No market price history provider configured for " + assetType))
+        .fetchPriceHistory(assetType, symbol, range)
+        .stream()
+        .sorted(Comparator.comparing(PricePoint::time))
+        .toList();
+  }
+
+  private List<PricePoint> getCachedByKey(AssetType assetType, String symbol, String key) {
+    return priceHistoryCachePort.getPriceHistory(assetType, symbol, key).stream()
         .map(point -> new PricePoint(point.time(), point.price()))
         .sorted(Comparator.comparing(PricePoint::time))
         .toList();
   }
 
-  private List<PricePoint> waitForCachedLoad(AssetType assetType, String symbol, String range) {
+  private void storeIfNonEmpty(
+      AssetType assetType,
+      String symbol,
+      String key,
+      List<PricePoint> prices,
+      Duration ttl) {
+    if (prices.isEmpty()) {
+      return;
+    }
+    priceHistoryCachePort.storePriceHistory(
+        assetType,
+        symbol,
+        key,
+        prices.stream()
+            .map(p -> new PriceHistoryCachePort.PriceHistoryPoint(p.time(), p.price()))
+            .toList(),
+        ttl);
+  }
+
+  private List<PricePoint> waitForCachedLoad(AssetType assetType, String symbol, String key) {
     long deadline = System.nanoTime() + CACHE_LOAD_WAIT_TIMEOUT.toNanos();
     while (System.nanoTime() < deadline && !Thread.currentThread().isInterrupted()) {
-      List<PricePoint> cached = getCached(assetType, symbol, range);
+      List<PricePoint> cached = getCachedByKey(assetType, symbol, key);
       if (!cached.isEmpty()) {
         return cached;
       }
       sleepBeforeRetry();
     }
-    return getCached(assetType, symbol, range);
+    return getCachedByKey(assetType, symbol, key);
   }
 
   private void sleepBeforeRetry() {
@@ -95,5 +157,21 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  private static String buildDynamicKey(ChartResolution r) {
+    long startDay = alignToDay(r.start().getEpochSecond());
+    long endDay = alignToDay(r.end().getEpochSecond());
+    return "dyn:" + startDay + ":" + endDay + ":" + r.providerIntervalCode();
+  }
+
+  private static long alignToDay(long epochSeconds) {
+    return epochSeconds - (epochSeconds % 86400L);
+  }
+
+  private static Duration deriveTtl(ChartResolution r) {
+    if (r.interval().toDays() >= 1) return Duration.ofHours(6);
+    if (r.interval().toHours() >= 4) return Duration.ofHours(2);
+    return Duration.ofHours(1);
   }
 }

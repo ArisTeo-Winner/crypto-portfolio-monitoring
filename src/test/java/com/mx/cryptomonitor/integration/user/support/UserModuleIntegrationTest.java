@@ -1,5 +1,9 @@
 package com.mx.cryptomonitor.integration.user.support;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,21 +31,18 @@ import com.mx.cryptomonitor.user.domain.model.Role;
 import com.mx.cryptomonitor.user.domain.repository.RoleRepository;
 import com.redis.testcontainers.RedisContainer;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 /**
  * Base class for full-stack integration tests in the user module.
  *
- * <p>Starts real PostgreSQL and Redis containers via Testcontainers so that
- * session, token, and authentication tests exercise the actual storage layer.
+ * <p>Starts real PostgreSQL and Redis containers via Testcontainers so that session, token, and
+ * authentication tests exercise the actual storage layer.
  *
  * <p>Subclasses inherit:
+ *
  * <ul>
- *   <li>{@link #mockMvc} — pre-configured MockMvc over the full Spring context</li>
- *   <li>{@link #objectMapper} — shared Jackson mapper</li>
- *   <li>{@link #registerAndLogin} — helper to create a fresh user and obtain tokens</li>
+ *   <li>{@link #mockMvc} — pre-configured MockMvc over the full Spring context
+ *   <li>{@link #objectMapper} — shared Jackson mapper
+ *   <li>{@link #registerAndLogin} — helper to create a fresh user and obtain tokens
  * </ul>
  */
 @SpringBootTest(
@@ -58,16 +59,14 @@ public abstract class UserModuleIntegrationTest {
   // @DynamicPropertySource entries for datasource URL or Redis host.
   // -------------------------------------------------------------------------
 
-  @Container
-  @ServiceConnection
+  @Container @ServiceConnection
   protected static final PostgreSQLContainer<?> postgres =
       new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
           .withDatabaseName("testdb")
           .withUsername("test")
           .withPassword("test");
 
-  @Container
-  @ServiceConnection
+  @Container @ServiceConnection
   protected static final RedisContainer redis =
       new RedisContainer(DockerImageName.parse("redis:7")).withExposedPorts(6379);
 
@@ -83,11 +82,9 @@ public abstract class UserModuleIntegrationTest {
     registry.add("spring.datasource.password", postgres::getPassword);
     registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
     registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+    registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add(
-        "spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-    registry.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add("spring.flyway.enabled", () -> "false");
 
     // JWT — deterministic secret so tokens are reproducible within a test run
@@ -139,8 +136,18 @@ public abstract class UserModuleIntegrationTest {
 
     UserRegistrationRequest registration =
         new UserRegistrationRequest(
-            "user_" + suffix, email, password, "Test", "User",
-            null, null, null, null, null, null, null);
+            "user_" + suffix,
+            email,
+            password,
+            "Test",
+            "User",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     mockMvc
         .perform(
@@ -154,8 +161,7 @@ public abstract class UserModuleIntegrationTest {
             .perform(
                 post("/api/v1/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsString(new LoginRequest(email, password))))
+                    .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
             .andExpect(jsonPath("$.refreshToken").isNotEmpty())

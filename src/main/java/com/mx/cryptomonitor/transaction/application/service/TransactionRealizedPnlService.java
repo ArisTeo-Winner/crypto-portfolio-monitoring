@@ -26,7 +26,8 @@ public class TransactionRealizedPnlService {
 
   @Transactional
   public void rebuildUserRealizedPnl(UUID userId) {
-    List<Transaction> transactions = transactionRepository.findByUserIdOrderByTransactionDateAscCreatedAtAsc(userId);
+    List<Transaction> transactions =
+        transactionRepository.findByUserIdOrderByTransactionDateAscCreatedAtAsc(userId);
     Map<String, CostBasisState> statesByAsset = new LinkedHashMap<>();
 
     for (Transaction transaction : transactions) {
@@ -38,7 +39,8 @@ public class TransactionRealizedPnlService {
       if ("BUY".equals(transactionType)) {
         BigDecimal grossAmount = grossAmount(transaction);
         state.quantity = state.quantity.add(amount(transaction.getQuantity()));
-        state.openCostBasis = state.openCostBasis.add(grossAmount).add(amount(transaction.getFee()));
+        state.openCostBasis =
+            state.openCostBasis.add(grossAmount).add(amount(transaction.getFee()));
         transaction.setRealizedPnl(BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP));
         continue;
       }
@@ -47,10 +49,13 @@ public class TransactionRealizedPnlService {
         BigDecimal soldQuantity = min(amount(transaction.getQuantity()), state.quantity);
         BigDecimal averageCost = averageCost(state);
         BigDecimal realized =
-            grossAmount(transaction).subtract(averageCost.multiply(soldQuantity)).subtract(amount(transaction.getFee()));
+            grossAmount(transaction)
+                .subtract(averageCost.multiply(soldQuantity))
+                .subtract(amount(transaction.getFee()));
         transaction.setRealizedPnl(scaleMoney(realized));
         state.quantity = state.quantity.subtract(soldQuantity);
-        state.openCostBasis = clampToZero(state.openCostBasis.subtract(averageCost.multiply(soldQuantity)));
+        state.openCostBasis =
+            clampToZero(state.openCostBasis.subtract(averageCost.multiply(soldQuantity)));
         if (state.quantity.compareTo(BigDecimal.ZERO) == 0) {
           state.openCostBasis = BigDecimal.ZERO;
         }

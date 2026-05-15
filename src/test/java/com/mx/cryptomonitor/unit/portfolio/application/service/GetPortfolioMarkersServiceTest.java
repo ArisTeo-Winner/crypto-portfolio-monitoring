@@ -26,14 +26,12 @@ class GetPortfolioMarkersServiceTest {
   private final InMemoryTransactionHistoryPort transactionHistoryPort =
       new InMemoryTransactionHistoryPort();
   private final GetPortfolioMarkersService service =
-      new GetPortfolioMarkersService(
-          transactionHistoryPort, Clock.fixed(NOW, ZoneOffset.UTC));
+      new GetPortfolioMarkersService(transactionHistoryPort, Clock.fixed(NOW, ZoneOffset.UTC));
 
   @Test
   void returnsSingleBuyMarker() {
     Instant time = Instant.parse("2026-05-09T12:00:00Z");
-    transactionHistoryPort.snapshots =
-        List.of(snapshot("BTC", "CRYPTO", "BUY", "1.0", time));
+    transactionHistoryPort.snapshots = List.of(snapshot("BTC", "CRYPTO", "BUY", "1.0", time));
 
     List<PortfolioMarker> markers = service.getMarkers(USER_ID, "30d", null);
 
@@ -46,8 +44,7 @@ class GetPortfolioMarkersServiceTest {
   @Test
   void returnsSingleSellMarker() {
     Instant time = Instant.parse("2026-05-09T12:00:00Z");
-    transactionHistoryPort.snapshots =
-        List.of(snapshot("BTC", "CRYPTO", "SELL", "0.5", time));
+    transactionHistoryPort.snapshots = List.of(snapshot("BTC", "CRYPTO", "SELL", "0.5", time));
 
     List<PortfolioMarker> markers = service.getMarkers(USER_ID, "30d", null);
 
@@ -68,8 +65,12 @@ class GetPortfolioMarkersServiceTest {
 
     List<PortfolioMarker> markers = service.getMarkers(USER_ID, "30d", null);
 
-    assertThat(markers).extracting(PortfolioMarker::text).containsExactly("BUY 1 BTC", "SELL 0.25 BTC");
-    assertThat(markers).extracting(PortfolioMarker::time).containsExactly(buyTime.getEpochSecond(), sellTime.getEpochSecond());
+    assertThat(markers)
+        .extracting(PortfolioMarker::text)
+        .containsExactly("BUY 1 BTC", "SELL 0.25 BTC");
+    assertThat(markers)
+        .extracting(PortfolioMarker::time)
+        .containsExactly(buyTime.getEpochSecond(), sellTime.getEpochSecond());
   }
 
   @Test
@@ -129,7 +130,9 @@ class GetPortfolioMarkersServiceTest {
 
     List<PortfolioMarker> markers = service.getMarkers(USER_ID, "30d", "CRYPTO,STOCK");
 
-    assertThat(markers).extracting(PortfolioMarker::text).containsExactly("BUY 1 BTC", "BUY 3 AAPL");
+    assertThat(markers)
+        .extracting(PortfolioMarker::text)
+        .containsExactly("BUY 1 BTC", "BUY 3 AAPL");
   }
 
   @Test
@@ -141,7 +144,9 @@ class GetPortfolioMarkersServiceTest {
 
     List<PortfolioMarker> markers = service.getMarkers(USER_ID, "30d", " crypto , stock ");
 
-    assertThat(markers).extracting(PortfolioMarker::text).containsExactly("BUY 1 BTC", "BUY 3 AAPL");
+    assertThat(markers)
+        .extracting(PortfolioMarker::text)
+        .containsExactly("BUY 1 BTC", "BUY 3 AAPL");
   }
 
   @Test

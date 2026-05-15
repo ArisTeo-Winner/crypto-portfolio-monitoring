@@ -60,7 +60,8 @@ class PortfolioAssetMarkersPerformanceTest {
       implements PortfolioMarkersPort {
 
     @Override
-    public List<PortfolioTransactionSnapshot> getTransactionsByUserAndSymbol(UUID userId, String symbol) {
+    public List<PortfolioTransactionSnapshot> getTransactionsByUserAndSymbol(
+        UUID userId, String symbol) {
       return snapshots;
     }
   }

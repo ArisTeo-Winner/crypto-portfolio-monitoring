@@ -98,8 +98,7 @@ class GoogleAuthorizationCodeOidcIT {
     r.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     r.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add("spring.flyway.enabled", () -> "false");
 
     logger.info("datasource.url: {}", postgres.getJdbcUrl());
@@ -326,7 +325,7 @@ class GoogleAuthorizationCodeOidcIT {
     // wrong state -> should fail before invoking success handler
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(session)
                 .param("code", "test-code")
@@ -382,7 +381,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -407,7 +406,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -432,7 +431,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -460,7 +459,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
