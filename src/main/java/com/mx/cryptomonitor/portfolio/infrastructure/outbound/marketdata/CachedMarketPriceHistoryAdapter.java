@@ -45,7 +45,7 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
       return waitForCachedLoad(assetType, symbol, parsedRange.value());
     }
     try {
-      List<PricePoint> prices = fetchFirstSupporting(assetType, symbol, parsedRange);
+      List<PricePoint> prices = fetchWithFallback(assetType, symbol, parsedRange);
       storeIfNonEmpty(assetType, symbol, parsedRange.value(), prices, parsedRange.ttl());
       return prices;
     } finally {
@@ -98,20 +98,24 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
         "No market price history provider configured for " + assetType);
   }
 
-  private List<PricePoint> fetchFirstSupporting(
-      AssetType assetType, String symbol, HoldingsHistoryRange range) {
-    return providers.stream()
-        .filter(p -> p.supports(assetType))
-        .findFirst()
-        .orElseThrow(
-            () ->
-                new IllegalStateException(
-                    "No market price history provider configured for " + assetType))
-        .fetchPriceHistory(assetType, symbol, range)
-        .stream()
-        .sorted(Comparator.comparing(PricePoint::time))
-        .toList();
+private List<PricePoint> fetchWithFallback(AssetType assetType, String symbol, HoldingsHistoryRange range) {
+  UnknownAssetSymbolException last = null;
+
+  for (MarketPriceHistoryProvider provider : providers) {
+    if (!provider.supports(assetType)) continue;
+    try {
+      return provider.fetchPriceHistory(assetType, symbol, range).stream()
+          .sorted(Comparator.comparing(PricePoint::time))
+          .toList();
+    } catch (UnknownAssetSymbolException e) {
+      log.debug("Provider {} unknown symbol {}, trying next",
+          provider.getClass().getSimpleName(), symbol);
+      last = e;
+    }
   }
+  if (last != null) throw last;
+  throw new IllegalStateException("No market price history provider configured for " + assetType);
+}
 
   private List<PricePoint> getCachedByKey(AssetType assetType, String symbol, String key) {
     return priceHistoryCachePort.getPriceHistory(assetType, symbol, key).stream()
