@@ -1,10 +1,12 @@
 package com.mx.cryptomonitor.portfolio.application.service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHistoryMarkerResponse;
@@ -27,14 +29,25 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   private final AssetTransactionHistoryPort assetTransactionHistoryPort;
   private final PortfolioQuantityTimelineEngine quantityTimelineEngine;
   private final HoldingsValueCalculator holdingsValueCalculator;
+  @SuppressWarnings("unused")
+  private final Clock clock;
 
+  @Autowired
   public GetAssetHoldingsHistoryService(
       MarketPriceHistoryPort marketPriceHistoryPort,
       AssetTransactionHistoryPort assetTransactionHistoryPort) {
+    this(marketPriceHistoryPort, assetTransactionHistoryPort, Clock.systemUTC());
+  }
+
+  public GetAssetHoldingsHistoryService(
+      MarketPriceHistoryPort marketPriceHistoryPort,
+      AssetTransactionHistoryPort assetTransactionHistoryPort,
+      Clock clock) {
     this.marketPriceHistoryPort = marketPriceHistoryPort;
     this.assetTransactionHistoryPort = assetTransactionHistoryPort;
     this.quantityTimelineEngine = new PortfolioQuantityTimelineEngine();
     this.holdingsValueCalculator = new HoldingsValueCalculator();
+    this.clock = clock;
   }
 
   @Override

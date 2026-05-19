@@ -5,8 +5,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -90,6 +92,28 @@ class GetAssetHoldingsHistoryServiceTest {
 
     assertThat(service.getAssetHoldingsHistory(userId, "BTC", "30d"))
         .isEqualTo(service.getAssetHoldingsHistory(userId, "BTC", "30d"));
+  }
+
+  @Test
+  void shouldProduceDeterministicResultWhenConstructedWithFixedClock() {
+    Clock fixedClock = Clock.fixed(Instant.parse("2026-05-19T12:00:00Z"), ZoneOffset.UTC);
+    GetAssetHoldingsHistoryService serviceWithClock =
+        new GetAssetHoldingsHistoryService(
+            marketPriceHistoryPort, assetTransactionHistoryPort, fixedClock);
+
+    UUID userId = UUID.randomUUID();
+    List<PortfolioTransactionSnapshot> snapshots =
+        List.of(snapshot("BUY", "1", "100.00", "2026-01-01T00:00:00"));
+    List<PricePoint> prices =
+        List.of(new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("100.00")));
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(snapshots);
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d")).thenReturn(prices);
+
+    AssetHoldingsHistoryResponse first = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
+    AssetHoldingsHistoryResponse second = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
+
+    assertThat(first).isEqualTo(second);
   }
 
   private PortfolioTransactionSnapshot snapshot(

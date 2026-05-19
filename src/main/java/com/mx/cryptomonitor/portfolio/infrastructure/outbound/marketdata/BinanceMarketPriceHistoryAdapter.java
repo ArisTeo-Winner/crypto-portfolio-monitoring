@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,20 +44,27 @@ public class BinanceMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
   private final boolean enabled;
   private final Duration responseTimeout;
   private final ChartResolutionStrategy resolutionStrategy;
+  private final Clock clock;
 
   @Autowired
   public BinanceMarketPriceHistoryAdapter(
       @Qualifier("binanceWebClient") WebClient webClient,
       @Value("${external.providers.binance.enabled:true}") boolean enabled,
-      @Value("${external.providers.binance.response-timeout:PT10S}") Duration responseTimeout) {
+      @Value("${external.providers.binance.response-timeout:PT10S}") Duration responseTimeout,
+      Clock clock) {
     this.webClient = webClient;
     this.enabled = enabled;
     this.responseTimeout = responseTimeout;
     this.resolutionStrategy = new ChartResolutionStrategy();
+    this.clock = clock;
   }
 
   BinanceMarketPriceHistoryAdapter(WebClient webClient) {
-    this(webClient, true, Duration.ofSeconds(10));
+    this(webClient, true, Duration.ofSeconds(10), Clock.systemUTC());
+  }
+
+  public BinanceMarketPriceHistoryAdapter(WebClient webClient, Clock clock) {
+    this(webClient, true, Duration.ofSeconds(10), clock);
   }
 
   @Override
@@ -67,7 +75,7 @@ public class BinanceMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
   @Override
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
-    Instant end = Instant.now();
+    Instant end = Instant.now(clock);
     Instant start =
         range.isAll()
             ? end.minus(Duration.ofDays(365 * 5))

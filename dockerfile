@@ -15,4 +15,4 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar java-app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java -jar java-app.jar --server.port=${PORT:-8080}"]
+ENTRYPOINT ["sh", "-c", "java -Duser.timezone=UTC -jar java-app.jar --server.port=${PORT:-8080}"]

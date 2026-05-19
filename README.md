@@ -177,8 +177,32 @@ If Docker backend is already exposing port `8080`, set `SERVER_PORT=8081` in `.e
 or stop the backend container before running the jar.
 
 ```powershell
-java -jar target\crypto-portfolio-monitoring-0.0.1-SNAPSHOT.jar
+java -Duser.timezone=UTC -jar target\crypto-portfolio-monitoring-0.0.1-SNAPSHOT.jar
 ```
+
+#### Fixing UTC timezone in IDE (IntelliJ / Eclipse)
+
+The app must always run with `-Duser.timezone=UTC` to produce consistent timestamps
+regardless of the host machine's locale.
+
+**IntelliJ IDEA** — open *Run → Edit Configurations*, select your Spring Boot run
+configuration, and add the following to the *VM options* field:
+
+```
+-Duser.timezone=UTC
+```
+
+**Eclipse** — open *Run → Run Configurations*, select your Spring Boot App entry,
+go to the *Arguments* tab → *VM arguments* section, and add:
+
+```
+-Duser.timezone=UTC
+```
+
+Docker Compose and Jenkins already inject this flag automatically via
+`JAVA_TOOL_OPTIONS=-Duser.timezone=UTC`; the setting above is only needed for direct
+IDE or bare `java -jar` execution. On startup the application logs the effective
+timezone: `JVM timezone=UTC` — verify this line appears in the console.
 
 Then verify:
 

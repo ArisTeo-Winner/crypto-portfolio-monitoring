@@ -50,6 +50,7 @@ pipeline {
 		SONARQUBE_PROJECT_KEY = 'crypto-portfolio-monitoring'
 		WORKSPACE_RUNTIME_ENV = '.jenkins/runtime.env'
 		WORKSPACE_HEALTHCHECK_SCRIPT = '.jenkins/wait-for-app.ps1'
+		JAVA_TOOL_OPTIONS = '-Duser.timezone=UTC'
 	}
 
 	stages {

@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +27,10 @@ import okhttp3.mockwebserver.RecordedRequest;
 
 class CoinGeckoMarketPriceHistoryAdapterTest {
 
+  // Fixed "now" so all time-range assertions are deterministic
+  private static final Instant FIXED_NOW = Instant.parse("2026-01-31T00:00:00Z");
+  private static final Clock FIXED_CLOCK = Clock.fixed(FIXED_NOW, ZoneOffset.UTC);
+
   private MockWebServer mockWebServer;
   private AssetCatalogQueryPort assetCatalogQueryPort;
   private CoinGeckoMarketPriceHistoryAdapter adapter;
@@ -38,7 +45,8 @@ class CoinGeckoMarketPriceHistoryAdapterTest {
             WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build(),
             true,
             Duration.ofSeconds(2),
-            assetCatalogQueryPort);
+            assetCatalogQueryPort,
+            FIXED_CLOCK);
   }
 
   @AfterEach
@@ -85,12 +93,13 @@ class CoinGeckoMarketPriceHistoryAdapterTest {
     assertThat(chartRequest.getRequestUrl().encodedPath())
         .isEqualTo("/coins/hyperliquid/market_chart/range");
     assertThat(chartRequest.getRequestUrl().queryParameter("vs_currency")).isEqualTo("usd");
-    assertThat(chartRequest.getRequestUrl().queryParameter("from")).isNotNull();
-    assertThat(chartRequest.getRequestUrl().queryParameter("to")).isNotNull();
     long from = Long.parseLong(chartRequest.getRequestUrl().queryParameter("from"));
     long to = Long.parseLong(chartRequest.getRequestUrl().queryParameter("to"));
-    assertThat(to).isGreaterThan(from);
-    assertThat(to - from).isCloseTo(30L * 86400, org.assertj.core.data.Offset.offset(120L));
+    // With Clock.fixed at 2026-01-31T00:00:00Z and range=30d:
+    //   end   = 2026-01-31T00:00:00Z → epoch 1738281600
+    //   start = 2026-01-01T00:00:00Z → epoch 1735689600
+    assertThat(to).isEqualTo(FIXED_NOW.getEpochSecond());
+    assertThat(from).isEqualTo(FIXED_NOW.minus(Duration.ofDays(30)).getEpochSecond());
   }
 
   private MockResponse json(String body) {

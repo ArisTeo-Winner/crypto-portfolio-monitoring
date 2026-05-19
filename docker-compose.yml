@@ -72,7 +72,8 @@ services:
       MENSSEGER_ASSETS: ${MENSSEGER_ASSETS}
 
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}	  
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      JAVA_TOOL_OPTIONS: -Duser.timezone=UTC
     networks:
       - app_network
     ports:

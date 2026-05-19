@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,17 +42,20 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
   private final boolean enabled;
   private final Duration responseTimeout;
   private final AssetCatalogQueryPort assetCatalogQueryPort;
+  private final Clock clock;
   private final Map<String, String> resolvedCoinIds = new ConcurrentHashMap<>();
 
   public CoinGeckoMarketPriceHistoryAdapter(
       @Qualifier("coinGeckoWebClient") WebClient webClient,
       @Value("${external.providers.coingecko.enabled:true}") boolean enabled,
       @Value("${external.providers.coingecko.response-timeout:PT8S}") Duration responseTimeout,
-      AssetCatalogQueryPort assetCatalogQueryPort) {
+      AssetCatalogQueryPort assetCatalogQueryPort,
+      Clock clock) {
     this.webClient = webClient;
     this.enabled = enabled;
     this.responseTimeout = responseTimeout;
     this.assetCatalogQueryPort = assetCatalogQueryPort;
+    this.clock = clock;
   }
 
   @Override
@@ -64,7 +68,7 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
     String assetId = resolveAssetId(symbol);
     int days = range.isAll() ? 365 * 5 : range.days();
-    Instant end = Instant.now();
+    Instant end = Instant.now(clock);
     Instant start = end.minus(Duration.ofDays(days));
     return fetchRangeOrChunked(assetId, start, end);
   }
