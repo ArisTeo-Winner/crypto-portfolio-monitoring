@@ -62,17 +62,17 @@ public class Transaction {
   @Column(name = "price_per_unit", nullable = false, precision = 18, scale = 8)
   private BigDecimal pricePerUnit;
 
-  @Column(name = "total_value", nullable = false, precision = 18, scale = 2)
+  @Column(name = "total_value", nullable = false, precision = 18, scale = 8)
   private BigDecimal totalValue;
 
   @Column(name = "transaction_date")
   private LocalDateTime transactionDate = LocalDateTime.now();
 
-  @Column(name = "fee", precision = 18, scale = 2)
+  @Column(name = "fee", precision = 18, scale = 8)
   private BigDecimal fee = BigDecimal.ZERO;
 
   @Builder.Default
-  @Column(name = "realized_pnl", precision = 18, scale = 2)
+  @Column(name = "realized_pnl", precision = 18, scale = 8)
   private BigDecimal realizedPnl = BigDecimal.ZERO;
 
   @Column(name = "notes")

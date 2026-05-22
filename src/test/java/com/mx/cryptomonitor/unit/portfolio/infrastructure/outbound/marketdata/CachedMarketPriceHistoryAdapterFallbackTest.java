@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -22,6 +23,7 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
+import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.CachedMarketPriceHistoryAdapter;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.MarketPriceHistoryProvider;
@@ -118,5 +120,45 @@ class CachedMarketPriceHistoryAdapterFallbackTest {
     assertThat(result).hasSize(PROVIDER2_POINTS.size());
     verify(provider1, never()).fetchPriceHistory(any(), any(), (HoldingsHistoryRange) any());
     verify(provider2, never()).fetchPriceHistory(any(), any(), (HoldingsHistoryRange) any());
+  }
+
+  @Test
+  void shouldFallbackToProvider2WhenDynamicChartResolutionProvider1DoesNotKnowSymbol() {
+    ChartResolution chartResolution =
+        new ChartResolution(
+            Instant.parse("2026-05-17T00:00:00Z"),
+            Instant.parse("2026-05-20T12:00:00Z"),
+            Duration.ofHours(1),
+            "1h",
+            84);
+    String dynamicKey = dynamicKey(chartResolution);
+    when(cache.getPriceHistory(CRYPTO, SYMBOL, dynamicKey)).thenReturn(List.of());
+    when(cache.acquireLoadLock(eq(CRYPTO), eq(SYMBOL), eq(dynamicKey), any()))
+        .thenReturn(true);
+    when(provider1.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(chartResolution)))
+        .thenThrow(new UnknownAssetSymbolException("Binance symbol not found: HYPEUSDT"));
+    when(provider2.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(chartResolution)))
+        .thenReturn(PROVIDER2_POINTS);
+
+    List<PricePoint> result = adapter.getPriceHistory(CRYPTO, SYMBOL, chartResolution);
+
+    assertThat(result).containsExactlyInAnyOrderElementsOf(PROVIDER2_POINTS);
+    InOrder order = inOrder(provider1, provider2);
+    order.verify(provider1).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
+    order.verify(provider2).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
+    verify(cache).releaseLoadLock(CRYPTO, SYMBOL, dynamicKey);
+  }
+
+  private String dynamicKey(ChartResolution chartResolution) {
+    return "dyn:"
+        + alignToDay(chartResolution.start().getEpochSecond())
+        + ":"
+        + alignToDay(chartResolution.end().getEpochSecond())
+        + ":"
+        + chartResolution.providerIntervalCode();
+  }
+
+  private long alignToDay(long epochSeconds) {
+    return epochSeconds - (epochSeconds % 86400L);
   }
 }

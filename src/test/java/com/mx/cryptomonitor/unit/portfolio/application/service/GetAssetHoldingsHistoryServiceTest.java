@@ -1,6 +1,9 @@
 package com.mx.cryptomonitor.unit.portfolio.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHoldingsHistoryResponse;
@@ -21,6 +25,7 @@ import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPor
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.service.GetAssetHoldingsHistoryService;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
+import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 
@@ -114,6 +119,37 @@ class GetAssetHoldingsHistoryServiceTest {
     AssetHoldingsHistoryResponse second = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
 
     assertThat(first).isEqualTo(second);
+  }
+
+  @Test
+  void allRangeUsesFirstInvestmentDateAndDynamicProviderResolution() {
+    Clock fixedClock = Clock.fixed(Instant.parse("2026-05-20T12:00:00Z"), ZoneOffset.UTC);
+    GetAssetHoldingsHistoryService serviceWithClock =
+        new GetAssetHoldingsHistoryService(
+            marketPriceHistoryPort, assetTransactionHistoryPort, fixedClock);
+
+    UUID userId = UUID.randomUUID();
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(List.of(snapshot("BUY", "1", "100.00", "2026-05-17T08:45:00")));
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+        .thenReturn(
+            List.of(
+                new PricePoint(
+                    Instant.parse("2026-05-17T00:00:00Z"), new BigDecimal("100.00")),
+                new PricePoint(
+                    Instant.parse("2026-05-18T00:00:00Z"), new BigDecimal("110.00"))));
+
+    AssetHoldingsHistoryResponse response = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "ALL");
+
+    assertThat(response.series()).hasSize(2);
+    ArgumentCaptor<ChartResolution> resolutionCaptor =
+        ArgumentCaptor.forClass(ChartResolution.class);
+    verify(marketPriceHistoryPort)
+        .getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), resolutionCaptor.capture());
+    verify(marketPriceHistoryPort, never()).getPriceHistory(AssetType.CRYPTO, "BTC", "all");
+    assertThat(resolutionCaptor.getValue().start()).isEqualTo(Instant.parse("2026-05-17T00:00:00Z"));
+    assertThat(resolutionCaptor.getValue().end()).isEqualTo(Instant.parse("2026-05-20T12:00:00Z"));
   }
 
   private PortfolioTransactionSnapshot snapshot(

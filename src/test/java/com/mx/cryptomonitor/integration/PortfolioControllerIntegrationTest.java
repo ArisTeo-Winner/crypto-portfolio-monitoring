@@ -438,6 +438,54 @@ class PortfolioControllerIntegrationTest {
   }
 
   @Test
+  void getAssetHoldingsHistoryAllUsesDynamicResolutionInsteadOfLiteralAllRange() throws Exception {
+    LocalDateTime buyDate = LocalDateTime.of(2026, 5, 17, 0, 0);
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "BUY",
+            new BigDecimal("1"),
+            new BigDecimal("20.00"),
+            new BigDecimal("20.00"),
+            buyDate));
+
+    org.mockito.Mockito.when(
+            marketPriceHistoryPort.getPriceHistory(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("HYPE"),
+                org.mockito.ArgumentMatchers.any(
+                    com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class)))
+        .thenReturn(
+            java.util.List.of(
+                new PricePoint(
+                    java.time.Instant.parse("2026-05-17T00:00:00Z"), new BigDecimal("20.00")),
+                new PricePoint(
+                    java.time.Instant.parse("2026-05-18T00:00:00Z"), new BigDecimal("21.00"))));
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/assets/{symbol}/history", "HYPE")
+                .param("range", "ALL")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", Matchers.hasSize(2)))
+        .andExpect(jsonPath("$[0].value").value(20.00));
+
+    org.mockito.Mockito.verify(marketPriceHistoryPort)
+        .getPriceHistory(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.eq("HYPE"),
+            org.mockito.ArgumentMatchers.any(
+                com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class));
+    org.mockito.Mockito.verify(marketPriceHistoryPort, org.mockito.Mockito.never())
+        .getPriceHistory(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.eq("HYPE"),
+            org.mockito.ArgumentMatchers.eq("all"));
+  }
+
+  @Test
   void getPortfolioTotalHistoryAggregatesAssetsAndKeepsUsersIsolated() throws Exception {
     LocalDateTime buyDate = LocalDateTime.of(2026, 1, 1, 0, 0);
     transactionRepository.saveAndFlush(
