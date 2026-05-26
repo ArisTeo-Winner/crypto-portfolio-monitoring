@@ -102,12 +102,26 @@ public class CacheConfig extends CachingConfigurerSupport {
 
     RedisCacheConfiguration testCache = base.entryTtl(Duration.ofSeconds(30));
 
+    // Series temporales OHLCV: TTL corto porque incluyen velas intraday recientes.
+    // Las series diarias/semanales podrían vivir más, pero usamos un TTL conservador
+    // compartido para no complicar la configuración.
+    RedisCacheConfiguration stockTimeSeriesConfig =
+        RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofHours(1))
+            .disableCachingNullValues()
+            .serializeKeysWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(
+                    new StringRedisSerializer()))
+            .serializeValuesWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
+
     return RedisCacheManager.builder(redisConnectionFactory)
         .cacheDefaults(defaultConfig)
         .withCacheConfiguration("historicalPrices", historicalConfig)
         .withCacheConfiguration("cryptoHistoricalPrices", coinGeckoHistoricalConfig)
         .withCacheConfiguration("cryptoPrices", cryptoPriceConfig)
         .withCacheConfiguration("stockPrices", stockPriceConfig)
+        .withCacheConfiguration("stockTimeSeries", stockTimeSeriesConfig)
         .withCacheConfiguration("testCache", testCache)
         .build();
   }

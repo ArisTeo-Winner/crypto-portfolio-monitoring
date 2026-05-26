@@ -7,8 +7,10 @@ import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryM
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryPointResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioMarkerResponse;
+import com.mx.cryptomonitor.portfolio.application.dto.response.ReturnMetricsResponse;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioMarker;
+import com.mx.cryptomonitor.portfolio.domain.model.ReturnMetrics;
 import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 
 public final class PortfolioResponseMapper {
@@ -33,8 +35,17 @@ public final class PortfolioResponseMapper {
             result.from(),
             result.to(),
             "USD",
-            series.size());
+            series.size(),
+            toReturnMetrics(result.returnMetrics()));
     return new PortfolioHistoryResponse(meta, series);
+  }
+
+  private static ReturnMetricsResponse toReturnMetrics(ReturnMetrics metrics) {
+    if (metrics == null) {
+      return null;
+    }
+    return new ReturnMetricsResponse(
+        metrics.twr(), metrics.mwr(), metrics.absoluteGain(), metrics.totalInvested());
   }
 
   public static List<PortfolioHistoryPointResponse> toLegacySeries(PortfolioHistoryResult result) {

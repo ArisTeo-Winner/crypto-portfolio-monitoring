@@ -1,5 +1,7 @@
 package com.mx.cryptomonitor.portfolio.application.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -20,7 +22,9 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUnivers
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort.PortfolioAssetReference;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
+import com.mx.cryptomonitor.portfolio.domain.engine.MwrEngine;
 import com.mx.cryptomonitor.portfolio.domain.engine.PortfolioHoldingsAggregationEngine;
+import com.mx.cryptomonitor.portfolio.domain.engine.TwrEngine;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolutionStrategy;
@@ -29,6 +33,7 @@ import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAccountingTransactio
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAssetHistoryInput;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
+import com.mx.cryptomonitor.portfolio.domain.model.ReturnMetrics;
 import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +50,8 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   private final PortfolioAssetUniversePort portfolioAssetUniversePort;
   private final PortfolioHoldingsAggregationEngine aggregationEngine;
   private final ChartResolutionStrategy chartResolutionStrategy;
+  private final TwrEngine twrEngine;
+  private final MwrEngine mwrEngine;
 
   public GetPortfolioTotalHistoryService(
       TransactionHistoryPort transactionHistoryPort,
@@ -55,6 +62,8 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     this.portfolioAssetUniversePort = portfolioAssetUniversePort;
     this.aggregationEngine = new PortfolioHoldingsAggregationEngine();
     this.chartResolutionStrategy = new ChartResolutionStrategy();
+    this.twrEngine = new TwrEngine();
+    this.mwrEngine = new MwrEngine();
   }
 
   @Override
@@ -112,10 +121,56 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     long from = series.isEmpty() ? todayAligned : series.get(0).time();
     long to = series.isEmpty() ? todayAligned : series.get(series.size() - 1).time();
 
+    List<PortfolioAccountingTransaction> allTransactions =
+        snapshots.stream().map(this::toAccountingTransaction).toList();
+    ReturnMetrics returnMetrics = computeReturnMetrics(series, allTransactions, end);
+
     logGenerated(
         userId, parsedRange.value(), chartResolution.providerIntervalCode(), assets.size(), series.size(), started);
     return new PortfolioHistoryResult(
-        parsedRange.value(), chartResolution.toAggregationResolution(), from, to, series);
+        parsedRange.value(), chartResolution.toAggregationResolution(), from, to, series, returnMetrics);
+  }
+
+  private ReturnMetrics computeReturnMetrics(
+      List<TimeValuePoint> series,
+      List<PortfolioAccountingTransaction> transactions,
+      Instant terminalDate) {
+    if (series.isEmpty() || transactions.isEmpty()) {
+      return null;
+    }
+
+    BigDecimal terminalValue = series.get(series.size() - 1).value();
+
+    BigDecimal totalInvested =
+        transactions.stream()
+            .filter(tx -> "BUY".equalsIgnoreCase(tx.transactionType()))
+            .map(
+                tx -> {
+                  BigDecimal gross = tx.grossValue() != null ? tx.grossValue() : BigDecimal.ZERO;
+                  BigDecimal fee = tx.fee() != null ? tx.fee() : BigDecimal.ZERO;
+                  return gross.add(fee);
+                })
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    BigDecimal sellProceeds =
+        transactions.stream()
+            .filter(tx -> "SELL".equalsIgnoreCase(tx.transactionType()))
+            .map(
+                tx -> {
+                  BigDecimal gross = tx.grossValue() != null ? tx.grossValue() : BigDecimal.ZERO;
+                  BigDecimal fee = tx.fee() != null ? tx.fee() : BigDecimal.ZERO;
+                  return gross.subtract(fee);
+                })
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    // absoluteGain = current market value + realized proceeds − total cash deployed
+    BigDecimal absoluteGain =
+        terminalValue.add(sellProceeds).subtract(totalInvested).setScale(2, RoundingMode.HALF_UP);
+
+    BigDecimal twr = twrEngine.calculate(series, transactions);
+    BigDecimal mwr = mwrEngine.calculate(transactions, terminalValue, terminalDate);
+
+    return new ReturnMetrics(twr, mwr, absoluteGain, totalInvested.setScale(2, RoundingMode.HALF_UP));
   }
 
   private Instant determineStart(
