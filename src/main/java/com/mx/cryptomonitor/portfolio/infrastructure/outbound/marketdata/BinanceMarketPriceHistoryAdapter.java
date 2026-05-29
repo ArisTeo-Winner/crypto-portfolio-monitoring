@@ -117,9 +117,7 @@ public class BinanceMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
       current = batch.get(batch.size() - 1).time().plusMillis(intervalMs);
     }
 
-    return allPoints.stream()
-        .sorted(Comparator.comparing(PricePoint::time))
-        .toList();
+    return allPoints.stream().sorted(Comparator.comparing(PricePoint::time)).toList();
   }
 
   private List<PricePoint> fetchBatch(
@@ -177,10 +175,7 @@ public class BinanceMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
       return List.of();
     }
 
-    return klines.stream()
-        .filter(k -> k != null && k.size() >= 5)
-        .map(this::toPoint)
-        .toList();
+    return klines.stream().filter(k -> k != null && k.size() >= 5).map(this::toPoint).toList();
   }
 
   private PricePoint toPoint(List<Object> kline) {

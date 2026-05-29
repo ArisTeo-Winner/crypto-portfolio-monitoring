@@ -16,8 +16,8 @@ import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAccountingTransactio
 /**
  * Unit tests for {@link MwrEngine}.
  *
- * <p>Expected MWR values are verified by substituting back into the XIRR equation
- * ({@code NPV ≈ 0}) or computed independently with Excel XIRR for cross-validation.
+ * <p>Expected MWR values are verified by substituting back into the XIRR equation ({@code NPV ≈ 0})
+ * or computed independently with Excel XIRR for cross-validation.
  */
 class MwrEngineTest {
 
@@ -31,34 +31,18 @@ class MwrEngineTest {
     return BASE.plusSeconds((long) days * 86_400);
   }
 
-  private static PortfolioAccountingTransaction buy(
-      int daysAfterBase, String gross, String fee) {
+  private static PortfolioAccountingTransaction buy(int daysAfterBase, String gross, String fee) {
     BigDecimal g = new BigDecimal(gross);
     BigDecimal f = new BigDecimal(fee);
     return new PortfolioAccountingTransaction(
-        daysAfterBase(daysAfterBase),
-        "BTC",
-        AssetType.CRYPTO,
-        "BUY",
-        BigDecimal.ONE,
-        g,
-        g,
-        f);
+        daysAfterBase(daysAfterBase), "BTC", AssetType.CRYPTO, "BUY", BigDecimal.ONE, g, g, f);
   }
 
-  private static PortfolioAccountingTransaction sell(
-      int daysAfterBase, String gross, String fee) {
+  private static PortfolioAccountingTransaction sell(int daysAfterBase, String gross, String fee) {
     BigDecimal g = new BigDecimal(gross);
     BigDecimal f = new BigDecimal(fee);
     return new PortfolioAccountingTransaction(
-        daysAfterBase(daysAfterBase),
-        "BTC",
-        AssetType.CRYPTO,
-        "SELL",
-        BigDecimal.ONE,
-        g,
-        g,
-        f);
+        daysAfterBase(daysAfterBase), "BTC", AssetType.CRYPTO, "SELL", BigDecimal.ONE, g, g, f);
   }
 
   // ── null / empty guards ────────────────────────────────────────────────────

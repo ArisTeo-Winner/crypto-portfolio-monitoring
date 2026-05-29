@@ -1,6 +1,8 @@
 package com.mx.cryptomonitor.portfolio.domain.engine;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -35,7 +37,9 @@ public class PortfolioQuantityTimelineEngine {
         }
         quantity = quantity.subtract(soldQuantity);
       }
-      timeline.add(new QuantityTimelinePoint(transaction.time(), quantity));
+      // Truncate to day boundary so intraday buys align with midnight daily candles
+      Instant dayAligned = transaction.time().truncatedTo(ChronoUnit.DAYS);
+      timeline.add(new QuantityTimelinePoint(dayAligned, quantity));
     }
 
     return timeline;

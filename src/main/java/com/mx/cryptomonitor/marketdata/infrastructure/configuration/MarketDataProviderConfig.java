@@ -78,8 +78,10 @@ public class MarketDataProviderConfig {
   @Primary
   public MarketDataProvider stockQuoteOrchestrator(
       ObjectProvider<TwelveDataAdapter> twelveDataAdapter,
-      @Qualifier("alphaVantageStockQuoteProvider") StockQuoteProvider alphaVantageStockQuoteProvider,
-      @Qualifier("massiveStockQuoteProvider") ObjectProvider<StockQuoteProvider> massiveStockQuoteProvider) {
+      @Qualifier("alphaVantageStockQuoteProvider")
+          StockQuoteProvider alphaVantageStockQuoteProvider,
+      @Qualifier("massiveStockQuoteProvider")
+          ObjectProvider<StockQuoteProvider> massiveStockQuoteProvider) {
     List<StockQuoteProvider> providers = new ArrayList<>();
     twelveDataAdapter.ifAvailable(providers::add);
     providers.add(alphaVantageStockQuoteProvider);

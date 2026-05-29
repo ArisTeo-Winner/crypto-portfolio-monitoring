@@ -46,18 +46,22 @@ class AllRangeTest {
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          long expectedStart = firstTx.toLocalDate().atStartOfDay().toInstant(ZoneOffset.UTC).getEpochSecond();
-          assertThat(cr.start().getEpochSecond()).isEqualTo(expectedStart);
-          return dailyPrices(cr.start(), cr.end(), new BigDecimal("45000"));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long expectedStart =
+                  firstTx.toLocalDate().atStartOfDay().toInstant(ZoneOffset.UTC).getEpochSecond();
+              assertThat(cr.start().getEpochSecond()).isEqualTo(expectedStart);
+              return dailyPrices(cr.start(), cr.end(), new BigDecimal("45000"));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
 
     assertThat(result.series()).isNotEmpty();
-    long firstTxDay = firstTx.toLocalDate().atStartOfDay().toInstant(ZoneOffset.UTC).getEpochSecond();
+    long firstTxDay =
+        firstTx.toLocalDate().atStartOfDay().toInstant(ZoneOffset.UTC).getEpochSecond();
     assertThat(result.series()).allMatch(p -> p.time() >= firstTxDay);
   }
 
@@ -75,7 +79,10 @@ class AllRangeTest {
 
   private PortfolioTransactionSnapshot snapshot(String symbol, LocalDateTime date, String type) {
     return new PortfolioTransactionSnapshot(
-        symbol, "CRYPTO", type, null,
+        symbol,
+        "CRYPTO",
+        type,
+        null,
         new BigDecimal("0.1"),
         new BigDecimal("4500"),
         new BigDecimal("45000"),

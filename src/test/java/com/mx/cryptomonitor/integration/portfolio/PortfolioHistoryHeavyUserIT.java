@@ -175,9 +175,9 @@ class PortfolioHistoryHeavyUserIT {
    * O(n) complexity check: halving the effective data set (using 90d instead of ALL over 1 year)
    * must not produce an execution time that suggests O(n²) growth.
    *
-   * <p>For O(n²) with N=120 transactions: T(ALL)/T(90d) ≈ (365/90)² ≈ 16x. For O(n):
-   * T(ALL)/T(90d) ≈ 365/90 ≈ 4x. We assert the ratio stays within 8x (generous budget) to
-   * distinguish linear from quadratic growth.
+   * <p>For O(n²) with N=120 transactions: T(ALL)/T(90d) ≈ (365/90)² ≈ 16x. For O(n): T(ALL)/T(90d)
+   * ≈ 365/90 ≈ 4x. We assert the ratio stays within 8x (generous budget) to distinguish linear from
+   * quadratic growth.
    */
   @Test
   void noRepeatedRecalculationPerPoint_onNBehavior() {
@@ -256,7 +256,9 @@ class PortfolioHistoryHeavyUserIT {
 
       BigDecimal qty = isBuy ? new BigDecimal("0.20") : new BigDecimal("0.10");
       BigDecimal price =
-          new BigDecimal("45000").multiply(BigDecimal.valueOf(1.0 + i * 0.001)).setScale(2, RoundingMode.HALF_UP);
+          new BigDecimal("45000")
+              .multiply(BigDecimal.valueOf(1.0 + i * 0.001))
+              .setScale(2, RoundingMode.HALF_UP);
 
       transactionRepository.saveAndFlush(
           Transaction.builder()
@@ -279,9 +281,7 @@ class PortfolioHistoryHeavyUserIT {
   private void stubMarketPrices() {
     List<PricePoint> prices =
         generateDailyPrices(
-            Instant.now().minus(Duration.ofDays(400)),
-            Instant.now(),
-            new BigDecimal("45000.00"));
+            Instant.now().minus(Duration.ofDays(400)), Instant.now(), new BigDecimal("45000.00"));
 
     when(marketPriceHistoryPort.getPriceHistory(
             eq(AssetType.CRYPTO), eq(BTC), any(ChartResolution.class)))

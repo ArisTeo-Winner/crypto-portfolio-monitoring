@@ -191,7 +191,9 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
       long failures =
           results.stream().filter(r -> r.error() != null || r.statusCode() != 200).count();
       assertThat(failures)
-          .as("rep=%d: all %d requests must return HTTP 200 (failures=%d)", rep, USER_COUNT, failures)
+          .as(
+              "rep=%d: all %d requests must return HTTP 200 (failures=%d)",
+              rep, USER_COUNT, failures)
           .isZero();
 
       // Performance.
@@ -208,7 +210,9 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
               rep, INDIVIDUAL_THRESHOLD_MS, maxMs)
           .isLessThan(INDIVIDUAL_THRESHOLD_MS);
       assertThat(batchMs)
-          .as("rep=%d: batch wall-clock must be < %dms (got %dms)", rep, BATCH_THRESHOLD_MS, batchMs)
+          .as(
+              "rep=%d: batch wall-clock must be < %dms (got %dms)",
+              rep, BATCH_THRESHOLD_MS, batchMs)
           .isLessThan(BATCH_THRESHOLD_MS);
 
       // Series correctness for every user.
@@ -248,10 +252,10 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
   @Test
   void mixedRanges_allRequestsSucceed() throws Exception {
     List<UserRequest> requests = new ArrayList<>();
-    for (int i = 0;  i < 10; i++) requests.add(new UserRequest(testUsers.get(i),  "24h"));
-    for (int i = 10; i < 20; i++) requests.add(new UserRequest(testUsers.get(i),  "90d"));
-    for (int i = 20; i < 30; i++) requests.add(new UserRequest(testUsers.get(i),  "1y"));
-    for (int i = 30; i < 50; i++) requests.add(new UserRequest(testUsers.get(i),  "ALL"));
+    for (int i = 0; i < 10; i++) requests.add(new UserRequest(testUsers.get(i), "24h"));
+    for (int i = 10; i < 20; i++) requests.add(new UserRequest(testUsers.get(i), "90d"));
+    for (int i = 20; i < 30; i++) requests.add(new UserRequest(testUsers.get(i), "1y"));
+    for (int i = 30; i < 50; i++) requests.add(new UserRequest(testUsers.get(i), "ALL"));
 
     long batchStart = System.nanoTime();
     List<RequestResult> results = runConcurrently(requests);

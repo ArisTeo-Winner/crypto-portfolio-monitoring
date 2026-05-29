@@ -73,17 +73,19 @@ class PortfolioAllRangeTest {
         .thenReturn(List.of(snapshot("BTC", firstTxDate, new BigDecimal("1"))));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
     // Return prices within the actual range resolved by the service
-    when(marketPriceHistoryPort.getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          long day1 = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
-          long day2 = day1 + 86400;
-          long day3 = day2 + 86400;
-          return List.of(
-              new PricePoint(Instant.ofEpochSecond(day1), new BigDecimal("85000")),
-              new PricePoint(Instant.ofEpochSecond(day2), new BigDecimal("86000")),
-              new PricePoint(Instant.ofEpochSecond(day3), new BigDecimal("87000")));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long day1 = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
+              long day2 = day1 + 86400;
+              long day3 = day2 + 86400;
+              return List.of(
+                  new PricePoint(Instant.ofEpochSecond(day1), new BigDecimal("85000")),
+                  new PricePoint(Instant.ofEpochSecond(day2), new BigDecimal("86000")),
+                  new PricePoint(Instant.ofEpochSecond(day3), new BigDecimal("87000")));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
 
@@ -102,15 +104,17 @@ class PortfolioAllRangeTest {
     when(transactionHistoryPort.getTransactionsByUser(userId))
         .thenReturn(List.of(snapshot("BTC", txDate, new BigDecimal("1"))));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          long day1 = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
-          long day2 = day1 + 86400;
-          return List.of(
-              new PricePoint(Instant.ofEpochSecond(day1), new BigDecimal("90000")),
-              new PricePoint(Instant.ofEpochSecond(day2), new BigDecimal("91000")));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long day1 = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
+              long day2 = day1 + 86400;
+              return List.of(
+                  new PricePoint(Instant.ofEpochSecond(day1), new BigDecimal("90000")),
+                  new PricePoint(Instant.ofEpochSecond(day2), new BigDecimal("91000")));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
 

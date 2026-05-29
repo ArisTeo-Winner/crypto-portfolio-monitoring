@@ -1,5 +1,11 @@
 package com.mx.cryptomonitor.integration.transaction;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -14,16 +20,10 @@ import com.mx.cryptomonitor.integration.user.support.UserModuleIntegrationTest;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 /**
- * Regresión: fee con 8 decimales (0.12345678) debe conservarse sin pérdida de precisión
- * a lo largo de todo el ciclo HTTP → Service → Postgres (NUMERIC 18,8) → HTTP, y el
- * modal de detalle (GET /details/{id}) debe calcular netAmount con aritmética BigDecimal.
+ * Regresión: fee con 8 decimales (0.12345678) debe conservarse sin pérdida de precisión a lo largo
+ * de todo el ciclo HTTP → Service → Postgres (NUMERIC 18,8) → HTTP, y el modal de detalle (GET
+ * /details/{id}) debe calcular netAmount con aritmética BigDecimal.
  *
  * <p>Cada test va contra la pila completa con Testcontainers (PostgreSQL + Redis).
  */
@@ -203,8 +203,7 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             .andExpect(status().isCreated())
             .andReturn();
 
-    JsonNode createBody =
-        objectMapper.readTree(createResult.getResponse().getContentAsString());
+    JsonNode createBody = objectMapper.readTree(createResult.getResponse().getContentAsString());
 
     assertThat(createBody.get("fee").decimalValue())
         .as("fee en respuesta de creación SELL")
@@ -217,9 +216,7 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
     BigDecimal grossAmount = detail.get("grossAmount").decimalValue();
     BigDecimal netAmount = detail.get("netAmount").decimalValue();
 
-    assertThat(fee)
-        .as("fee en modal de detalle SELL")
-        .isEqualByComparingTo(FEE);
+    assertThat(fee).as("fee en modal de detalle SELL").isEqualByComparingTo(FEE);
 
     assertThat(grossAmount)
         .as("grossAmount = 1 × 50000.12345678")

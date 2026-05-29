@@ -58,7 +58,7 @@ class ChartResolutionStrategyTest {
   @Test
   void expectedPointsNeverExceedsMaximum() {
     Instant end = Instant.now();
-    for (int days : new int[]{1, 7, 30, 90, 180, 365, 730, 1825}) {
+    for (int days : new int[] {1, 7, 30, 90, 180, 365, 730, 1825}) {
       Instant start = end.minus(days, ChronoUnit.DAYS);
       ChartResolution resolution = strategy.resolve(start, end);
       assertThat(resolution.expectedPoints())

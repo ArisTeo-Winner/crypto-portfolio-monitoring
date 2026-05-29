@@ -168,10 +168,10 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
    * Llama a {@code /time_series} de Twelve Data <em>sin</em> los parámetros {@code start_date} /
    * {@code end_date}.
    *
-   * <p>El plan gratuito rechaza esos filtros con {@code {"code":400,"message":"No data is
-   * available on the specified dates…"}} aunque los datos existan. Se usa únicamente
-   * {@code outputsize} para abarcar el rango deseado; los puntos fuera del rango se descartan
-   * en {@link #extractSeries} porque simplemente no están en la ventana pedida.
+   * <p>El plan gratuito rechaza esos filtros con {@code {"code":400,"message":"No data is available
+   * on the specified dates…"}} aunque los datos existan. Se usa únicamente {@code outputsize} para
+   * abarcar el rango deseado; los puntos fuera del rango se descartan en {@link #extractSeries}
+   * porque simplemente no están en la ventana pedida.
    */
   @SuppressWarnings("unchecked")
   private Map<String, Object> callTimeSeries(
@@ -219,7 +219,8 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
             response ->
                 response
                     .bodyToMono(String.class)
-                    .map(body -> new MarketDataRateLimitException("Twelve Data rate limit: " + body))
+                    .map(
+                        body -> new MarketDataRateLimitException("Twelve Data rate limit: " + body))
                     .switchIfEmpty(
                         reactor.core.publisher.Mono.just(
                             new MarketDataRateLimitException("Twelve Data rate limit HTTP 429"))))
@@ -242,10 +243,7 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
                     .map(
                         body ->
                             new MarketDataServerException(
-                                "Twelve Data HTTP "
-                                    + response.statusCode().value()
-                                    + ": "
-                                    + body))
+                                "Twelve Data HTTP " + response.statusCode().value() + ": " + body))
                     .switchIfEmpty(
                         reactor.core.publisher.Mono.just(
                             new MarketDataServerException(
@@ -343,8 +341,7 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
       BigDecimal price = new BigDecimal(closeStr);
       return Optional.of(new PricePoint(instant, price));
     } catch (DateTimeParseException | NumberFormatException ex) {
-      log.warn(
-          "TwelveData: no se pudo parsear entry datetime={} close={}", datetime, closeStr, ex);
+      log.warn("TwelveData: no se pudo parsear entry datetime={} close={}", datetime, closeStr, ex);
       return Optional.empty();
     }
   }
@@ -375,10 +372,10 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
    * <p>Twelve Data usa el mismo body code {@code 400} para dos categorías distintas:
    *
    * <ul>
-   *   <li><b>Símbolo inválido</b> (mensaje contiene "is not valid", "not found", etc.) →
-   *       {@link UnknownAssetSymbolException}: detiene el fallback.
-   *   <li><b>Sin datos para esas fechas</b> (mensaje contiene "no data" o "date") →
-   *       {@link MarketDataServerException}: permite fallback al siguiente proveedor.
+   *   <li><b>Símbolo inválido</b> (mensaje contiene "is not valid", "not found", etc.) → {@link
+   *       UnknownAssetSymbolException}: detiene el fallback.
+   *   <li><b>Sin datos para esas fechas</b> (mensaje contiene "no data" o "date") → {@link
+   *       MarketDataServerException}: permite fallback al siguiente proveedor.
    * </ul>
    *
    * <p>Body code {@code 404} siempre indica símbolo inexistente.
@@ -400,8 +397,7 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
           throw new UnknownAssetSymbolException(message);
         }
         log.debug(
-            "TwelveData body error 400 (no es simbolo invalido, se permite fallback): {}",
-            message);
+            "TwelveData body error 400 (no es simbolo invalido, se permite fallback): {}", message);
         throw new MarketDataServerException("Twelve Data sin datos (code=400): " + message);
       }
       case 401, 403 -> {

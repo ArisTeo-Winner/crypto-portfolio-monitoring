@@ -81,13 +81,12 @@ class CachedMarketPriceHistoryAdapterCacheBehaviorTest {
   void lockNotAcquired_waitsForCache_thenReturns_withoutCallingProviders() {
     // First call (before lock attempt) → miss; subsequent poll calls → miss, miss, HIT
     when(cache.getPriceHistory(CRYPTO, SYMBOL, RANGE_KEY))
-        .thenReturn(List.of())          // initial check → miss
-        .thenReturn(List.of())          // 1st poll iteration → still empty
-        .thenReturn(CACHED_POINTS);     // 2nd poll iteration → data arrived
+        .thenReturn(List.of()) // initial check → miss
+        .thenReturn(List.of()) // 1st poll iteration → still empty
+        .thenReturn(CACHED_POINTS); // 2nd poll iteration → data arrived
 
     // Lock is held by another node
-    when(cache.acquireLoadLock(eq(CRYPTO), eq(SYMBOL), eq(RANGE_KEY), any()))
-        .thenReturn(false);
+    when(cache.acquireLoadLock(eq(CRYPTO), eq(SYMBOL), eq(RANGE_KEY), any())).thenReturn(false);
 
     CachedMarketPriceHistoryAdapter adapter =
         new CachedMarketPriceHistoryAdapter(cache, List.of(provider));

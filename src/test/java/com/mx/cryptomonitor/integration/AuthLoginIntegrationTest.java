@@ -120,9 +120,14 @@ class AuthLoginIntegrationTest {
                     .content("{\"email\":\"user@example.com\",\"password\":\"ValidPass123!\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
-            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(jsonPath("$.refreshToken").doesNotExist())
             .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(header().string("Pragma", "no-cache"))
+            .andExpect(
+                header()
+                    .string("Set-Cookie", org.hamcrest.Matchers.containsString("refresh_token=")))
+            .andExpect(
+                header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
             .andReturn();
 
     assertThat(result.getResponse().getCookie("jwt")).isNull();
@@ -147,6 +152,9 @@ class AuthLoginIntegrationTest {
                 .content("{\"email\":\"User@Example.com\",\"password\":\"ValidPass123!\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.accessToken").isNotEmpty())
-        .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+        .andExpect(jsonPath("$.refreshToken").doesNotExist())
+        .andExpect(
+            header().string("Set-Cookie", org.hamcrest.Matchers.containsString("refresh_token=")))
+        .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")));
   }
 }

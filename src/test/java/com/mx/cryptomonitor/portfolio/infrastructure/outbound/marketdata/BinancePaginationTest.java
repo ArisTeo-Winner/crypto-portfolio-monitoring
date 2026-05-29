@@ -2,11 +2,8 @@ package com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -48,20 +45,22 @@ class BinancePaginationTest {
   void setUp() {
     adapter = new BinanceMarketPriceHistoryAdapter(webClient);
     when(webClient.get()).thenReturn((RequestHeadersUriSpec) uriSpec);
-    when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn((RequestHeadersSpec) headersSpec);
+    when(uriSpec.uri(any(java.util.function.Function.class)))
+        .thenReturn((RequestHeadersSpec) headersSpec);
     when(headersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.onStatus(any(), any())).thenReturn(responseSpec);
   }
 
   @Test
   void fetchPriceHistory_returnsMappedPricePoints() {
-    List<List<Object>> klines = buildKlines(10, Instant.parse("2024-01-01T00:00:00Z"), Duration.ofDays(1));
+    List<List<Object>> klines =
+        buildKlines(10, Instant.parse("2024-01-01T00:00:00Z"), Duration.ofDays(1));
     when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
         .thenReturn(Mono.just(klines));
 
-    ChartResolution cr = new ChartResolutionStrategy().resolve(
-        Instant.parse("2024-01-01T00:00:00Z"),
-        Instant.parse("2024-01-10T00:00:00Z"));
+    ChartResolution cr =
+        new ChartResolutionStrategy()
+            .resolve(Instant.parse("2024-01-01T00:00:00Z"), Instant.parse("2024-01-10T00:00:00Z"));
 
     List<PricePoint> result = adapter.fetchPriceHistory(AssetType.CRYPTO, "BTC", cr);
 
@@ -74,9 +73,9 @@ class BinancePaginationTest {
     when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
         .thenReturn(Mono.just(List.of()));
 
-    ChartResolution cr = new ChartResolutionStrategy().resolve(
-        Instant.parse("2024-01-01T00:00:00Z"),
-        Instant.parse("2024-01-05T00:00:00Z"));
+    ChartResolution cr =
+        new ChartResolutionStrategy()
+            .resolve(Instant.parse("2024-01-01T00:00:00Z"), Instant.parse("2024-01-05T00:00:00Z"));
 
     List<PricePoint> result = adapter.fetchPriceHistory(AssetType.CRYPTO, "BTC", cr);
 
@@ -95,18 +94,18 @@ class BinancePaginationTest {
     for (int i = 0; i < count; i++) {
       Instant time = start.plus(interval.multipliedBy(i));
       List<Object> kline = new ArrayList<>();
-      kline.add(time.toEpochMilli());  // openTime
-      kline.add("50000.00");           // open
-      kline.add("51000.00");           // high
-      kline.add("49000.00");           // low
-      kline.add("50500.00");           // close
-      kline.add("100.0");              // volume
+      kline.add(time.toEpochMilli()); // openTime
+      kline.add("50000.00"); // open
+      kline.add("51000.00"); // high
+      kline.add("49000.00"); // low
+      kline.add("50500.00"); // close
+      kline.add("100.0"); // volume
       kline.add(time.toEpochMilli() + interval.toMillis() - 1); // closeTime
-      kline.add("5000000.0");          // quoteVolume
-      kline.add(1000);                 // trades
-      kline.add("50.0");               // takerBuyBase
-      kline.add("2500000.0");          // takerBuyQuote
-      kline.add("0");                  // ignore
+      kline.add("5000000.0"); // quoteVolume
+      kline.add(1000); // trades
+      kline.add("50.0"); // takerBuyBase
+      kline.add("2500000.0"); // takerBuyQuote
+      kline.add("0"); // ignore
       klines.add(kline);
     }
     return klines;

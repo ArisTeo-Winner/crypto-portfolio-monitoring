@@ -12,9 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.domain.exception.AuthenticationException;
-import com.mx.cryptomonitor.user.domain.exception.InvalidTokenException;
 import com.mx.cryptomonitor.user.domain.model.AuditEventType;
 import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
@@ -40,7 +39,7 @@ public class AuthService {
   private final RefreshTokenStoreService refreshTokenStoreService;
 
   @Transactional
-  public JwtResponse login(LoginRequest loginRequest, HttpServletRequest request) {
+  public AuthResult login(LoginRequest loginRequest, HttpServletRequest request) {
     User user = null;
     String normalizedEmail = normalizeEmail(loginRequest.email());
     try {
@@ -55,11 +54,13 @@ public class AuthService {
         throw new AuthenticationException("Credenciales invalidas");
       }
 
-      String ipAddress = request.getHeader("X-Forwarded-For");
-      if (ipAddress == null || ipAddress.isEmpty()) {
-        ipAddress = request.getRemoteAddr();
-      }
-      String userAgent = request.getHeader("User-Agent");
+      // Patrón canónico: primera IP de X-Forwarded-For (cliente real, no proxies intermedios)
+      String ipAddress =
+          Optional.ofNullable(request.getHeader("X-Forwarded-For"))
+              .filter(s -> !s.isBlank())
+              .map(xff -> xff.split(",")[0].trim())
+              .orElseGet(request::getRemoteAddr);
+      String userAgent = Optional.ofNullable(request.getHeader("User-Agent")).orElse("");
 
       String refreshTokenValue = tokenIssuerPort.generateRefreshToken(user.getEmail());
       Session session = new Session();
@@ -86,7 +87,7 @@ public class AuthService {
           tokenIssuerPort.generateAccessToken(user.getEmail(), session.getSessionId());
       auditLogService.log(
           AuditEventType.AUTH_LOGIN_SUCCESS, "Authentication succeeded", user.getId(), request);
-      return new JwtResponse(accessToken, refreshTokenValue);
+      return new AuthResult(accessToken, refreshTokenValue);
     } catch (RuntimeException ex) {
       auditLogService.log(
           AuditEventType.AUTH_LOGIN_FAILED,
@@ -101,53 +102,42 @@ public class AuthService {
     return email == null ? null : email.trim().toLowerCase();
   }
 
+  /**
+   * Revoca la sesión asociada al refresh token.
+   *
+   * <p>El logout es <b>idempotente</b>: si el token ya no existe, está revocado o su sesión no
+   * existe, se responde con éxito silencioso. Esto sigue la recomendación OWASP de no revelar al
+   * cliente si el token era válido o no (evita oracle de tokens).
+   */
   @Transactional
   public void logout(String refreshTokenValue) {
 
-    RefreshTokenStoreService.StoredRefreshToken storedRefreshToken =
-        refreshTokenStoreService
-            .findByRawToken(refreshTokenValue)
-            .orElseThrow(
-                () -> {
-                  auditLogService.log(
-                      AuditEventType.AUTH_LOGOUT_FAILED,
-                      "Logout failed due to invalid refresh token",
-                      null);
-                  return new InvalidTokenException("Token de refresco invalido");
-                });
+    Optional<RefreshTokenStoreService.StoredRefreshToken> maybeToken =
+        refreshTokenStoreService.findByRawToken(refreshTokenValue);
 
+    // Token inexistente o ya revocado → logout silencioso (no revela validez del token)
+    if (maybeToken.isEmpty() || maybeToken.get().revoked()) {
+      auditLogService.log(
+          AuditEventType.AUTH_LOGOUT_SUCCESS, "Logout (token already invalid or absent)", null);
+      return;
+    }
+
+    RefreshTokenStoreService.StoredRefreshToken storedRefreshToken = maybeToken.get();
     UUID userId = storedRefreshToken.userId();
-    if (storedRefreshToken.revoked()) {
-      auditLogService.log(
-          AuditEventType.AUTH_LOGOUT_FAILED,
-          "Logout failed because token is revoked or expired",
-          userId);
-      throw new InvalidTokenException("Token ya revocado o expirado");
-    }
-
-    if (storedRefreshToken.sessionId() == null) {
-      auditLogService.log(
-          AuditEventType.AUTH_LOGOUT_FAILED, "Logout failed because session id is missing", userId);
-      throw new InvalidTokenException("Sesion no encontrada");
-    }
 
     refreshTokenStoreService.markRevokedByRawToken(refreshTokenValue);
 
-    Session session =
-        sessionRepository
-            .findById(storedRefreshToken.sessionId())
-            .orElseThrow(
-                () -> {
-                  auditLogService.log(
-                      AuditEventType.AUTH_LOGOUT_FAILED,
-                      "Logout failed because session was not found",
-                      userId);
-                  return new InvalidTokenException("Sesion no encontrada");
-                });
+    if (storedRefreshToken.sessionId() != null) {
+      sessionRepository
+          .findById(storedRefreshToken.sessionId())
+          .ifPresent(
+              session -> {
+                session.setActive(false);
+                session.setLogoutTime(OffsetDateTime.now());
+                sessionRepository.save(session);
+              });
+    }
 
-    session.setActive(false);
-    session.setLogoutTime(OffsetDateTime.now());
-    sessionRepository.save(session);
     auditLogService.log(AuditEventType.AUTH_LOGOUT_SUCCESS, "Logout completed", userId);
   }
 
@@ -161,7 +151,7 @@ public class AuthService {
   }
 
   @Transactional
-  public JwtResponse issueTokensForUser(User user, HttpServletRequest request) {
+  public AuthResult issueTokensForUser(User user, HttpServletRequest request) {
     String ipAddress =
         Optional.ofNullable(request.getHeader("X-Forwarded-For"))
             .filter(s -> !s.isBlank())
@@ -193,6 +183,6 @@ public class AuthService {
         tokenIssuerPort.generateAccessToken(user.getEmail(), session.getSessionId());
     auditLogService.log(
         AuditEventType.AUTH_LOGIN_SUCCESS, "Token issue completed", user.getId(), request);
-    return new JwtResponse(accessToken, refreshTokenValue);
+    return new AuthResult(accessToken, refreshTokenValue);
   }
 }

@@ -57,14 +57,20 @@ public class PortfolioTotalHistoryController {
   public ResponseEntity<Object> getTotalHistory(
       @RequestParam(defaultValue = "30d") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
+      @Parameter(description = "Alias of assetTypes (singular form accepted for compatibility)")
+          @RequestParam(required = false)
+          String assetType,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
     UUID userId = currentUserPort.resolveUserId(authentication);
 
+    // Accept both ?assetType=CRYPTO (singular, used by frontend) and ?assetTypes=CRYPTO,STOCK
+    String resolvedAssetTypes = assetTypes != null ? assetTypes : assetType;
+
     long started = System.currentTimeMillis();
     PortfolioHistoryResult result =
-        getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, assetTypes);
+        getPortfolioTotalHistoryUseCase.getTotalHistory(userId, range, resolvedAssetTypes);
     long durationMs = System.currentTimeMillis() - started;
 
     log.info(

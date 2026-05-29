@@ -16,8 +16,7 @@ public interface MarketPriceHistoryProvider {
 
   default List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, ChartResolution chartResolution) {
-    long days =
-        java.time.Duration.between(chartResolution.start(), chartResolution.end()).toDays();
+    long days = java.time.Duration.between(chartResolution.start(), chartResolution.end()).toDays();
     String rangeStr;
     if (days > 365) rangeStr = "all";
     else if (days > 180) rangeStr = "1y";

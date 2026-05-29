@@ -12,7 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuditLogService;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.application.service.AuthenticationService;
@@ -84,11 +84,11 @@ class AuthServiceIssueTokenForUserUnitTest {
             });
 
     // Act
-    JwtResponse res = authService.issueTokensForUser(u, request);
+    AuthResult res = authService.issueTokensForUser(u, request);
 
     // Assert
     assertThat(res.accessToken()).isEqualTo("acc-456");
-    assertThat(res.refreshToken()).isEqualTo("ref-123");
+    assertThat(res.rawRefreshToken()).isEqualTo("ref-123");
 
     verify(refreshTokenStoreService)
         .store(eq("ref-123"), eq(u.getId()), any(), any(), eq("127.0.0.1"), eq("JUnit"));

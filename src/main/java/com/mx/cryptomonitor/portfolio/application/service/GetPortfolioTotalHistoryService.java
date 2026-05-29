@@ -75,13 +75,16 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     List<PortfolioTransactionSnapshot> snapshots =
         filterByAssetTypes(transactionHistoryPort.getTransactionsByUser(userId), requestedTypes);
 
+    // fromSafe descarta tipos sin soporte de precios (ej. BONOS) sin romper el flujo
     Map<AssetIdentity, List<PortfolioTransactionSnapshot>> snapshotsByAsset =
         snapshots.stream()
+            .filter(s -> AssetType.fromSafe(s.assetType()).isPresent())
             .collect(
                 java.util.stream.Collectors.groupingBy(
                     snapshot ->
                         new AssetIdentity(
-                            AssetType.from(snapshot.assetType()), snapshot.assetSymbol()),
+                            AssetType.fromSafe(snapshot.assetType()).orElseThrow(),
+                            snapshot.assetSymbol()),
                     LinkedHashMap::new,
                     java.util.stream.Collectors.toList()));
 
@@ -126,9 +129,19 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     ReturnMetrics returnMetrics = computeReturnMetrics(series, allTransactions, end);
 
     logGenerated(
-        userId, parsedRange.value(), chartResolution.providerIntervalCode(), assets.size(), series.size(), started);
+        userId,
+        parsedRange.value(),
+        chartResolution.providerIntervalCode(),
+        assets.size(),
+        series.size(),
+        started);
     return new PortfolioHistoryResult(
-        parsedRange.value(), chartResolution.toAggregationResolution(), from, to, series, returnMetrics);
+        parsedRange.value(),
+        chartResolution.toAggregationResolution(),
+        from,
+        to,
+        series,
+        returnMetrics);
   }
 
   private ReturnMetrics computeReturnMetrics(
@@ -170,7 +183,8 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     BigDecimal twr = twrEngine.calculate(series, transactions);
     BigDecimal mwr = mwrEngine.calculate(transactions, terminalValue, terminalDate);
 
-    return new ReturnMetrics(twr, mwr, absoluteGain, totalInvested.setScale(2, RoundingMode.HALF_UP));
+    return new ReturnMetrics(
+        twr, mwr, absoluteGain, totalInvested.setScale(2, RoundingMode.HALF_UP));
   }
 
   private Instant determineStart(
@@ -241,11 +255,12 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
 
   private List<PortfolioTransactionSnapshot> filterByAssetTypes(
       List<PortfolioTransactionSnapshot> snapshots, EnumSet<AssetType> requestedTypes) {
+    // Siempre excluir tipos sin soporte de precios (ej. BONOS)
     if (requestedTypes == null) {
-      return snapshots;
+      return snapshots.stream().filter(s -> AssetType.fromSafe(s.assetType()).isPresent()).toList();
     }
     return snapshots.stream()
-        .filter(snapshot -> requestedTypes.contains(AssetType.from(snapshot.assetType())))
+        .filter(s -> AssetType.fromSafe(s.assetType()).map(requestedTypes::contains).orElse(false))
         .toList();
   }
 
@@ -267,12 +282,7 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   }
 
   private void logGenerated(
-      UUID userId,
-      String range,
-      String interval,
-      int assetCount,
-      int points,
-      long started) {
+      UUID userId, String range, String interval, int assetCount, int points, long started) {
     long durationMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
     log.info(
         "portfolio.history.generated userId={} range={} interval={} points={} assetCount={} durationMs={}",

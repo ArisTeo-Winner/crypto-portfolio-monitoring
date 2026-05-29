@@ -26,8 +26,8 @@ import okhttp3.mockwebserver.SocketPolicy;
 /**
  * Tests de la clase {@link TwelveDataAdapter#getLatest(String)}.
  *
- * <p>Cubre todos los escenarios de respuesta del endpoint {@code /price}:
- * éxito, errores en body (HTTP 200 con status error), errores HTTP (4xx, 5xx) y fallos de red.
+ * <p>Cubre todos los escenarios de respuesta del endpoint {@code /price}: éxito, errores en body
+ * (HTTP 200 con status error), errores HTTP (4xx, 5xx) y fallos de red.
  */
 class TwelveDataAdapterGetLatestTest {
 
@@ -39,8 +39,7 @@ class TwelveDataAdapterGetLatestTest {
     server = new MockWebServer();
     server.start();
     adapter =
-        new TwelveDataAdapter(
-            WebClient.builder().build(), server.url("/").toString(), "test-key");
+        new TwelveDataAdapter(WebClient.builder().build(), server.url("/").toString(), "test-key");
   }
 
   @AfterEach
@@ -96,9 +95,7 @@ class TwelveDataAdapterGetLatestTest {
 
     RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
     assertThat(request).isNotNull();
-    assertThat(request.getPath())
-        .contains("symbol=MSFT")
-        .contains("apikey=test-key");
+    assertThat(request.getPath()).contains("symbol=MSFT").contains("apikey=test-key");
   }
 
   // -------------------------------------------------------------------------
@@ -107,7 +104,9 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataRateLimitExceptionWhenBodyReturnsCode429() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 429,
           "message": "You have run out of API credits for the current minute.",
@@ -122,7 +121,9 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataInvalidSymbolExceptionWhenBodyReturnsCode400AndSymbolNotValid() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 400,
           "message": "**INVALIDO** is not valid.",
@@ -137,7 +138,9 @@ class TwelveDataAdapterGetLatestTest {
   @Test
   void shouldThrowUpstreamExceptionWhenBodyCode400AndNoDataForDates() {
     // code=400 + mensaje de fechas → el símbolo existe pero no hay datos → permitir fallback
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 400,
           "message": "No data is available on the specified dates. Try setting different start/end dates.",
@@ -152,7 +155,9 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataInvalidSymbolExceptionWhenBodyReturnsCode404() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 404,
           "message": "Symbol not found.",
@@ -166,7 +171,9 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataAuthExceptionWhenBodyReturnsCode401() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 401,
           "message": "Your API key is invalid.",
@@ -181,7 +188,9 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataAuthExceptionWhenBodyReturnsCode403() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 403,
           "message": "Your API key does not have access to this resource.",
@@ -196,7 +205,9 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataExceptionWhenBodyReturnsUnknownErrorCode() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 503,
           "message": "Service temporarily unavailable.",
@@ -237,10 +248,7 @@ class TwelveDataAdapterGetLatestTest {
 
   @Test
   void shouldThrowTwelveDataRateLimitExceptionOnHttp429() {
-    server.enqueue(
-        new MockResponse()
-            .setResponseCode(429)
-            .setBody("Too Many Requests"));
+    server.enqueue(new MockResponse().setResponseCode(429).setBody("Too Many Requests"));
 
     assertThatThrownBy(() -> adapter.getLatest("AAPL"))
         .isInstanceOf(TwelveDataRateLimitException.class);
@@ -289,8 +297,7 @@ class TwelveDataAdapterGetLatestTest {
   void shouldThrowTwelveDataExceptionOnNetworkDisconnect() {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
 
-    assertThatThrownBy(() -> adapter.getLatest("AAPL"))
-        .isInstanceOf(TwelveDataException.class);
+    assertThatThrownBy(() -> adapter.getLatest("AAPL")).isInstanceOf(TwelveDataException.class);
   }
 
   // -------------------------------------------------------------------------
@@ -310,7 +317,8 @@ class TwelveDataAdapterGetLatestTest {
     // Verificamos que TwelveDataRateLimitException y TwelveDataAuthException
     // sean reconocidos como recuperables (NO InvalidSymbol).
     assertThat(
-            com.mx.cryptomonitor.marketdata.domain.exception.ExternalProviderRateLimitException.class
+            com.mx.cryptomonitor.marketdata.domain.exception.ExternalProviderRateLimitException
+                .class
                 .isAssignableFrom(TwelveDataRateLimitException.class))
         .isTrue();
 
@@ -320,7 +328,8 @@ class TwelveDataAdapterGetLatestTest {
         .isTrue();
 
     assertThat(
-            com.mx.cryptomonitor.marketdata.domain.exception.ExternalProviderInvalidSymbolException.class
+            com.mx.cryptomonitor.marketdata.domain.exception.ExternalProviderInvalidSymbolException
+                .class
                 .isAssignableFrom(TwelveDataInvalidSymbolException.class))
         .isTrue();
   }

@@ -10,7 +10,4 @@ import java.math.BigDecimal;
  * convergence for MWR).
  */
 public record ReturnMetrics(
-    BigDecimal twr,
-    BigDecimal mwr,
-    BigDecimal absoluteGain,
-    BigDecimal totalInvested) {}
+    BigDecimal twr, BigDecimal mwr, BigDecimal absoluteGain, BigDecimal totalInvested) {}

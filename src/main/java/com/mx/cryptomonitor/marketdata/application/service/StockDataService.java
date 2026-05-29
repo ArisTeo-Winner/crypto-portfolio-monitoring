@@ -16,9 +16,9 @@ import com.mx.cryptomonitor.marketdata.domain.model.StockTimeSeries;
 /**
  * Servicio de aplicación para datos de mercado de stocks.
  *
- * <p>{@code timeSeriesPort} se inyecta como {@link Optional} porque depende del bean
- * {@code TwelveDataAdapter}, que solo se registra cuando {@code TWELVEDATA_API_KEY} está
- * configurada. Si el bean no existe, los métodos que lo usan retornan {@code Optional.empty()}.
+ * <p>{@code timeSeriesPort} se inyecta como {@link Optional} porque depende del bean {@code
+ * TwelveDataAdapter}, que solo se registra cuando {@code TWELVEDATA_API_KEY} está configurada. Si
+ * el bean no existe, los métodos que lo usan retornan {@code Optional.empty()}.
  */
 @Service
 public class StockDataService {
@@ -28,8 +28,7 @@ public class StockDataService {
 
   @Autowired
   public StockDataService(
-      MarketDataProvider marketDataProvider,
-      Optional<StockTimeSeriesPort> timeSeriesPort) {
+      MarketDataProvider marketDataProvider, Optional<StockTimeSeriesPort> timeSeriesPort) {
     this.marketDataProvider = marketDataProvider;
     this.timeSeriesPort = timeSeriesPort;
   }

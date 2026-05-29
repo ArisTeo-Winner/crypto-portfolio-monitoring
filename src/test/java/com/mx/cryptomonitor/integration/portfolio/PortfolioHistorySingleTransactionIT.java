@@ -53,8 +53,8 @@ import com.mx.cryptomonitor.user.domain.repository.UserRepository;
  * <p>Verifies full correctness of the history series when the portfolio contains exactly one BUY
  * transaction placed 60 days ago. Exercises ranges 90d and ALL.
  *
- * <p>Also covers: External-Provider Safety Check (CoinGecko must NOT be called for ALL range),
- * JSON contract validation, and resolution density bounds.
+ * <p>Also covers: External-Provider Safety Check (CoinGecko must NOT be called for ALL range), JSON
+ * contract validation, and resolution density bounds.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.MOCK)
 @AutoConfigureMockMvc
@@ -104,9 +104,7 @@ class PortfolioHistorySingleTransactionIT {
     // Stub: return 400 daily BTC prices covering any chart window the service may request.
     List<PricePoint> syntheticPrices =
         generateDailyPrices(
-            Instant.now().minus(Duration.ofDays(400)),
-            Instant.now(),
-            new BigDecimal("45000.00"));
+            Instant.now().minus(Duration.ofDays(400)), Instant.now(), new BigDecimal("45000.00"));
 
     when(marketPriceHistoryPort.getPriceHistory(
             eq(AssetType.CRYPTO), eq(BTC), any(ChartResolution.class)))
@@ -130,7 +128,9 @@ class PortfolioHistorySingleTransactionIT {
       long prev = series.get(i - 1).get("time").asLong();
       long curr = series.get(i).get("time").asLong();
       assertThat(curr)
-          .as("Timestamps must be strictly ascending: index %d (%d) <= index %d (%d)", i - 1, prev, i, curr)
+          .as(
+              "Timestamps must be strictly ascending: index %d (%d) <= index %d (%d)",
+              i - 1, prev, i, curr)
           .isGreaterThan(prev);
     }
   }
@@ -148,7 +148,9 @@ class PortfolioHistorySingleTransactionIT {
     series.forEach(
         node -> {
           BigDecimal value = node.get("value").decimalValue();
-          assertThat(value).as("Value must be non-negative: %s", value).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+          assertThat(value)
+              .as("Value must be non-negative: %s", value)
+              .isGreaterThanOrEqualTo(BigDecimal.ZERO);
         });
   }
 
@@ -199,7 +201,9 @@ class PortfolioHistorySingleTransactionIT {
     // Chart starts 90 days ago; transaction is 60 days ago → at most ~30 daily zero points.
     // "Massive" means more than a full month of extra zeros beyond this expected window.
     assertThat(zeroPrefixCount)
-        .as("Zero-value prefix must not be massive (found %d zero points before first tx)", zeroPrefixCount)
+        .as(
+            "Zero-value prefix must not be massive (found %d zero points before first tx)",
+            zeroPrefixCount)
         .isLessThanOrEqualTo(35);
   }
 
@@ -252,7 +256,9 @@ class PortfolioHistorySingleTransactionIT {
     series.forEach(
         node -> {
           BigDecimal value = node.get("value").decimalValue();
-          assertThat(value).as("Value must be non-negative: %s", value).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+          assertThat(value)
+              .as("Value must be non-negative: %s", value)
+              .isGreaterThanOrEqualTo(BigDecimal.ZERO);
         });
   }
 
@@ -266,9 +272,7 @@ class PortfolioHistorySingleTransactionIT {
     long oneDaySeconds = 86_400L;
 
     assertThat(firstTime)
-        .as(
-            "First point (%d) must be >= transactionDate (%d) - 1 day",
-            firstTime, txEpoch)
+        .as("First point (%d) must be >= transactionDate (%d) - 1 day", firstTime, txEpoch)
         .isGreaterThanOrEqualTo(txEpoch - oneDaySeconds);
   }
 

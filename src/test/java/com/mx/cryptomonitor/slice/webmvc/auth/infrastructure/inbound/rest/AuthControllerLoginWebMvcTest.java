@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.domain.exception.AuthenticationException;
 import com.mx.cryptomonitor.user.domain.exception.TooManyLoginRequestsException;
@@ -31,6 +31,7 @@ import com.mx.cryptomonitor.user.infrastructure.inbound.rest.AuthController;
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.problem.AuthExceptionHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
+import com.mx.cryptomonitor.user.infrastructure.security.RefreshTokenCookieHelper;
 
 @WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -42,11 +43,15 @@ class AuthControllerLoginWebMvcTest {
   @MockBean private AuthService authService;
   @MockBean private JwtRequestFilter jwtRequestFilter;
   @MockBean private LoginRateLimiter loginRateLimiter;
+  @MockBean private RefreshTokenCookieHelper cookieHelper;
 
   @Test
-  void login_ok_returns_tokens_and_disables_response_caching() throws Exception {
+  void login_ok_returns_accessToken_in_body_and_refreshToken_as_httpOnly_cookie() throws Exception {
     when(authService.login(any(LoginRequest.class), any()))
-        .thenReturn(new JwtResponse("access-123", "refresh-456"));
+        .thenReturn(new AuthResult("access-123", "refresh-456"));
+    when(cookieHelper.buildSetCookieHeader("refresh-456"))
+        .thenReturn("refresh_token=refresh-456; Path=/api/v1/; HttpOnly; SameSite=Strict");
+    when(cookieHelper.headerName()).thenReturn("Set-Cookie");
 
     MvcResult result =
         mockMvc
@@ -57,12 +62,24 @@ class AuthControllerLoginWebMvcTest {
                         objectMapper.writeValueAsString(
                             new LoginRequest("user@example.com", "ValidPass123!"))))
             .andExpect(status().isOk())
+            // accessToken en el body — el frontend lo guarda en memoria
             .andExpect(jsonPath("$.accessToken").value("access-123"))
-            .andExpect(jsonPath("$.refreshToken").value("refresh-456"))
+            // refreshToken NO debe aparecer en el body
+            .andExpect(jsonPath("$.refreshToken").doesNotExist())
+            // Anti-caché obligatorio
             .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(header().string("Pragma", "no-cache"))
+            // Cookie HttpOnly con el refresh token
+            .andExpect(
+                header()
+                    .string(
+                        "Set-Cookie",
+                        org.hamcrest.Matchers.containsString("refresh_token=refresh-456")))
+            .andExpect(
+                header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
             .andReturn();
 
+    // El refresh token no viaja en ninguna cookie llamada "jwt"
     assertThat(result.getResponse().getCookie("jwt")).isNull();
   }
 

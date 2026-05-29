@@ -9,7 +9,4 @@ import java.math.BigDecimal;
  * the metric could not be computed (insufficient history or numerical non-convergence).
  */
 public record ReturnMetricsResponse(
-    BigDecimal twr,
-    BigDecimal mwr,
-    BigDecimal absoluteGain,
-    BigDecimal totalInvested) {}
+    BigDecimal twr, BigDecimal mwr, BigDecimal absoluteGain, BigDecimal totalInvested) {}

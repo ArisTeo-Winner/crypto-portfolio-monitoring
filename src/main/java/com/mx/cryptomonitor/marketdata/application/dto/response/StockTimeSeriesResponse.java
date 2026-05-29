@@ -8,8 +8,8 @@ import com.mx.cryptomonitor.marketdata.domain.model.StockTimeSeries;
 /**
  * DTO de respuesta para el endpoint {@code GET /api/v1/marketdata/stock/time-series}.
  *
- * <p>Refleja la estructura de Twelve Data añadiendo el campo {@code count} para facilitar
- * la validación en Postman.
+ * <p>Refleja la estructura de Twelve Data añadiendo el campo {@code count} para facilitar la
+ * validación en Postman.
  */
 public record StockTimeSeriesResponse(
     String symbol,
@@ -34,9 +34,7 @@ public record StockTimeSeriesResponse(
     List<PointDto> points =
         series.values().stream()
             .map(
-                p ->
-                    new PointDto(
-                        p.datetime(), p.open(), p.high(), p.low(), p.close(), p.volume()))
+                p -> new PointDto(p.datetime(), p.open(), p.high(), p.low(), p.close(), p.volume()))
             .toList();
 
     return new StockTimeSeriesResponse(

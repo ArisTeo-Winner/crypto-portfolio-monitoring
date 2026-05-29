@@ -2,21 +2,24 @@ package com.mx.cryptomonitor.user.infrastructure.inbound.rest;
 
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
 import com.mx.cryptomonitor.user.application.service.TokenService;
 import com.mx.cryptomonitor.user.domain.exception.InvalidTokenException;
+import com.mx.cryptomonitor.user.infrastructure.security.RefreshTokenCookieHelper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -25,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 public class TokenController {
 
   private final TokenService tokenService;
+  private final RefreshTokenCookieHelper cookieHelper;
 
   @Operation(
       summary = "Revocar refresh token",
@@ -36,13 +40,18 @@ public class TokenController {
         @ApiResponse(responseCode = "401", description = "Token invÃ¡lido")
       })
   @PostMapping("/revoke")
-  public ResponseEntity<Void> revokeRefreshToken(
-      @RequestHeader("X-Refresh-Token") String refreshToken) {
+  public ResponseEntity<Void> revokeRefreshToken(HttpServletRequest request) {
+    String refreshToken = cookieHelper.extractFromRequest(request);
+    if (refreshToken == null || refreshToken.isBlank()) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
     try {
       tokenService.revokeRefreshToken(refreshToken);
-      return ResponseEntity.noContent().build();
+      return ResponseEntity.noContent()
+          .header(cookieHelper.headerName(), cookieHelper.buildClearCookieHeader())
+          .build();
     } catch (SecurityException ex) {
-      throw new InvalidTokenException("Refresh token invÃ¡lido");
+      throw new InvalidTokenException("Refresh token inválido");
     }
   }
 
@@ -67,18 +76,24 @@ public class TokenController {
         @ApiResponse(responseCode = "500", description = "Error interno del servidor")
       })
   @PostMapping("/refresh")
-  public ResponseEntity<JwtResponse> refreshToken(
-      @RequestHeader("X-Refresh-Token") String refreshToken) {
+  public ResponseEntity<JwtResponse> refreshToken(HttpServletRequest request) {
 
-    if (refreshToken == null || refreshToken.isEmpty()) {
-      throw new IllegalArgumentException("Encabezado X-Refresh-Token no proporcionado o vacÃ­o");
+    // El refresh token llega automáticamente en la cookie HttpOnly — el browser lo adjunta
+    // sin ninguna intervención de JS.
+    String refreshToken = cookieHelper.extractFromRequest(request);
+    if (refreshToken == null || refreshToken.isBlank()) {
+      // Cookie ausente: sesión cerrada o nunca iniciada — semánticamente no autenticado.
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
-    JwtResponse refreshJwt = tokenService.refreshToken(refreshToken);
+    AuthResult result = tokenService.refreshToken(refreshToken, request);
 
+    // Rotación de cookie: el token anterior queda revocado en Redis, el nuevo se escribe aquí.
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .header(HttpHeaders.PRAGMA, "no-cache")
-        .body(refreshJwt);
+        .header(
+            cookieHelper.headerName(), cookieHelper.buildSetCookieHeader(result.rawRefreshToken()))
+        .body(result.toJwtResponse());
   }
 }

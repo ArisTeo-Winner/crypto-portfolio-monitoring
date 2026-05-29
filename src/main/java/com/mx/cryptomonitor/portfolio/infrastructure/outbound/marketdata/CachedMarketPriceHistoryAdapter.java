@@ -87,35 +87,39 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
             .toList();
       } catch (UnknownAssetSymbolException e) {
         log.debug(
-            "Provider {} unknown symbol {}, trying next", provider.getClass().getSimpleName(), symbol);
+            "Provider {} unknown symbol {}, trying next",
+            provider.getClass().getSimpleName(),
+            symbol);
         lastSymbolError = e;
       }
     }
     if (lastSymbolError != null) {
       throw lastSymbolError;
     }
-    throw new IllegalStateException(
-        "No market price history provider configured for " + assetType);
+    throw new IllegalStateException("No market price history provider configured for " + assetType);
   }
 
-private List<PricePoint> fetchWithFallback(AssetType assetType, String symbol, HoldingsHistoryRange range) {
-  UnknownAssetSymbolException last = null;
+  private List<PricePoint> fetchWithFallback(
+      AssetType assetType, String symbol, HoldingsHistoryRange range) {
+    UnknownAssetSymbolException last = null;
 
-  for (MarketPriceHistoryProvider provider : providers) {
-    if (!provider.supports(assetType)) continue;
-    try {
-      return provider.fetchPriceHistory(assetType, symbol, range).stream()
-          .sorted(Comparator.comparing(PricePoint::time))
-          .toList();
-    } catch (UnknownAssetSymbolException e) {
-      log.debug("Provider {} unknown symbol {}, trying next",
-          provider.getClass().getSimpleName(), symbol);
-      last = e;
+    for (MarketPriceHistoryProvider provider : providers) {
+      if (!provider.supports(assetType)) continue;
+      try {
+        return provider.fetchPriceHistory(assetType, symbol, range).stream()
+            .sorted(Comparator.comparing(PricePoint::time))
+            .toList();
+      } catch (UnknownAssetSymbolException e) {
+        log.debug(
+            "Provider {} unknown symbol {}, trying next",
+            provider.getClass().getSimpleName(),
+            symbol);
+        last = e;
+      }
     }
+    if (last != null) throw last;
+    throw new IllegalStateException("No market price history provider configured for " + assetType);
   }
-  if (last != null) throw last;
-  throw new IllegalStateException("No market price history provider configured for " + assetType);
-}
 
   private List<PricePoint> getCachedByKey(AssetType assetType, String symbol, String key) {
     return priceHistoryCachePort.getPriceHistory(assetType, symbol, key).stream()
@@ -125,11 +129,7 @@ private List<PricePoint> fetchWithFallback(AssetType assetType, String symbol, H
   }
 
   private void storeIfNonEmpty(
-      AssetType assetType,
-      String symbol,
-      String key,
-      List<PricePoint> prices,
-      Duration ttl) {
+      AssetType assetType, String symbol, String key, List<PricePoint> prices, Duration ttl) {
     if (prices.isEmpty()) {
       return;
     }

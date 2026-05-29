@@ -105,10 +105,7 @@ class PortfolioHistoryRecentUserIT {
     // Provide hourly prices for the past 30 days so the mock never returns an empty list,
     // regardless of which ChartResolution the engine selects for a 3-day window.
     List<PricePoint> prices =
-        generateHourlyPrices(
-            Instant.now().minus(Duration.ofDays(30)),
-            Instant.now(),
-            BUY_PRICE);
+        generateHourlyPrices(Instant.now().minus(Duration.ofDays(30)), Instant.now(), BUY_PRICE);
 
     when(marketPriceHistoryPort.getPriceHistory(
             eq(AssetType.CRYPTO), eq(BTC), any(ChartResolution.class)))

@@ -37,17 +37,22 @@ class DownsamplingTest {
   @Test
   void seriesWith5000Points_downsampledToAtMost1500() {
     UUID userId = UUID.randomUUID();
-    var snapshot = new PortfolioTransactionSnapshot(
-        "BTC", "CRYPTO", "BUY", null,
-        new BigDecimal("1"),
-        new BigDecimal("50000"),
-        new BigDecimal("50000"),
-        BigDecimal.ZERO,
-        java.time.LocalDateTime.of(2020, 1, 1, 0, 0));
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "BTC",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("1"),
+            new BigDecimal("50000"),
+            new BigDecimal("50000"),
+            BigDecimal.ZERO,
+            java.time.LocalDateTime.of(2020, 1, 1, 0, 0));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
         .thenReturn(buildLargeSeries(5000));
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
@@ -58,17 +63,22 @@ class DownsamplingTest {
   @Test
   void seriesWith1000Points_notDownsampled() {
     UUID userId = UUID.randomUUID();
-    var snapshot = new PortfolioTransactionSnapshot(
-        "BTC", "CRYPTO", "BUY", null,
-        new BigDecimal("1"),
-        new BigDecimal("50000"),
-        new BigDecimal("50000"),
-        BigDecimal.ZERO,
-        java.time.LocalDateTime.of(2023, 1, 1, 0, 0));
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "BTC",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("1"),
+            new BigDecimal("50000"),
+            new BigDecimal("50000"),
+            BigDecimal.ZERO,
+            java.time.LocalDateTime.of(2023, 1, 1, 0, 0));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
         .thenReturn(buildLargeSeries(1000));
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "1y", null);
@@ -82,17 +92,22 @@ class DownsamplingTest {
     UUID userId = UUID.randomUUID();
     List<PricePoint> bigSeries = buildLargeSeries(2000);
 
-    var snapshot = new PortfolioTransactionSnapshot(
-        "ETH", "CRYPTO", "BUY", null,
-        new BigDecimal("1"),
-        new BigDecimal("2000"),
-        new BigDecimal("2000"),
-        BigDecimal.ZERO,
-        java.time.LocalDateTime.of(2020, 1, 1, 0, 0));
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "ETH",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("1"),
+            new BigDecimal("2000"),
+            new BigDecimal("2000"),
+            BigDecimal.ZERO,
+            java.time.LocalDateTime.of(2020, 1, 1, 0, 0));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
         .thenReturn(bigSeries);
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
@@ -110,7 +125,8 @@ class DownsamplingTest {
     List<PricePoint> points = new ArrayList<>(count);
     long base = Instant.parse("2020-01-01T00:00:00Z").getEpochSecond();
     for (int i = 0; i < count; i++) {
-      points.add(new PricePoint(Instant.ofEpochSecond(base + (long) i * 86400), new BigDecimal("50000")));
+      points.add(
+          new PricePoint(Instant.ofEpochSecond(base + (long) i * 86400), new BigDecimal("50000")));
     }
     return points;
   }

@@ -92,12 +92,11 @@ class CachedMarketPriceHistoryAdapterFallbackTest {
     adapter.getPriceHistory(CRYPTO, SYMBOL, RANGE);
 
     List<PriceHistoryPoint> expectedCachePoints =
-        PROVIDER2_POINTS.stream()
-            .map(p -> new PriceHistoryPoint(p.time(), p.price()))
-            .toList();
+        PROVIDER2_POINTS.stream().map(p -> new PriceHistoryPoint(p.time(), p.price())).toList();
 
     verify(cache)
-        .storePriceHistory(CRYPTO, SYMBOL, PARSED_RANGE.value(), expectedCachePoints, PARSED_RANGE.ttl());
+        .storePriceHistory(
+            CRYPTO, SYMBOL, PARSED_RANGE.value(), expectedCachePoints, PARSED_RANGE.ttl());
   }
 
   @Test
@@ -110,9 +109,7 @@ class CachedMarketPriceHistoryAdapterFallbackTest {
   @Test
   void shouldReturnCachedDataWithoutCallingAnyProvider() {
     List<PriceHistoryPoint> cachedPoints =
-        PROVIDER2_POINTS.stream()
-            .map(p -> new PriceHistoryPoint(p.time(), p.price()))
-            .toList();
+        PROVIDER2_POINTS.stream().map(p -> new PriceHistoryPoint(p.time(), p.price())).toList();
     when(cache.getPriceHistory(CRYPTO, SYMBOL, PARSED_RANGE.value())).thenReturn(cachedPoints);
 
     List<PricePoint> result = adapter.getPriceHistory(CRYPTO, SYMBOL, RANGE);
@@ -133,8 +130,7 @@ class CachedMarketPriceHistoryAdapterFallbackTest {
             84);
     String dynamicKey = dynamicKey(chartResolution);
     when(cache.getPriceHistory(CRYPTO, SYMBOL, dynamicKey)).thenReturn(List.of());
-    when(cache.acquireLoadLock(eq(CRYPTO), eq(SYMBOL), eq(dynamicKey), any()))
-        .thenReturn(true);
+    when(cache.acquireLoadLock(eq(CRYPTO), eq(SYMBOL), eq(dynamicKey), any())).thenReturn(true);
     when(provider1.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(chartResolution)))
         .thenThrow(new UnknownAssetSymbolException("Binance symbol not found: HYPEUSDT"));
     when(provider2.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(chartResolution)))

@@ -115,8 +115,10 @@ class GetAssetHoldingsHistoryServiceTest {
         .thenReturn(snapshots);
     when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d")).thenReturn(prices);
 
-    AssetHoldingsHistoryResponse first = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
-    AssetHoldingsHistoryResponse second = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
+    AssetHoldingsHistoryResponse first =
+        serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
+    AssetHoldingsHistoryResponse second =
+        serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
 
     assertThat(first).isEqualTo(second);
   }
@@ -135,12 +137,11 @@ class GetAssetHoldingsHistoryServiceTest {
             eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
         .thenReturn(
             List.of(
-                new PricePoint(
-                    Instant.parse("2026-05-17T00:00:00Z"), new BigDecimal("100.00")),
-                new PricePoint(
-                    Instant.parse("2026-05-18T00:00:00Z"), new BigDecimal("110.00"))));
+                new PricePoint(Instant.parse("2026-05-17T00:00:00Z"), new BigDecimal("100.00")),
+                new PricePoint(Instant.parse("2026-05-18T00:00:00Z"), new BigDecimal("110.00"))));
 
-    AssetHoldingsHistoryResponse response = serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "ALL");
+    AssetHoldingsHistoryResponse response =
+        serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "ALL");
 
     assertThat(response.series()).hasSize(2);
     ArgumentCaptor<ChartResolution> resolutionCaptor =
@@ -148,7 +149,8 @@ class GetAssetHoldingsHistoryServiceTest {
     verify(marketPriceHistoryPort)
         .getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), resolutionCaptor.capture());
     verify(marketPriceHistoryPort, never()).getPriceHistory(AssetType.CRYPTO, "BTC", "all");
-    assertThat(resolutionCaptor.getValue().start()).isEqualTo(Instant.parse("2026-05-17T00:00:00Z"));
+    assertThat(resolutionCaptor.getValue().start())
+        .isEqualTo(Instant.parse("2026-05-17T00:00:00Z"));
     assertThat(resolutionCaptor.getValue().end()).isEqualTo(Instant.parse("2026-05-20T12:00:00Z"));
   }
 

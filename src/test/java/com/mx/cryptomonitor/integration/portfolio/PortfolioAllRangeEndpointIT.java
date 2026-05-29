@@ -58,8 +58,7 @@ class PortfolioAllRangeEndpointIT {
 
   @BeforeEach
   void setup() {
-    Mockito.when(assetPricePort.getCryptoPriceAmount(Mockito.anyString()))
-        .thenReturn(Mono.empty());
+    Mockito.when(assetPricePort.getCryptoPriceAmount(Mockito.anyString())).thenReturn(Mono.empty());
 
     transactionRepository.deleteAll();
     userRepository.deleteAll();
@@ -139,7 +138,7 @@ class PortfolioAllRangeEndpointIT {
                 Mockito.any(ChartResolution.class)))
         .thenReturn(
             List.of(
-                priceAt("2025-01-01T00:00:00Z", "90000"),  // antes de la primera tx
+                priceAt("2025-01-01T00:00:00Z", "90000"), // antes de la primera tx
                 priceAt("2025-06-01T00:00:00Z", "100000"),
                 priceAt("2025-06-02T00:00:00Z", "101000"),
                 priceAt("2025-06-03T00:00:00Z", "99000")));
@@ -153,8 +152,9 @@ class PortfolioAllRangeEndpointIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.meta.range").value("all"))
         .andExpect(jsonPath("$.meta.points").value(3))
-        .andExpect(jsonPath("$.series[0].time").value(
-            Instant.parse("2025-06-01T00:00:00Z").getEpochSecond()));
+        .andExpect(
+            jsonPath("$.series[0].time")
+                .value(Instant.parse("2025-06-01T00:00:00Z").getEpochSecond()));
   }
 
   private Transaction btcBuy(LocalDateTime date, String qty, String price) {

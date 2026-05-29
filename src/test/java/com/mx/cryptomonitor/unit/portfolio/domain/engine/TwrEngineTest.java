@@ -101,8 +101,8 @@ class TwrEngineTest {
      */
     List<TimeValuePoint> series =
         List.of(
-            point(0L, "10000"),       // start: 1 BTC @ 10 000
-            point(86_400L, "16000"),  // after deposit (new quantity baked in)
+            point(0L, "10000"), // start: 1 BTC @ 10 000
+            point(86_400L, "16000"), // after deposit (new quantity baked in)
             point(172_800L, "18000") // end
             );
 
@@ -168,8 +168,7 @@ class TwrEngineTest {
             point(600L, "2500"),
             point(700L, "3000"));
 
-    List<PortfolioAccountingTransaction> txs =
-        List.of(buyAt(200L, "400"), buyAt(500L, "700"));
+    List<PortfolioAccountingTransaction> txs = List.of(buyAt(200L, "400"), buyAt(500L, "700"));
 
     BigDecimal twr = ENGINE.calculate(series, txs);
 

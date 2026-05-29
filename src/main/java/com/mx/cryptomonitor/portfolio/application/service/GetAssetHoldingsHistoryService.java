@@ -83,11 +83,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   }
 
   private List<PricePoint> fetchPrices(
-      AssetType assetType,
-      String symbol,
-      HoldingsHistoryRange range,
-      Instant start,
-      Instant end) {
+      AssetType assetType, String symbol, HoldingsHistoryRange range, Instant start, Instant end) {
     if (!range.isAll()) {
       return marketPriceHistoryPort.getPriceHistory(assetType, symbol, range.value());
     }

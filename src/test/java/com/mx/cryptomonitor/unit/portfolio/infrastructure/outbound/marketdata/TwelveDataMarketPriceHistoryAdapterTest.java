@@ -76,7 +76,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldParseDailySeriesInAscendingOrder() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {"symbol": "AAPL", "interval": "1day", "exchange_timezone": "America/New_York"},
           "values": [
@@ -102,7 +104,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldParseDailySeriesWithExactPriceValues() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {"symbol": "MSFT", "interval": "1day"},
           "values": [
@@ -125,7 +129,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldParseIntradaySeriesUsingExchangeTimezone() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {
             "symbol": "AAPL",
@@ -155,7 +161,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldFallbackToDefaultTimezoneWhenMetaIsMissing() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {},
           "values": [
@@ -179,7 +187,8 @@ class TwelveDataMarketPriceHistoryAdapterTest {
   @Test
   void shouldUseInterval1dayForDailyRanges() throws Exception {
     for (String range : List.of("7d", "30d", "90d", "180d", "1y")) {
-      server.enqueue(jsonOk("""
+      server.enqueue(
+          jsonOk("""
           {"meta": {}, "values": [], "status": "ok"}
           """));
       adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse(range));
@@ -209,9 +218,7 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("all"));
 
     RecordedRequest req = server.takeRequest(1, TimeUnit.SECONDS);
-    assertThat(req.getPath())
-        .contains("interval=1day")
-        .contains("outputsize=5000");
+    assertThat(req.getPath()).contains("interval=1day").contains("outputsize=5000");
   }
 
   @Test
@@ -260,7 +267,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldThrowRateLimitExceptionWhenBodyCode429() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 429,
           "message": "You have run out of API credits for the current minute.",
@@ -269,7 +278,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
         """));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataRateLimitException.class)
         .hasMessageContaining("rate limit");
   }
@@ -277,7 +288,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
   @Test
   void shouldThrowUnknownAssetSymbolExceptionWhenBodyCode400AndSymbolNotValid() {
     // "**INVALIDO** is not valid." → símbolo inexistente → detener fallback
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 400,
           "message": "**INVALIDO** is not valid.",
@@ -296,7 +309,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
   void shouldThrowMarketDataServerExceptionWhenBodyCode400AndNoDataForDates() {
     // "No data is available on the specified dates" → símbolo válido, problema de rango
     // → debe permitir fallback al siguiente proveedor (Polygon → AlphaVantage)
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 400,
           "message": "No data is available on the specified dates. Try setting different start/end dates.",
@@ -315,7 +330,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldThrowUnknownAssetSymbolExceptionWhenBodyCode404() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 404,
           "message": "Symbol not found.",
@@ -332,7 +349,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldThrowMarketDataServerExceptionWhenBodyCode401ApiKeyInvalid() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 401,
           "message": "Your API key is invalid.",
@@ -341,14 +360,18 @@ class TwelveDataMarketPriceHistoryAdapterTest {
         """));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class)
         .hasMessageContaining("invalida o expirada");
   }
 
   @Test
   void shouldThrowMarketDataServerExceptionWhenBodyCode403ApiKeyExpired() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 403,
           "message": "Your API key does not have access to this resource.",
@@ -357,14 +380,18 @@ class TwelveDataMarketPriceHistoryAdapterTest {
         """));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class)
         .hasMessageContaining("invalida o expirada");
   }
 
   @Test
   void shouldThrowMarketDataServerExceptionForUnknownBodyErrorCode() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 503,
           "message": "Service temporarily unavailable.",
@@ -373,7 +400,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
         """));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class);
   }
 
@@ -386,7 +415,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     server.enqueue(new MockResponse().setResponseCode(401).setBody("Unauthorized"));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class)
         .hasMessageContaining("invalida o expirada")
         .hasMessageContaining("401");
@@ -397,7 +428,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     server.enqueue(new MockResponse().setResponseCode(403).setBody("Forbidden"));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class)
         .hasMessageContaining("invalida o expirada")
         .hasMessageContaining("403");
@@ -408,7 +441,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     server.enqueue(new MockResponse().setResponseCode(429).setBody("Too Many Requests"));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataRateLimitException.class);
   }
 
@@ -428,7 +463,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     server.enqueue(new MockResponse().setResponseCode(500).setBody("Internal Server Error"));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class);
   }
 
@@ -437,7 +474,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     server.enqueue(new MockResponse().setResponseCode(503));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class);
   }
 
@@ -450,7 +489,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
 
     assertThatThrownBy(
-            () -> adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
+            () ->
+                adapter.fetchPriceHistory(
+                    AssetType.STOCK, "AAPL", HoldingsHistoryRange.parse("30d")))
         .isInstanceOf(MarketDataServerException.class);
   }
 
@@ -472,7 +513,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldSkipEntriesWithMissingCloseField() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {},
           "values": [
@@ -492,7 +535,9 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
   @Test
   void shouldSkipEntriesWithMissingDatetimeField() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {},
           "values": [

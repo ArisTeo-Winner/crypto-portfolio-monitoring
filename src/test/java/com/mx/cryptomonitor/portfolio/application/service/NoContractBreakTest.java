@@ -42,22 +42,28 @@ class NoContractBreakTest {
     UUID userId = UUID.randomUUID();
     // Transaction 60 days ago so it's within any range we query
     LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(60);
-    var snapshot = new PortfolioTransactionSnapshot(
-        "BTC", "CRYPTO", "BUY", null,
-        new BigDecimal("0.5"),
-        new BigDecimal("22500"),
-        new BigDecimal("45000"),
-        BigDecimal.ZERO,
-        txDate);
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "BTC",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("0.5"),
+            new BigDecimal("22500"),
+            new BigDecimal("45000"),
+            BigDecimal.ZERO,
+            txDate);
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
     // Return prices in the recent 30-day window the service will request
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          return buildPricesInRange(cr.start(), cr.end(), new BigDecimal("45000"));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              return buildPricesInRange(cr.start(), cr.end(), new BigDecimal("45000"));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "30d", null);
 
@@ -72,21 +78,27 @@ class NoContractBreakTest {
   void seriesNeverExceeds1500Points() {
     UUID userId = UUID.randomUUID();
     LocalDateTime txDate = LocalDateTime.of(2020, 1, 1, 0, 0);
-    var snapshot = new PortfolioTransactionSnapshot(
-        "ETH", "CRYPTO", "BUY", null,
-        new BigDecimal("2"),
-        new BigDecimal("4000"),
-        new BigDecimal("2000"),
-        BigDecimal.ZERO,
-        txDate);
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "ETH",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("2"),
+            new BigDecimal("4000"),
+            new BigDecimal("2000"),
+            BigDecimal.ZERO,
+            txDate);
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          return buildPricesInRange(cr.start(), cr.end(), new BigDecimal("2000"));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              return buildPricesInRange(cr.start(), cr.end(), new BigDecimal("2000"));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
 
@@ -110,21 +122,27 @@ class NoContractBreakTest {
   void seriesIsSortedByTime() {
     UUID userId = UUID.randomUUID();
     LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(400);
-    var snapshot = new PortfolioTransactionSnapshot(
-        "BTC", "CRYPTO", "BUY", null,
-        new BigDecimal("1"),
-        new BigDecimal("45000"),
-        new BigDecimal("45000"),
-        BigDecimal.ZERO,
-        txDate);
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "BTC",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("1"),
+            new BigDecimal("45000"),
+            new BigDecimal("45000"),
+            BigDecimal.ZERO,
+            txDate);
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          return buildPricesInRange(cr.start(), cr.end(), new BigDecimal("45000"));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              return buildPricesInRange(cr.start(), cr.end(), new BigDecimal("45000"));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "1y", null);
 

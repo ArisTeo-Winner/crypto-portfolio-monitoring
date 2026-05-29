@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.slice.webmvc.auth.infrastructure.inbound.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
@@ -26,13 +28,14 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.domain.exception.TooManyLoginRequestsException;
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.AuthController;
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.problem.AuthExceptionHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
+import com.mx.cryptomonitor.user.infrastructure.security.RefreshTokenCookieHelper;
 
 @WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -45,6 +48,12 @@ class AuthControllerOwaspWebMvcTest {
   @MockBean private AuthService authService;
   @MockBean private JwtRequestFilter jwtRequestFilter;
   @MockBean private LoginRateLimiter loginRateLimiter;
+  @MockBean private RefreshTokenCookieHelper cookieHelper;
+
+  @BeforeEach
+  void setupCookieHelper() {
+    when(cookieHelper.headerName()).thenReturn("Set-Cookie");
+  }
 
   @Test
   @DisplayName("OWASP API4: POST /api/v1/auth/login rate-limited -> 429 + Retry-After + traceId")
@@ -124,10 +133,13 @@ class AuthControllerOwaspWebMvcTest {
   }
 
   @Test
-  @DisplayName("OWASP API2: login OK devuelve tokens con no-store y sin cookie de auth")
-  void login_ok_returns_tokens_without_auth_cookie() throws Exception {
+  @DisplayName(
+      "OWASP API2: login OK → accessToken en body, refreshToken en HttpOnly cookie, no-store")
+  void login_ok_returns_accessToken_in_body_and_refreshToken_as_httpOnly_cookie() throws Exception {
     when(authService.login(any(LoginRequest.class), any()))
-        .thenReturn(new JwtResponse("access-owasp", "refresh-owasp"));
+        .thenReturn(new AuthResult("access-owasp", "refresh-owasp"));
+    when(cookieHelper.buildSetCookieHeader("refresh-owasp"))
+        .thenReturn("refresh_token=refresh-owasp; Path=/api/v1/; HttpOnly; SameSite=Strict");
 
     MvcResult result =
         mockMvc
@@ -139,12 +151,19 @@ class AuthControllerOwaspWebMvcTest {
                         objectMapper.writeValueAsString(
                             new LoginRequest("user@example.com", "ValidPass123!"))))
             .andExpect(status().isOk())
+            // accessToken en el body — el frontend lo guarda en memoria
             .andExpect(jsonPath("$.accessToken").value("access-owasp"))
-            .andExpect(jsonPath("$.refreshToken").value("refresh-owasp"))
+            // refreshToken NO debe aparecer en el body
+            .andExpect(jsonPath("$.refreshToken").doesNotExist())
+            // Anti-caché obligatorio
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
             .andExpect(header().string(HttpHeaders.PRAGMA, "no-cache"))
+            // Refresh token como cookie HttpOnly — JS nunca puede leerla
+            .andExpect(header().string("Set-Cookie", containsString("refresh_token=refresh-owasp")))
+            .andExpect(header().string("Set-Cookie", containsString("HttpOnly")))
             .andReturn();
 
+    // No debe existir ninguna cookie llamada "jwt"
     assertThat(result.getResponse().getCookie("jwt")).isNull();
   }
 }

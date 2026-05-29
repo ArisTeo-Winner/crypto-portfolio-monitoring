@@ -42,21 +42,27 @@ class PerformanceTest {
   void fiveThousandPoints_processedInUnderFiveSeconds() {
     UUID userId = UUID.randomUUID();
     LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(5000);
-    var snapshot = new PortfolioTransactionSnapshot(
-        "BTC", "CRYPTO", "BUY", null,
-        new BigDecimal("1"),
-        new BigDecimal("50000"),
-        new BigDecimal("50000"),
-        BigDecimal.ZERO,
-        txDate);
+    var snapshot =
+        new PortfolioTransactionSnapshot(
+            "BTC",
+            "CRYPTO",
+            "BUY",
+            null,
+            new BigDecimal("1"),
+            new BigDecimal("50000"),
+            new BigDecimal("50000"),
+            BigDecimal.ZERO,
+            txDate);
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          return buildDailyPrices(cr.start(), cr.end(), new BigDecimal("50000"));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              return buildDailyPrices(cr.start(), cr.end(), new BigDecimal("50000"));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
 
@@ -68,18 +74,21 @@ class PerformanceTest {
   @Timeout(5)
   void tenThousandPoints_multipleAssets_processedInUnderFiveSeconds() {
     UUID userId = UUID.randomUUID();
-    List<PortfolioTransactionSnapshot> snapshots = List.of(
-        txSnapshot("BTC", LocalDateTime.now(ZoneOffset.UTC).minusDays(3500)),
-        txSnapshot("ETH", LocalDateTime.now(ZoneOffset.UTC).minusDays(2500)),
-        txSnapshot("SOL", LocalDateTime.now(ZoneOffset.UTC).minusDays(1500)));
+    List<PortfolioTransactionSnapshot> snapshots =
+        List.of(
+            txSnapshot("BTC", LocalDateTime.now(ZoneOffset.UTC).minusDays(3500)),
+            txSnapshot("ETH", LocalDateTime.now(ZoneOffset.UTC).minusDays(2500)),
+            txSnapshot("SOL", LocalDateTime.now(ZoneOffset.UTC).minusDays(1500)));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(snapshots);
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
-    when(marketPriceHistoryPort.getPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          return buildDailyPrices(cr.start(), cr.end(), new BigDecimal("50000"));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              return buildDailyPrices(cr.start(), cr.end(), new BigDecimal("50000"));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "all", null);
 
@@ -88,7 +97,10 @@ class PerformanceTest {
 
   private PortfolioTransactionSnapshot txSnapshot(String symbol, LocalDateTime date) {
     return new PortfolioTransactionSnapshot(
-        symbol, "CRYPTO", "BUY", null,
+        symbol,
+        "CRYPTO",
+        "BUY",
+        null,
         new BigDecimal("1"),
         new BigDecimal("50000"),
         new BigDecimal("50000"),

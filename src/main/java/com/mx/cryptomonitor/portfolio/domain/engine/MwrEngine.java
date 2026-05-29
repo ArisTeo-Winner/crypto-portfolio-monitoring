@@ -17,6 +17,7 @@ import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAccountingTransactio
  * the TWR. This mirrors how IBKR PortfolioAnalyst reports MWR.
  *
  * <p>Cash-flow convention (from the investor's perspective):
+ *
  * <ul>
  *   <li>BUY: outflow → {@code -(grossValue + fee)} (money leaves the investor's pocket)
  *   <li>SELL: inflow → {@code +(grossValue − fee)} (money returns to the investor)
@@ -24,9 +25,11 @@ import com.mx.cryptomonitor.portfolio.domain.model.PortfolioAccountingTransactio
  * </ul>
  *
  * <p>The XIRR equation solved here is:
+ *
  * <pre>
  *   NPV(r) = Σ CF_i / (1+r)^(d_i/365.25) = 0
  * </pre>
+ *
  * where {@code d_i} is the number of days from the earliest cash-flow date.
  *
  * <p>Solution method: Newton-Raphson with up to {@value #MAX_ITERATIONS} iterations and an initial

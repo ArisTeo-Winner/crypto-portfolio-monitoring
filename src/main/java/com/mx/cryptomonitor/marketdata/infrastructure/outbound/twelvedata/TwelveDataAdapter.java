@@ -111,7 +111,8 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
             response ->
                 response
                     .bodyToMono(String.class)
-                    .map(body -> new TwelveDataRateLimitException("HTTP 429 de TwelveData: " + body))
+                    .map(
+                        body -> new TwelveDataRateLimitException("HTTP 429 de TwelveData: " + body))
                     .switchIfEmpty(
                         reactor.core.publisher.Mono.just(
                             new TwelveDataRateLimitException("HTTP 429 de TwelveData"))))
@@ -141,9 +142,7 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
                     .switchIfEmpty(
                         reactor.core.publisher.Mono.just(
                             new TwelveDataException(
-                                "Error HTTP "
-                                    + response.statusCode().value()
-                                    + " de TwelveData"))))
+                                "Error HTTP " + response.statusCode().value() + " de TwelveData"))))
         .onStatus(
             status -> status.is5xxServerError(),
             response ->
@@ -164,11 +163,13 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
                                     + ")"))))
         .bodyToMono(Map.class)
         .map(this::extractPrice)
-        .onErrorMap(WebClientRequestException.class, ex -> {
-          log.error("TwelveData /price: error de red/timeout para {}", symbol, ex);
-          return new TwelveDataException(
-              "Error de conectividad con TwelveData para el simbolo: " + symbol, ex);
-        })
+        .onErrorMap(
+            WebClientRequestException.class,
+            ex -> {
+              log.error("TwelveData /price: error de red/timeout para {}", symbol, ex);
+              return new TwelveDataException(
+                  "Error de conectividad con TwelveData para el simbolo: " + symbol, ex);
+            })
         .onErrorMap(
             ex -> !isKnownProviderException(ex),
             ex -> {
@@ -250,7 +251,8 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
             response ->
                 response
                     .bodyToMono(String.class)
-                    .map(body -> new TwelveDataRateLimitException("HTTP 429 de TwelveData: " + body))
+                    .map(
+                        body -> new TwelveDataRateLimitException("HTTP 429 de TwelveData: " + body))
                     .switchIfEmpty(
                         reactor.core.publisher.Mono.just(
                             new TwelveDataRateLimitException("HTTP 429 de TwelveData"))))
@@ -280,9 +282,7 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
                     .switchIfEmpty(
                         reactor.core.publisher.Mono.just(
                             new TwelveDataException(
-                                "Error HTTP "
-                                    + response.statusCode().value()
-                                    + " de TwelveData"))))
+                                "Error HTTP " + response.statusCode().value() + " de TwelveData"))))
         .onStatus(
             status -> status.is5xxServerError(),
             response ->
@@ -303,17 +303,18 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
                                     + ")"))))
         .bodyToMono(Map.class)
         .map(json -> extractHistorical(json, date))
-        .onErrorMap(WebClientRequestException.class, ex -> {
-          log.error(
-              "TwelveData /time_series: error de red/timeout para {} en {}", symbol, date, ex);
-          return new TwelveDataException(
-              "Error de conectividad con TwelveData para el simbolo: " + symbol, ex);
-        })
+        .onErrorMap(
+            WebClientRequestException.class,
+            ex -> {
+              log.error(
+                  "TwelveData /time_series: error de red/timeout para {} en {}", symbol, date, ex);
+              return new TwelveDataException(
+                  "Error de conectividad con TwelveData para el simbolo: " + symbol, ex);
+            })
         .onErrorMap(
             ex -> !isKnownProviderException(ex),
             ex -> {
-              log.error(
-                  "Error inesperado TwelveData /time_series para {} en {}", symbol, date, ex);
+              log.error("Error inesperado TwelveData /time_series para {} en {}", symbol, date, ex);
               return new TwelveDataException(
                   "No se pudo consultar TwelveData historico para el simbolo: " + symbol, ex);
             })
@@ -416,8 +417,7 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
                         .bodyToMono(String.class)
                         .map(
                             body ->
-                                new TwelveDataRateLimitException(
-                                    "HTTP 429 de TwelveData: " + body))
+                                new TwelveDataRateLimitException("HTTP 429 de TwelveData: " + body))
                         .switchIfEmpty(
                             reactor.core.publisher.Mono.just(
                                 new TwelveDataRateLimitException("HTTP 429 de TwelveData"))))
@@ -560,10 +560,10 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
    * <p>Twelve Data usa el mismo body code {@code 400} para dos categorías distintas:
    *
    * <ul>
-   *   <li><b>Símbolo inválido</b> (mensaje contiene "symbol" o "not found") →
-   *       {@link TwelveDataInvalidSymbolException}: detiene el fallback en el orquestador.
-   *   <li><b>Sin datos para esas fechas</b> (mensaje contiene "no data" o "date") →
-   *       {@link TwelveDataException}: permite fallback al siguiente proveedor.
+   *   <li><b>Símbolo inválido</b> (mensaje contiene "symbol" o "not found") → {@link
+   *       TwelveDataInvalidSymbolException}: detiene el fallback en el orquestador.
+   *   <li><b>Sin datos para esas fechas</b> (mensaje contiene "no data" o "date") → {@link
+   *       TwelveDataException}: permite fallback al siguiente proveedor.
    * </ul>
    *
    * <p>Body code {@code 404} siempre indica símbolo inexistente.
@@ -587,7 +587,8 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
           throw new TwelveDataInvalidSymbolException(message);
         }
         // "No data is available on the specified dates" u otros 400 → upstream error (fallback).
-        log.debug("TwelveData body error 400 (no es simbolo invalido, se permite fallback): {}", message);
+        log.debug(
+            "TwelveData body error 400 (no es simbolo invalido, se permite fallback): {}", message);
         throw new TwelveDataException("TwelveData sin datos (code=400): " + message);
       }
       case 401, 403 -> {
@@ -599,16 +600,17 @@ public class TwelveDataAdapter implements StockQuoteProvider, StockTimeSeriesPor
         throw new TwelveDataAuthException(
             "API key de TwelveData invalida o expirada (body code " + code + "): " + message);
       }
-      default -> throw new TwelveDataException("TwelveData error inesperado (code=" + code + "): " + message);
+      default -> throw new TwelveDataException(
+          "TwelveData error inesperado (code=" + code + "): " + message);
     }
   }
 
   /**
    * Determina si el mensaje de error de Twelve Data indica que el símbolo no existe.
    *
-   * <p>Twelve Data usa mensajes como "Symbol not found" o "**symbol** is not supported"
-   * para símbolos inexistentes, mientras que "No data is available on the specified dates"
-   * u "Output size is out of range" son errores de rango/fecha donde el símbolo sí existe.
+   * <p>Twelve Data usa mensajes como "Symbol not found" o "**symbol** is not supported" para
+   * símbolos inexistentes, mientras que "No data is available on the specified dates" u "Output
+   * size is out of range" son errores de rango/fecha donde el símbolo sí existe.
    */
   private boolean isSymbolNotFoundMessage(String message) {
     if (message == null) return false;

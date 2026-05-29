@@ -42,50 +42,53 @@ class CoinGeckoFallbackTest {
     when(binanceAdapter.supports(AssetType.CRYPTO)).thenReturn(true);
     when(coinGeckoAdapter.supports(AssetType.CRYPTO)).thenReturn(true);
     // providers ordered: Binance first, CoinGecko second
-    adapter = new CachedMarketPriceHistoryAdapter(cachePort, List.of(binanceAdapter, coinGeckoAdapter));
+    adapter =
+        new CachedMarketPriceHistoryAdapter(cachePort, List.of(binanceAdapter, coinGeckoAdapter));
   }
 
   @Test
   void whenBinanceThrowsUnknownSymbol_coinGeckoIsUsedAsFallback() {
-    List<PricePoint> prices = List.of(
-        new PricePoint(Instant.now(), new BigDecimal("2000")));
+    List<PricePoint> prices = List.of(new PricePoint(Instant.now(), new BigDecimal("2000")));
 
     when(cachePort.getPriceHistory(any(), any(), any())).thenReturn(List.of());
     when(cachePort.acquireLoadLock(any(), any(), any(), any())).thenReturn(true);
     when(binanceAdapter.fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
         .thenThrow(new UnknownAssetSymbolException("SHIBUSDT not found on Binance"));
-    when(coinGeckoAdapter.fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
+    when(coinGeckoAdapter.fetchPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
         .thenReturn(prices);
 
-    ChartResolution cr = new ChartResolutionStrategy().resolve(
-        Instant.now().minus(Duration.ofDays(30)),
-        Instant.now());
+    ChartResolution cr =
+        new ChartResolutionStrategy()
+            .resolve(Instant.now().minus(Duration.ofDays(30)), Instant.now());
 
     List<PricePoint> result = adapter.getPriceHistory(AssetType.CRYPTO, "SHIB", cr);
 
     assertThat(result).isEqualTo(prices);
-    verify(binanceAdapter).fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class));
-    verify(coinGeckoAdapter).fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class));
+    verify(binanceAdapter)
+        .fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class));
+    verify(coinGeckoAdapter)
+        .fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class));
   }
 
   @Test
   void whenBinanceSucceeds_coinGeckoIsNotCalled() {
-    List<PricePoint> prices = List.of(
-        new PricePoint(Instant.now(), new BigDecimal("45000")));
+    List<PricePoint> prices = List.of(new PricePoint(Instant.now(), new BigDecimal("45000")));
 
     when(cachePort.getPriceHistory(any(), any(), any())).thenReturn(List.of());
     when(cachePort.acquireLoadLock(any(), any(), any(), any())).thenReturn(true);
     when(binanceAdapter.fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
         .thenReturn(prices);
 
-    ChartResolution cr = new ChartResolutionStrategy().resolve(
-        Instant.now().minus(Duration.ofDays(30)),
-        Instant.now());
+    ChartResolution cr =
+        new ChartResolutionStrategy()
+            .resolve(Instant.now().minus(Duration.ofDays(30)), Instant.now());
 
     List<PricePoint> result = adapter.getPriceHistory(AssetType.CRYPTO, "BTC", cr);
 
     assertThat(result).isEqualTo(prices);
-    verify(coinGeckoAdapter, never()).fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class));
+    verify(coinGeckoAdapter, never())
+        .fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class));
   }
 
   @Test
@@ -94,12 +97,13 @@ class CoinGeckoFallbackTest {
     when(cachePort.acquireLoadLock(any(), any(), any(), any())).thenReturn(true);
     when(binanceAdapter.fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
         .thenThrow(new UnknownAssetSymbolException("Not on Binance"));
-    when(coinGeckoAdapter.fetchPriceHistory(any(AssetType.class), any(), any(ChartResolution.class)))
+    when(coinGeckoAdapter.fetchPriceHistory(
+            any(AssetType.class), any(), any(ChartResolution.class)))
         .thenThrow(new UnknownAssetSymbolException("Not on CoinGecko"));
 
-    ChartResolution cr = new ChartResolutionStrategy().resolve(
-        Instant.now().minus(Duration.ofDays(30)),
-        Instant.now());
+    ChartResolution cr =
+        new ChartResolutionStrategy()
+            .resolve(Instant.now().minus(Duration.ofDays(30)), Instant.now());
 
     assertThatThrownBy(() -> adapter.getPriceHistory(AssetType.CRYPTO, "UNKNOWN", cr))
         .isInstanceOf(UnknownAssetSymbolException.class);

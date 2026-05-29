@@ -103,7 +103,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     String jwt = null;
 
     if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-      jwt = authorizationHeader.substring(7); // Extrae el token después de "Bearer "
+      jwt = authorizationHeader.substring(7);
       try {
         username = jwtTokenUtil.getUsernameFromToken(jwt);
       } catch (IllegalArgumentException e) {
@@ -112,6 +112,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         logger.warn("El token ha expirado", e);
       }
     } else {
+      // Sin header Authorization: no hay credenciales que procesar.
+      // Con SessionCreationPolicy.STATELESS no existe sesión que pueda autenticar
+      // este request. Spring Security evaluará la regla hasRole('USER') y emitirá
+      // el 401 vía JwtAuthenticationEntryPoint al no encontrar autenticación en el contexto.
       logger.warn(
           "El encabezado Authorization no contiene un token JWT válido para la ruta: {}",
           requestURI);

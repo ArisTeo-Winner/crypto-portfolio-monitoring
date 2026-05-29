@@ -10,7 +10,6 @@ import java.util.Optional;
  * query-param {@code interval} en la llamada HTTP.
  */
 public enum StockInterval {
-
   ONE_MIN("1min"),
   FIVE_MIN("5min"),
   FIFTEEN_MIN("15min"),
@@ -36,8 +35,8 @@ public enum StockInterval {
   }
 
   /**
-   * Busca la constante cuyo {@link #apiCode} coincide con el string recibido
-   * (insensible a mayúsculas).
+   * Busca la constante cuyo {@link #apiCode} coincide con el string recibido (insensible a
+   * mayúsculas).
    *
    * @return {@link Optional#empty()} si el valor no corresponde a ningún intervalo válido
    */
@@ -45,9 +44,7 @@ public enum StockInterval {
     if (code == null || code.isBlank()) {
       return Optional.empty();
     }
-    return Arrays.stream(values())
-        .filter(i -> i.apiCode.equalsIgnoreCase(code.trim()))
-        .findFirst();
+    return Arrays.stream(values()).filter(i -> i.apiCode.equalsIgnoreCase(code.trim())).findFirst();
   }
 
   /** Todos los códigos válidos como string separado por comas — para mensajes de error. */

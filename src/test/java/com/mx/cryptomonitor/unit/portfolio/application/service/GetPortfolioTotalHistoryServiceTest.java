@@ -41,21 +41,23 @@ class GetPortfolioTotalHistoryServiceTest {
     when(portfolioAssetUniversePort.getAssetsByUser(userId))
         .thenReturn(List.of(new PortfolioAssetReference(AssetType.CRYPTO, "BTC")));
     // Return two price points within the actual requested range
-    when(marketPriceHistoryPort.getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
-        .thenAnswer(inv -> {
-          ChartResolution cr = inv.getArgument(2);
-          long startSec = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
-          return List.of(
-              new PricePoint(Instant.ofEpochSecond(startSec), new BigDecimal("100.00")),
-              new PricePoint(Instant.ofEpochSecond(startSec + 86400), new BigDecimal("110.00")));
-        });
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long startSec = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
+              return List.of(
+                  new PricePoint(Instant.ofEpochSecond(startSec), new BigDecimal("100.00")),
+                  new PricePoint(
+                      Instant.ofEpochSecond(startSec + 86400), new BigDecimal("110.00")));
+            });
 
     PortfolioHistoryResult result = service.getTotalHistory(userId, "30d", "CRYPTO");
 
     // With no transactions, holdings = 0, so every value must be zero
     assertThat(result.series()).isNotEmpty();
-    result.series().forEach(p ->
-        assertThat(p.value()).isEqualByComparingTo(BigDecimal.ZERO));
+    result.series().forEach(p -> assertThat(p.value()).isEqualByComparingTo(BigDecimal.ZERO));
   }
 
   @Test
@@ -64,7 +66,8 @@ class GetPortfolioTotalHistoryServiceTest {
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of());
     when(portfolioAssetUniversePort.getAssetsByUser(userId))
         .thenReturn(List.of(new PortfolioAssetReference(AssetType.CRYPTO, "BTC")));
-    when(marketPriceHistoryPort.getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
         .thenReturn(List.of());
 
     assertThat(service.getTotalHistory(userId, "30d", "CRYPTO").series()).isEmpty();

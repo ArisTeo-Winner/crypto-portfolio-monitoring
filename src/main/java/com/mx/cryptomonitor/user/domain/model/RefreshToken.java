@@ -36,8 +36,8 @@ public class RefreshToken {
   @JoinColumn(name = "user_id")
   private User user;
 
-  @Column(name = "refresh_token")
-  // Stores HMAC-SHA-256 hash of the refresh token (never the raw token value).
+  // columnDefinition=TEXT: los JWT RS256 (~500+ chars) superan el límite de VARCHAR(255).
+  @Column(name = "refresh_token", columnDefinition = "TEXT")
   private String refreshToken;
 
   @Column(name = "created_at")

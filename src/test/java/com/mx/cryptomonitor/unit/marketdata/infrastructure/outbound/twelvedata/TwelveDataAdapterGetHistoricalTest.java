@@ -43,8 +43,7 @@ class TwelveDataAdapterGetHistoricalTest {
     server = new MockWebServer();
     server.start();
     adapter =
-        new TwelveDataAdapter(
-            WebClient.builder().build(), server.url("/").toString(), "test-key");
+        new TwelveDataAdapter(WebClient.builder().build(), server.url("/").toString(), "test-key");
   }
 
   @AfterEach
@@ -58,7 +57,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldReturnClosePriceForMatchingDate() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {"symbol": "AAPL", "interval": "1day"},
           "values": [
@@ -86,7 +87,9 @@ class TwelveDataAdapterGetHistoricalTest {
   @Test
   void shouldReturnEmptyWhenDateNotPresentInReturnedValues() {
     // La lista tiene velas pero ninguna coincide con la fecha pedida (ej. fin de semana)
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {},
           "values": [
@@ -103,7 +106,9 @@ class TwelveDataAdapterGetHistoricalTest {
   @Test
   void shouldFindDateAnywhere_InValues_NotOnlyFirst() {
     // Twelve Data devuelve descendente; la fecha buscada puede estar en posición 2, 3...
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {"symbol": "IBM"},
           "values": [
@@ -123,7 +128,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldReturnEmptyWhenCloseFieldIsMissing() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "meta": {},
           "values": [
@@ -177,7 +184,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldThrowRateLimitExceptionWhenBodyCode429() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 429,
           "message": "You have run out of API credits for the current minute.",
@@ -193,7 +202,9 @@ class TwelveDataAdapterGetHistoricalTest {
   @Test
   void shouldThrowInvalidSymbolExceptionWhenBodyCode400AndSymbolNotValid() {
     // Twelve Data: "**INVALIDO** is not valid." → símbolo no existe → detener fallback
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 400,
           "message": "**INVALIDO** is not valid.",
@@ -209,7 +220,9 @@ class TwelveDataAdapterGetHistoricalTest {
   void shouldThrowUpstreamExceptionWhenBodyCode400AndNoDataForDates() {
     // Reproducción exacta del bug en producción: IBM con fecha futura/sin datos.
     // Twelve Data devuelve code=400 pero el símbolo sí existe → se debe permitir fallback.
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 400,
           "message": "No data is available on the specified dates. Try setting different start/end dates.",
@@ -225,7 +238,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldThrowInvalidSymbolExceptionWhenBodyCode404() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 404,
           "message": "Symbol not found.",
@@ -239,7 +254,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldThrowAuthExceptionWhenBodyCode401() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 401,
           "message": "Your API key is invalid.",
@@ -254,7 +271,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldThrowAuthExceptionWhenBodyCode403() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 403,
           "message": "Your API key does not have access to this resource.",
@@ -269,7 +288,9 @@ class TwelveDataAdapterGetHistoricalTest {
 
   @Test
   void shouldThrowGenericExceptionForUnknownBodyErrorCode() {
-    server.enqueue(jsonOk("""
+    server.enqueue(
+        jsonOk(
+            """
         {
           "code": 503,
           "message": "Service temporarily unavailable.",

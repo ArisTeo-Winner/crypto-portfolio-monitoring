@@ -13,11 +13,12 @@ import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 /**
  * Computes the Time-Weighted Return (TWR) for a portfolio.
  *
- * <p>The TWR chains sub-period holding-period returns (HPR) at each external cash-flow event
- * (BUY / SELL transaction), which eliminates the distortion caused by the timing and size of
- * investor deposits and withdrawals. This is the same methodology used by IBKR PortfolioAnalyst.
+ * <p>The TWR chains sub-period holding-period returns (HPR) at each external cash-flow event (BUY /
+ * SELL transaction), which eliminates the distortion caused by the timing and size of investor
+ * deposits and withdrawals. This is the same methodology used by IBKR PortfolioAnalyst.
  *
  * <p>Algorithm:
+ *
  * <ol>
  *   <li>Sort all unique transaction timestamps that fall strictly within the value-series range.
  *   <li>For each consecutive pair of boundaries {@code [t_prev, t_curr]}:
@@ -55,12 +56,13 @@ public class TwrEngine {
 
     // Transaction times that act as sub-period boundaries (strictly inside the series range)
     List<Long> boundaries =
-        (transactions == null ? List.<PortfolioAccountingTransaction>of() : transactions).stream()
-            .map(tx -> tx.time().getEpochSecond())
-            .filter(t -> t > seriesStart && t < seriesEnd)
-            .distinct()
-            .sorted()
-            .toList();
+        (transactions == null ? List.<PortfolioAccountingTransaction>of() : transactions)
+            .stream()
+                .map(tx -> tx.time().getEpochSecond())
+                .filter(t -> t > seriesStart && t < seriesEnd)
+                .distinct()
+                .sorted()
+                .toList();
 
     if (boundaries.isEmpty()) {
       // No cash-flow events: single sub-period covering the entire series

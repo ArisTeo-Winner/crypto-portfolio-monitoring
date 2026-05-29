@@ -13,7 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
@@ -42,13 +42,15 @@ class OAuth2AuthenticationSuccessHandlerUnitTest {
     var request = mock(HttpServletRequest.class);
     var response = new MockHttpServletResponse();
 
-    when(authService.issueTokensForUser(eq(user), any())).thenReturn(new JwtResponse("A", "R"));
+    when(authService.issueTokensForUser(eq(user), any())).thenReturn(new AuthResult("A", "R"));
 
     handler.onAuthenticationSuccess(request, response, auth);
 
     assertThat(response.getStatus()).isEqualTo(302);
+    // El refresh token ya NO viaja en la URL — va como cookie HttpOnly en el header Set-Cookie
     assertThat(response.getRedirectedUrl())
-        .isEqualTo("http://localhost:3000/auth/callback#accessToken=A&refreshToken=R");
+        .isEqualTo("http://localhost:3000/auth/callback#accessToken=A");
+    assertThat(response.getHeader("Set-Cookie")).contains("refresh_token=R").contains("HttpOnly");
 
     verify(userRepository).save(savedUserCaptor.capture());
     assertThat(savedUserCaptor.getValue()).isSameAs(user);

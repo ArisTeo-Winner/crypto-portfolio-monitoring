@@ -35,9 +35,11 @@ import lombok.RequiredArgsConstructor;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+  // 'unsafe-inline' eliminado de script-src — un API REST no debe ejecutar scripts inline.
+  // Si el flujo OAuth2 requiere HTML mínimo, hacerlo sin inline scripts.
   private static final String API_CONTENT_SECURITY_POLICY =
       "default-src 'self'; "
-          + "script-src 'self' 'unsafe-inline'; "
+          + "script-src 'self'; "
           + "style-src 'self' 'unsafe-inline'; "
           + "img-src 'self' data: https:; "
           + "font-src 'self' data:; "
@@ -172,8 +174,11 @@ public class SecurityConfig {
                 exception
                     .accessDeniedHandler(customAccessDeniedHandler)
                     .authenticationEntryPoint(jwtAuthenticationEntryPoint))
+        // STATELESS: la API autentica exclusivamente por JWT en cada request.
+        // IF_REQUIRED permitía que Spring creara una sesión HTTP en el primer login y que
+        // requests posteriores sin token pasaran autenticados vía cookie JSESSIONID.
         .sessionManagement(
-            session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
     http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -185,6 +190,7 @@ public class SecurityConfig {
     CorsConfiguration configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(List.of(frontendBaseUrl));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    // X-Refresh-Token eliminado: el refresh token ya viaja exclusivamente como cookie HttpOnly.
     configuration.setAllowedHeaders(
         List.of(
             "Authorization",
@@ -192,7 +198,6 @@ public class SecurityConfig {
             "Accept",
             "Origin",
             "X-Idempotency-Key",
-            "X-Refresh-Token",
             "X-Request-Id"));
     configuration.setExposedHeaders(List.of("Location", "X-Request-Id"));
     configuration.setAllowCredentials(true);
@@ -203,14 +208,22 @@ public class SecurityConfig {
     return source;
   }
 
+  /**
+   * HttpFirewall con configuración conservadora.
+   *
+   * <p>Solo se habilita {@code allowUrlEncodedSlash} porque algunos símbolos de activos (p.ej.
+   * {@code BTC%2FUSDT}) viajan codificados en path variables. El resto de caracteres peligrosos
+   * (backslash, semicolon, double-encoded percent) se mantienen bloqueados para prevenir ataques de
+   * path traversal y parameter pollution.
+   */
   @Bean
   public HttpFirewall allowUrlEncodedSlashHttpFirewall() {
     StrictHttpFirewall firewall = new StrictHttpFirewall();
-    firewall.setAllowUrlEncodedSlash(true);
-    firewall.setAllowUrlEncodedPercent(true);
-    firewall.setAllowSemicolon(true);
-    firewall.setAllowBackSlash(true);
-    firewall.setAllowUrlEncodedPeriod(true);
+    firewall.setAllowUrlEncodedSlash(true); // necesario para símbolos con '/' en path vars
+    // setAllowUrlEncodedPercent(false)  — default, previene double-encoding
+    // setAllowSemicolon(false)          — default, previene parameter pollution
+    // setAllowBackSlash(false)          — default, previene path traversal en Windows
+    // setAllowUrlEncodedPeriod(false)   — default, previene traversal con %2E
     return firewall;
   }
 }
