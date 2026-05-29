@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ class NoContractBreakTest {
   void seriesPointsHaveTimeAndValue() {
     UUID userId = UUID.randomUUID();
     // Transaction 60 days ago so it's within any range we query
-    LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(60);
+    OffsetDateTime txDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(60);
     var snapshot =
         new PortfolioTransactionSnapshot(
             "BTC",
@@ -77,7 +77,7 @@ class NoContractBreakTest {
   @Test
   void seriesNeverExceeds1500Points() {
     UUID userId = UUID.randomUUID();
-    LocalDateTime txDate = LocalDateTime.of(2020, 1, 1, 0, 0);
+    OffsetDateTime txDate = OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     var snapshot =
         new PortfolioTransactionSnapshot(
             "ETH",
@@ -121,7 +121,7 @@ class NoContractBreakTest {
   @Test
   void seriesIsSortedByTime() {
     UUID userId = UUID.randomUUID();
-    LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(400);
+    OffsetDateTime txDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(400);
     var snapshot =
         new PortfolioTransactionSnapshot(
             "BTC",

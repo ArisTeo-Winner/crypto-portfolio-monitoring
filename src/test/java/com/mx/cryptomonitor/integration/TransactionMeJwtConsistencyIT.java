@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -176,11 +178,11 @@ class TransactionMeJwtConsistencyIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("47500.00"),
-        LocalDateTime.of(2026, 3, 6, 12, 0),
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
         new BigDecimal("10.00"),
         "buy btc",
-        LocalDateTime.of(2026, 3, 6, 12, 0),
-        LocalDateTime.of(2026, 3, 6, 12, 0));
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC));
   }
 
   private String validTransactionRequest() {

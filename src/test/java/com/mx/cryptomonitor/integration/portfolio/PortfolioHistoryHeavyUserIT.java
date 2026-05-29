@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -245,8 +245,8 @@ class PortfolioHistoryHeavyUserIT {
     // Alternating BUY(0.2)/SELL(0.1) → net position always positive.
     for (int i = 0; i < TX_COUNT; i++) {
       boolean isBuy = (i % 2 == 0);
-      LocalDateTime date =
-          LocalDateTime.now(ZoneOffset.UTC)
+      OffsetDateTime date =
+          OffsetDateTime.now(ZoneOffset.UTC)
               .minusDays(365)
               .plusDays((long) ((365.0 / TX_COUNT) * i))
               .withHour(10)

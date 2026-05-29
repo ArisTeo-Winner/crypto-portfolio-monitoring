@@ -15,7 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -152,7 +153,7 @@ class TransactionControllerCreateTransactionIT {
                 AssetType.CRYPTO,
                 "BUY",
                 null,
-                LocalDateTime.of(2026, 1, 24, 17, 55),
+                OffsetDateTime.of(2026, 1, 24, 17, 55, 0, 0, ZoneOffset.UTC),
                 new BigDecimal("0.25"),
                 new BigDecimal("89208.14"),
                 new BigDecimal("22302.04"),
@@ -404,7 +405,7 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("47500.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         new BigDecimal("10.00"),
         "buy btc");
   }
@@ -416,7 +417,7 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("10.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         "buy btc");
   }
 
@@ -427,7 +428,7 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("10.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         "sell btc");
   }
 
@@ -438,7 +439,7 @@ class TransactionControllerCreateTransactionIT {
         "TRANSFER_IN",
         new BigDecimal("0.25"),
         new BigDecimal("0.0002"),
-        LocalDateTime.of(2026, 3, 10, 2, 11),
+        OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
         "transfer btc");
   }
 
@@ -448,7 +449,7 @@ class TransactionControllerCreateTransactionIT {
         "CRYPTO",
         new BigDecimal("0.75"),
         new BigDecimal("91000.00"),
-        LocalDateTime.of(2026, 3, 8, 9, 0),
+        OffsetDateTime.of(2026, 3, 8, 9, 0, 0, 0, ZoneOffset.UTC),
         new BigDecimal("15.00"),
         "edited btc",
         null);
@@ -463,11 +464,11 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("47500.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         new BigDecimal("10.00"),
         transferType == null ? "buy btc" : "transfer btc",
-        LocalDateTime.of(2026, 3, 6, 10, 0),
-        LocalDateTime.of(2026, 3, 6, 10, 0));
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC));
   }
 
   private TestingAuthenticationToken userAuthentication(UUID userId, String role) {

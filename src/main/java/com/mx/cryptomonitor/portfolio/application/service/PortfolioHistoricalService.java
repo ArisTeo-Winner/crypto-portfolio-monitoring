@@ -3,7 +3,6 @@ package com.mx.cryptomonitor.portfolio.application.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -55,11 +54,11 @@ public class PortfolioHistoricalService implements PortfolioChartPort {
     Instant cutoff = Instant.now().minusSeconds((long) rangeDays * 24L * 60L * 60L);
     return transactionHistoryPort.getTransactionsByUser(userId).stream()
         .filter(snapshot -> isBuyOrSell(snapshot.transactionType()))
-        .filter(snapshot -> !snapshot.transactionDate().toInstant(ZoneOffset.UTC).isBefore(cutoff))
+        .filter(snapshot -> !snapshot.transactionDate().toInstant().isBefore(cutoff))
         .map(
             snapshot ->
                 new PortfolioMarkerResponse(
-                    snapshot.transactionDate().toInstant(ZoneOffset.UTC).getEpochSecond(),
+                    snapshot.transactionDate().toInstant().getEpochSecond(),
                     markerPosition(snapshot.transactionType()),
                     markerColor(snapshot.transactionType()),
                     markerShape(snapshot.transactionType()),

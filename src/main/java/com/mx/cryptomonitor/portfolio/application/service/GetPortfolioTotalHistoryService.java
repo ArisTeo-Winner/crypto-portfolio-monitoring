@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -197,7 +196,7 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     }
     long firstTxEpoch =
         snapshots.stream()
-            .map(s -> s.transactionDate().toInstant(ZoneOffset.UTC).getEpochSecond())
+            .map(s -> s.transactionDate().toInstant().getEpochSecond())
             .min(Long::compareTo)
             .orElse(end.getEpochSecond() - Duration.ofDays(365).getSeconds());
     return Instant.ofEpochSecond(alignToUtcDayStart(firstTxEpoch));
@@ -239,7 +238,7 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   private PortfolioAccountingTransaction toAccountingTransaction(
       PortfolioTransactionSnapshot snapshot) {
     return new PortfolioAccountingTransaction(
-        snapshot.transactionDate().toInstant(ZoneOffset.UTC),
+        snapshot.transactionDate().toInstant(),
         snapshot.assetSymbol(),
         AssetType.from(snapshot.assetType()),
         snapshot.transactionType(),

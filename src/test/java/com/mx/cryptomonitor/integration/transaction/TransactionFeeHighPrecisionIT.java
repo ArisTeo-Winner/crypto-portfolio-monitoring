@@ -7,7 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -71,7 +72,7 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("2.5"),
             new BigDecimal("45000.00000000"),
             FEE,
-            LocalDateTime.now(),
+            OffsetDateTime.now(ZoneOffset.UTC),
             "regresion-fee-precision-buy");
 
     MvcResult result =
@@ -110,7 +111,7 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("2.5"),
             new BigDecimal("45000.00000000"),
             FEE,
-            LocalDateTime.now(),
+            OffsetDateTime.now(ZoneOffset.UTC),
             "regresion-fee-precision-buy-modal");
 
     MvcResult createResult =
@@ -166,7 +167,7 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("5.00000000"),
             new BigDecimal("50000.12345678"),
             BigDecimal.ZERO,
-            LocalDateTime.now(),
+            OffsetDateTime.now(ZoneOffset.UTC),
             "setup-eth-position-for-sell-test");
 
     mockMvc
@@ -189,7 +190,7 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("1.00000000"),
             new BigDecimal("50000.12345678"),
             FEE,
-            LocalDateTime.now(),
+            OffsetDateTime.now(ZoneOffset.UTC),
             "regresion-fee-precision-sell-modal");
 
     MvcResult createResult =

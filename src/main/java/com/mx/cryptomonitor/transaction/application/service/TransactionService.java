@@ -1,7 +1,8 @@
 package com.mx.cryptomonitor.transaction.application.service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -125,7 +126,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             transaction.setNotes(request.notes());
             transaction.setTransferType(
                 resolveTransferType(transactionType, request.transferType()));
-            transaction.setUpdatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
             Transaction saved = transactionRepository.save(transaction);
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);

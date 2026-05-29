@@ -11,7 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -103,11 +104,11 @@ class TransactionServiceTest {
             new BigDecimal("0.50"),
             new BigDecimal("95000.00"),
             new BigDecimal("47500.00"),
-            LocalDateTime.of(2026, 3, 10, 1, 0),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
             new BigDecimal("10.00"),
             "buy btc",
-            LocalDateTime.of(2026, 3, 10, 1, 0),
-            LocalDateTime.of(2026, 3, 10, 1, 0));
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
     transaction = new Transaction();
     transaction.setTransactionId(UUID.randomUUID());
     transaction.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
@@ -118,10 +119,10 @@ class TransactionServiceTest {
     transaction.setPricePerUnit(new BigDecimal("95000.00"));
     transaction.setTotalValue(new BigDecimal("47500.00"));
     transaction.setFee(new BigDecimal("10.00"));
-    transaction.setTransactionDate(LocalDateTime.of(2026, 3, 10, 1, 0));
+    transaction.setTransactionDate(OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
     transaction.setNotes("buy btc");
-    transaction.setCreatedAt(LocalDateTime.of(2026, 3, 10, 1, 0));
-    transaction.setUpdatedAt(LocalDateTime.of(2026, 3, 10, 1, 0));
+    transaction.setCreatedAt(OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
+    transaction.setUpdatedAt(OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
   }
 
   @Test
@@ -135,7 +136,7 @@ class TransactionServiceTest {
             BigDecimal.ONE,
             new BigDecimal("10"),
             new BigDecimal("10"),
-            LocalDateTime.now(),
+            OffsetDateTime.now(ZoneOffset.UTC),
             BigDecimal.ONE,
             "Notes");
 
@@ -159,7 +160,7 @@ class TransactionServiceTest {
             new BigDecimal("0.25"),
             new BigDecimal("89208.14"),
             new BigDecimal("0.50"),
-            LocalDateTime.of(2026, 1, 24, 17, 55),
+            OffsetDateTime.of(2026, 1, 24, 17, 55, 0, 0, ZoneOffset.UTC),
             "Compra manual");
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
@@ -187,7 +188,7 @@ class TransactionServiceTest {
             new BigDecimal("0.10"),
             new BigDecimal("70392.39"),
             new BigDecimal("1.25"),
-            LocalDateTime.of(2026, 3, 10, 2, 11),
+            OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
             "Venta parcial");
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
@@ -213,7 +214,7 @@ class TransactionServiceTest {
             "TRANSFER_IN",
             new BigDecimal("0.25"),
             new BigDecimal("0.0002"),
-            LocalDateTime.of(2026, 3, 10, 2, 11),
+            OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
             "Transferencia desde Bitget");
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
@@ -330,7 +331,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("1.25"),
             new BigDecimal("3200.50"),
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             new BigDecimal("1.10"),
             "updated tx",
             null);
@@ -361,7 +362,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.50"),
             null,
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated tx",
             null);
@@ -390,7 +391,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.75"),
             null,
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             new BigDecimal("0.0002"),
             "updated transfer",
             "transfer_out");
@@ -424,7 +425,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.50"),
             null,
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated transfer",
             null);
@@ -452,7 +453,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.50"),
             new BigDecimal("95000.00"),
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated tx",
             null);
@@ -475,7 +476,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("1.00"),
             new BigDecimal("2500.00"),
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated tx",
             null);

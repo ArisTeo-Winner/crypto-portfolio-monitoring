@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +53,7 @@ class PortfolioAssetMarkersPerformanceTest {
         quantity.multiply(price),
         price,
         BigDecimal.ZERO,
-        LocalDateTime.ofInstant(time, ZoneOffset.UTC));
+        OffsetDateTime.ofInstant(time, ZoneOffset.UTC));
   }
 
   private record StaticPortfolioMarkersPort(List<PortfolioTransactionSnapshot> snapshots)

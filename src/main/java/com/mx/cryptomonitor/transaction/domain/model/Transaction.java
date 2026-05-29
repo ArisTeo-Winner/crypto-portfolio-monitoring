@@ -1,7 +1,8 @@
 package com.mx.cryptomonitor.transaction.domain.model;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -66,7 +67,7 @@ public class Transaction {
   private BigDecimal totalValue;
 
   @Column(name = "transaction_date")
-  private LocalDateTime transactionDate = LocalDateTime.now();
+  private OffsetDateTime transactionDate = OffsetDateTime.now(ZoneOffset.UTC);
 
   @Column(name = "fee", precision = 18, scale = 8)
   private BigDecimal fee = BigDecimal.ZERO;
@@ -79,13 +80,14 @@ public class Transaction {
   private String notes;
 
   @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt = LocalDateTime.now();
+  private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
 
   @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt = LocalDateTime.now();
+  private OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
   @JsonCreator
-  public Transaction(@JsonProperty("transactionDate") LocalDateTime transactionDate) {
-    this.transactionDate = (transactionDate != null) ? transactionDate : LocalDateTime.now();
+  public Transaction(@JsonProperty("transactionDate") OffsetDateTime transactionDate) {
+    this.transactionDate =
+        (transactionDate != null) ? transactionDate : OffsetDateTime.now(ZoneOffset.UTC);
   }
 }

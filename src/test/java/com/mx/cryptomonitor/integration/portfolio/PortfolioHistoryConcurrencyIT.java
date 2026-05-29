@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -123,8 +123,8 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
 
     // Anchor date is the same for all users: ChartResolution.start() aligns to the same epoch,
     // keeping series timestamps identical across users (enables the determinism check).
-    LocalDateTime anchorDate =
-        LocalDateTime.now(ZoneOffset.UTC)
+    OffsetDateTime anchorDate =
+        OffsetDateTime.now(ZoneOffset.UTC)
             .minusDays(365)
             .withHour(12)
             .withMinute(0)
@@ -391,7 +391,7 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
   // -------------------------------------------------------------------------
 
   private Transaction makeTx(
-      User user, String symbol, BigDecimal qty, BigDecimal price, LocalDateTime date) {
+      User user, String symbol, BigDecimal qty, BigDecimal price, OffsetDateTime date) {
     return Transaction.builder()
         .user(user)
         .portfolioEntryId(UUID.randomUUID())

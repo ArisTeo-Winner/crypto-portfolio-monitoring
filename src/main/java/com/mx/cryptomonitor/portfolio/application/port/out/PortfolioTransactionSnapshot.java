@@ -1,7 +1,7 @@
 package com.mx.cryptomonitor.portfolio.application.port.out;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 public record PortfolioTransactionSnapshot(
     String assetSymbol,
@@ -13,7 +13,7 @@ public record PortfolioTransactionSnapshot(
     BigDecimal pricePerUnit,
     BigDecimal fee,
     BigDecimal realizedPnl,
-    LocalDateTime transactionDate) {
+    OffsetDateTime transactionDate) {
 
   public PortfolioTransactionSnapshot(
       String assetSymbol,
@@ -24,7 +24,7 @@ public record PortfolioTransactionSnapshot(
       BigDecimal totalValue,
       BigDecimal pricePerUnit,
       BigDecimal fee,
-      LocalDateTime transactionDate) {
+      OffsetDateTime transactionDate) {
     this(
         assetSymbol,
         assetType,

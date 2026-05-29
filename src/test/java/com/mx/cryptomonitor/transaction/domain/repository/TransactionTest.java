@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -93,9 +95,9 @@ class TransactionTest {
             .quantity(new BigDecimal("1"))
             .pricePerUnit(new BigDecimal("100"))
             .totalValue(new BigDecimal("100"))
-            .transactionDate(LocalDateTime.now())
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
+            .transactionDate(OffsetDateTime.now(ZoneOffset.UTC))
+            .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
+            .updatedAt(OffsetDateTime.now(ZoneOffset.UTC))
             .portfolioEntryId(portfolioEntry.getPortfolioEntryId())
             .build();
 

@@ -5,7 +5,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,13 +32,26 @@ class TransactionRealizedPnlServiceTest {
   void rebuildUserRealizedPnlUsesAverageCostAndFeesPerUser() {
     UUID userId = UUID.randomUUID();
     Transaction buyOne =
-        transaction("SOL", "BUY", "2.0", "100.00", "200.00", "0.50", LocalDateTime.now());
+        transaction(
+            "SOL", "BUY", "2.0", "100.00", "200.00", "0.50", OffsetDateTime.now(ZoneOffset.UTC));
     Transaction buyTwo =
         transaction(
-            "SOL", "BUY", "1.0", "130.00", "130.00", "0.00", LocalDateTime.now().plusHours(1));
+            "SOL",
+            "BUY",
+            "1.0",
+            "130.00",
+            "130.00",
+            "0.00",
+            OffsetDateTime.now(ZoneOffset.UTC).plusHours(1));
     Transaction sell =
         transaction(
-            "SOL", "SELL", "1.5", "140.00", "210.00", "1.00", LocalDateTime.now().plusHours(2));
+            "SOL",
+            "SELL",
+            "1.5",
+            "140.00",
+            "210.00",
+            "1.00",
+            OffsetDateTime.now(ZoneOffset.UTC).plusHours(2));
 
     when(transactionRepository.findByUserIdOrderByTransactionDateAscCreatedAtAsc(userId))
         .thenReturn(List.of(buyOne, buyTwo, sell));
@@ -60,7 +74,7 @@ class TransactionRealizedPnlServiceTest {
       String pricePerUnit,
       String totalValue,
       String fee,
-      LocalDateTime transactionDate) {
+      OffsetDateTime transactionDate) {
     return Transaction.builder()
         .transactionId(UUID.randomUUID())
         .portfolioEntryId(UUID.randomUUID())

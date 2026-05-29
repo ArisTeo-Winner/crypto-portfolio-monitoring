@@ -2,7 +2,6 @@ package com.mx.cryptomonitor.portfolio.application.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -68,7 +67,7 @@ public class RealizedPnLService {
         .map(
             snapshot ->
                 new RealizedPnLPoint(
-                    snapshot.transactionDate().toInstant(ZoneOffset.UTC),
+                    snapshot.transactionDate().toInstant(),
                     amount(snapshot.realizedPnl()).setScale(MONEY_SCALE, RoundingMode.HALF_UP)))
         .toList();
   }
@@ -76,7 +75,7 @@ public class RealizedPnLService {
   public PortfolioAccountingTransaction toAccountingTransaction(
       PortfolioTransactionSnapshot snapshot) {
     return new PortfolioAccountingTransaction(
-        snapshot.transactionDate().toInstant(ZoneOffset.UTC),
+        snapshot.transactionDate().toInstant(),
         snapshot.assetSymbol(),
         AssetType.from(snapshot.assetType()),
         snapshot.transactionType(),

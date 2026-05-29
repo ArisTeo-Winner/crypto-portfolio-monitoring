@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -98,7 +97,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
     }
     long firstTxEpoch =
         snapshots.stream()
-            .map(snapshot -> snapshot.transactionDate().toInstant(ZoneOffset.UTC).getEpochSecond())
+            .map(snapshot -> snapshot.transactionDate().toInstant().getEpochSecond())
             .min(Long::compareTo)
             .orElse(end.getEpochSecond());
     return Instant.ofEpochSecond(alignToUtcDayStart(firstTxEpoch));
@@ -111,7 +110,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   private PortfolioAccountingTransaction toAccountingTransaction(
       PortfolioTransactionSnapshot snapshot) {
     return new PortfolioAccountingTransaction(
-        snapshot.transactionDate().toInstant(ZoneOffset.UTC),
+        snapshot.transactionDate().toInstant(),
         snapshot.assetSymbol(),
         AssetType.from(snapshot.assetType()),
         snapshot.transactionType(),
@@ -127,7 +126,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
         .map(
             snapshot ->
                 new AssetHistoryMarkerResponse(
-                    snapshot.transactionDate().toEpochSecond(ZoneOffset.UTC),
+                    snapshot.transactionDate().toEpochSecond(),
                     snapshot.transactionType().toUpperCase(),
                     amount(snapshot.quantity()),
                     amount(snapshot.pricePerUnit())))

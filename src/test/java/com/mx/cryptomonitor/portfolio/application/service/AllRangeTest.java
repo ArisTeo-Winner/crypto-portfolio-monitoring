@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ class AllRangeTest {
   @Test
   void allRange_startAlignedToFirstTransactionDay() {
     UUID userId = UUID.randomUUID();
-    LocalDateTime firstTx = LocalDateTime.of(2022, 1, 10, 14, 30);
+    OffsetDateTime firstTx = OffsetDateTime.of(2022, 1, 10, 14, 30, 0, 0, ZoneOffset.UTC);
     PortfolioTransactionSnapshot snapshot = snapshot("BTC", firstTx, "BUY");
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
@@ -77,7 +77,7 @@ class AllRangeTest {
     assertThat(result.resolution()).isEqualTo(Resolution.DAILY);
   }
 
-  private PortfolioTransactionSnapshot snapshot(String symbol, LocalDateTime date, String type) {
+  private PortfolioTransactionSnapshot snapshot(String symbol, OffsetDateTime date, String type) {
     return new PortfolioTransactionSnapshot(
         symbol,
         "CRYPTO",

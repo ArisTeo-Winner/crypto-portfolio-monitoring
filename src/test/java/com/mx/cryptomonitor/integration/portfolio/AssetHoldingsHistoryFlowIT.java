@@ -11,7 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -135,7 +136,8 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
 
   private Transaction transaction(
       User user, String symbol, String type, BigDecimal quantity, String transactionDate) {
-    LocalDateTime timestamp = LocalDateTime.parse(transactionDate);
+    OffsetDateTime timestamp =
+        OffsetDateTime.parse(transactionDate + "Z").withOffsetSameInstant(ZoneOffset.UTC);
     BigDecimal price = new BigDecimal("100.00");
     return Transaction.builder()
         .user(user)

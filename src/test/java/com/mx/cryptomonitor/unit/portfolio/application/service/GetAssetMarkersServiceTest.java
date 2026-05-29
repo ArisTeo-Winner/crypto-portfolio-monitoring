@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -140,7 +140,7 @@ class GetAssetMarkersServiceTest {
         quantityValue.multiply(priceValue),
         priceValue,
         BigDecimal.ZERO,
-        time == null ? null : LocalDateTime.ofInstant(time, ZoneOffset.UTC));
+        time == null ? null : OffsetDateTime.ofInstant(time, ZoneOffset.UTC));
   }
 
   private static final class InMemoryPortfolioMarkersPort implements PortfolioMarkersPort {

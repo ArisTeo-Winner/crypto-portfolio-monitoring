@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ class PerformanceTest {
   @Timeout(5)
   void fiveThousandPoints_processedInUnderFiveSeconds() {
     UUID userId = UUID.randomUUID();
-    LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(5000);
+    OffsetDateTime txDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(5000);
     var snapshot =
         new PortfolioTransactionSnapshot(
             "BTC",
@@ -76,9 +76,9 @@ class PerformanceTest {
     UUID userId = UUID.randomUUID();
     List<PortfolioTransactionSnapshot> snapshots =
         List.of(
-            txSnapshot("BTC", LocalDateTime.now(ZoneOffset.UTC).minusDays(3500)),
-            txSnapshot("ETH", LocalDateTime.now(ZoneOffset.UTC).minusDays(2500)),
-            txSnapshot("SOL", LocalDateTime.now(ZoneOffset.UTC).minusDays(1500)));
+            txSnapshot("BTC", OffsetDateTime.now(ZoneOffset.UTC).minusDays(3500)),
+            txSnapshot("ETH", OffsetDateTime.now(ZoneOffset.UTC).minusDays(2500)),
+            txSnapshot("SOL", OffsetDateTime.now(ZoneOffset.UTC).minusDays(1500)));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(snapshots);
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
@@ -95,7 +95,7 @@ class PerformanceTest {
     assertThat(result.series().size()).isLessThanOrEqualTo(1500);
   }
 
-  private PortfolioTransactionSnapshot txSnapshot(String symbol, LocalDateTime date) {
+  private PortfolioTransactionSnapshot txSnapshot(String symbol, OffsetDateTime date) {
     return new PortfolioTransactionSnapshot(
         symbol,
         "CRYPTO",

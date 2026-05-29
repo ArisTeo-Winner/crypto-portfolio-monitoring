@@ -6,7 +6,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -63,7 +64,7 @@ class PortfolioTransactionRegistrationAdapterTest {
             new BigDecimal("0.25"),
             new BigDecimal("95000.00"),
             new BigDecimal("23750.00"),
-            LocalDateTime.of(2026, 3, 11, 12, 0),
+            OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC),
             new BigDecimal("10.00"),
             "adapter regression check",
             null);
@@ -80,11 +81,11 @@ class PortfolioTransactionRegistrationAdapterTest {
             new BigDecimal("0.25"),
             new BigDecimal("95000.00"),
             new BigDecimal("23750.00"),
-            LocalDateTime.of(2026, 3, 11, 12, 0),
+            OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC),
             new BigDecimal("10.00"),
             "adapter regression check",
-            LocalDateTime.of(2026, 3, 11, 12, 0),
-            LocalDateTime.of(2026, 3, 11, 12, 0));
+            OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC),
+            OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC));
 
     when(userRepository.findById(userId)).thenReturn(Optional.of(user));
     when(portfolioEntryPort.applyTransaction(any(UUID.class), any())).thenReturn(portfolioEntryId);

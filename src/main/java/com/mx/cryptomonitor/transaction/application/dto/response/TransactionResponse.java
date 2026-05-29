@@ -1,7 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.response;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 public record TransactionResponse(
@@ -12,8 +12,8 @@ public record TransactionResponse(
     BigDecimal quantity,
     BigDecimal pricePerUnit,
     BigDecimal totalValue,
-    LocalDateTime transactionDate,
+    OffsetDateTime transactionDate,
     BigDecimal fee,
     String notes,
-    LocalDateTime createdAt,
-    LocalDateTime updatedAt) {}
+    OffsetDateTime createdAt,
+    OffsetDateTime updatedAt) {}

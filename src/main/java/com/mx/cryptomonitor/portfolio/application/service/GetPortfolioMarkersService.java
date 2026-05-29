@@ -3,7 +3,6 @@ package com.mx.cryptomonitor.portfolio.application.service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,7 +60,7 @@ public class GetPortfolioMarkersService implements GetPortfolioMarkersUseCase {
   }
 
   private boolean isInRange(PortfolioTransactionSnapshot snapshot, Instant fromInclusive) {
-    return !snapshot.transactionDate().toInstant(ZoneOffset.UTC).isBefore(fromInclusive);
+    return !snapshot.transactionDate().toInstant().isBefore(fromInclusive);
   }
 
   private boolean matchesAssetTypes(
@@ -71,7 +70,7 @@ public class GetPortfolioMarkersService implements GetPortfolioMarkersUseCase {
 
   private PortfolioMarker toMarker(PortfolioTransactionSnapshot snapshot) {
     return PortfolioMarkerFactory.from(
-        snapshot.transactionDate().toInstant(ZoneOffset.UTC),
+        snapshot.transactionDate().toInstant(),
         snapshot.transactionType(),
         snapshot.quantity(),
         snapshot.assetSymbol());

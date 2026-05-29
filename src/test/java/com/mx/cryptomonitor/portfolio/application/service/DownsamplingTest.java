@@ -47,7 +47,7 @@ class DownsamplingTest {
             new BigDecimal("50000"),
             new BigDecimal("50000"),
             BigDecimal.ZERO,
-            java.time.LocalDateTime.of(2020, 1, 1, 0, 0));
+            java.time.OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
@@ -73,7 +73,7 @@ class DownsamplingTest {
             new BigDecimal("50000"),
             new BigDecimal("50000"),
             BigDecimal.ZERO,
-            java.time.LocalDateTime.of(2023, 1, 1, 0, 0));
+            java.time.OffsetDateTime.of(2023, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
@@ -102,7 +102,7 @@ class DownsamplingTest {
             new BigDecimal("2000"),
             new BigDecimal("2000"),
             BigDecimal.ZERO,
-            java.time.LocalDateTime.of(2020, 1, 1, 0, 0));
+            java.time.OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
 
     when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(snapshot));
     when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());

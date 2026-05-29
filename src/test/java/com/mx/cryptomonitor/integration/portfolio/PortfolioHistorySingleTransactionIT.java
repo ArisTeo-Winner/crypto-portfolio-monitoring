@@ -13,7 +13,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,7 +78,7 @@ class PortfolioHistorySingleTransactionIT {
   @SpyBean private CoinGeckoMarketPriceHistoryAdapter coinGeckoAdapter;
 
   private User testUser;
-  private LocalDateTime txDate;
+  private OffsetDateTime txDate;
 
   @BeforeEach
   void setUp() {
@@ -92,7 +92,7 @@ class PortfolioHistorySingleTransactionIT {
                 .build());
 
     txDate =
-        LocalDateTime.now(ZoneOffset.UTC)
+        OffsetDateTime.now(ZoneOffset.UTC)
             .minusDays(60)
             .withHour(12)
             .withMinute(0)
@@ -174,7 +174,7 @@ class PortfolioHistorySingleTransactionIT {
   @Test
   void range90d_firstNonZeroTimestampIsNearTransactionDate() throws Exception {
     List<JsonNode> series = callHistory("90d");
-    long txEpoch = txDate.toInstant(ZoneOffset.UTC).getEpochSecond();
+    long txEpoch = txDate.toInstant().getEpochSecond();
     long oneDaySeconds = 86_400L;
 
     long firstNonZeroTime =
@@ -268,7 +268,7 @@ class PortfolioHistorySingleTransactionIT {
     assertThat(series).isNotEmpty();
 
     long firstTime = series.get(0).get("time").asLong();
-    long txEpoch = txDate.toInstant(ZoneOffset.UTC).getEpochSecond();
+    long txEpoch = txDate.toInstant().getEpochSecond();
     long oneDaySeconds = 86_400L;
 
     assertThat(firstTime)
@@ -359,7 +359,7 @@ class PortfolioHistorySingleTransactionIT {
     return auth;
   }
 
-  private Transaction btcBuy(LocalDateTime date, BigDecimal qty, BigDecimal price) {
+  private Transaction btcBuy(OffsetDateTime date, BigDecimal qty, BigDecimal price) {
     return Transaction.builder()
         .user(testUser)
         .portfolioEntryId(UUID.randomUUID())

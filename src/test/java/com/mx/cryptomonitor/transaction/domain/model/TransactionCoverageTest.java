@@ -3,7 +3,8 @@ package com.mx.cryptomonitor.transaction.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -17,12 +18,12 @@ class TransactionCoverageTest {
 
   @Test
   void jsonCreatorConstructorShouldHandleNullAndExplicitDate() {
-    LocalDateTime explicitDate = LocalDateTime.of(2025, 1, 1, 9, 30);
+    OffsetDateTime explicitDate = OffsetDateTime.of(2025, 1, 1, 9, 30, 0, 0, ZoneOffset.UTC);
 
     Transaction withExplicitDate = new Transaction(explicitDate);
     assertThat(withExplicitDate.getTransactionDate()).isEqualTo(explicitDate);
 
-    Transaction withNullDate = new Transaction((LocalDateTime) null);
+    Transaction withNullDate = new Transaction((OffsetDateTime) null);
     assertThat(withNullDate.getTransactionDate()).isNotNull();
   }
 
@@ -61,12 +62,12 @@ class TransactionCoverageTest {
             t -> t.setQuantity(new BigDecimal("9.00000000")),
             t -> t.setPricePerUnit(new BigDecimal("90000.00000000")),
             t -> t.setTotalValue(new BigDecimal("810000.00")),
-            t -> t.setTransactionDate(LocalDateTime.of(2025, 1, 2, 10, 0)),
+            t -> t.setTransactionDate(OffsetDateTime.of(2025, 1, 2, 10, 0, 0, 0, ZoneOffset.UTC)),
             t -> t.setFee(new BigDecimal("1.00")),
             t -> t.setRealizedPnl(new BigDecimal("2.00")),
             t -> t.setNotes("different notes"),
-            t -> t.setCreatedAt(LocalDateTime.of(2025, 1, 3, 10, 0)),
-            t -> t.setUpdatedAt(LocalDateTime.of(2025, 1, 4, 10, 0))));
+            t -> t.setCreatedAt(OffsetDateTime.of(2025, 1, 3, 10, 0, 0, 0, ZoneOffset.UTC)),
+            t -> t.setUpdatedAt(OffsetDateTime.of(2025, 1, 4, 10, 0, 0, 0, ZoneOffset.UTC))));
 
     assertDifferentByMutation(
         base,
@@ -118,12 +119,12 @@ class TransactionCoverageTest {
             t -> t.setQuantity(BigDecimal.ONE),
             t -> t.setPricePerUnit(BigDecimal.TEN),
             t -> t.setTotalValue(BigDecimal.TEN),
-            t -> t.setTransactionDate(LocalDateTime.of(2025, 2, 1, 10, 0)),
+            t -> t.setTransactionDate(OffsetDateTime.of(2025, 2, 1, 10, 0, 0, 0, ZoneOffset.UTC)),
             t -> t.setFee(BigDecimal.ONE),
             t -> t.setRealizedPnl(BigDecimal.ONE),
             t -> t.setNotes("note"),
-            t -> t.setCreatedAt(LocalDateTime.of(2025, 2, 1, 10, 1)),
-            t -> t.setUpdatedAt(LocalDateTime.of(2025, 2, 1, 10, 2))));
+            t -> t.setCreatedAt(OffsetDateTime.of(2025, 2, 1, 10, 1, 0, 0, ZoneOffset.UTC)),
+            t -> t.setUpdatedAt(OffsetDateTime.of(2025, 2, 1, 10, 2, 0, 0, ZoneOffset.UTC))));
   }
 
   private static void assertDifferentByMutation(
@@ -150,11 +151,11 @@ class TransactionCoverageTest {
         .quantity(new BigDecimal("1.00000000"))
         .pricePerUnit(new BigDecimal("50000.00000000"))
         .totalValue(new BigDecimal("50000.00"))
-        .transactionDate(LocalDateTime.of(2025, 1, 1, 10, 0))
+        .transactionDate(OffsetDateTime.of(2025, 1, 1, 10, 0, 0, 0, ZoneOffset.UTC))
         .fee(new BigDecimal("0.50"))
         .notes("initial transaction")
-        .createdAt(LocalDateTime.of(2025, 1, 1, 10, 1))
-        .updatedAt(LocalDateTime.of(2025, 1, 1, 10, 2))
+        .createdAt(OffsetDateTime.of(2025, 1, 1, 10, 1, 0, 0, ZoneOffset.UTC))
+        .updatedAt(OffsetDateTime.of(2025, 1, 1, 10, 2, 0, 0, ZoneOffset.UTC))
         .build();
   }
 

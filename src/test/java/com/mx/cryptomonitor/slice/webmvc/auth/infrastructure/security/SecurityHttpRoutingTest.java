@@ -36,8 +36,8 @@ import com.mx.cryptomonitor.user.infrastructure.security.JwtTokenUtil;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.security.RefreshTokenCookieHelper;
 import com.mx.cryptomonitor.user.infrastructure.security.SecurityConfig;
-import com.mx.cryptomonitor.user.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.handler.CustomOAuth2FailureHandler;
+import com.mx.cryptomonitor.user.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.oauth.CustomOAuth2UserService;
 import com.mx.cryptomonitor.user.infrastructure.security.oidc.CustomOidcUserService;
 
@@ -46,8 +46,8 @@ import com.mx.cryptomonitor.user.infrastructure.security.oidc.CustomOidcUserServ
  * autenticación y que los métodos HTTP no permitidos devuelven 405 — no 3xx.
  *
  * <p>Estos tests tienen los filtros de Spring Security ACTIVOS ({@code addFilters = true} es el
- * default en {@code @SpringBootTest}). Los tests de slice {@code @WebMvcTest} con
- * {@code addFilters = false} no pueden detectar este tipo de regresión.
+ * default en {@code @SpringBootTest}). Los tests de slice {@code @WebMvcTest} con {@code addFilters
+ * = false} no pueden detectar este tipo de regresión.
  */
 @SpringBootTest(classes = SecurityHttpRoutingTest.TestApp.class)
 @AutoConfigureMockMvc
@@ -118,10 +118,12 @@ class SecurityHttpRoutingTest {
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"user@example.com\",\"password\":\"ValidPass123!\"}"))
-        .andExpect(status().is(org.hamcrest.Matchers.not(
-            org.hamcrest.Matchers.both(
-                org.hamcrest.Matchers.greaterThanOrEqualTo(300))
-                .and(org.hamcrest.Matchers.lessThan(400)))));
+        .andExpect(
+            status()
+                .is(
+                    org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.both(org.hamcrest.Matchers.greaterThanOrEqualTo(300))
+                            .and(org.hamcrest.Matchers.lessThan(400)))));
   }
 
   @Test
@@ -138,17 +140,13 @@ class SecurityHttpRoutingTest {
   @Test
   @DisplayName("POST /api/v1/tokens/refresh no redirige (endpoint público con filtros activos)")
   void token_refresh_post_never_redirects() throws Exception {
-    mockMvc
-        .perform(post("/api/v1/tokens/refresh"))
-        .andExpect(header().doesNotExist("Location"));
+    mockMvc.perform(post("/api/v1/tokens/refresh")).andExpect(header().doesNotExist("Location"));
   }
 
   @Test
   @DisplayName("POST /api/v1/auth/logout no redirige (endpoint público con filtros activos)")
   void logout_post_never_redirects() throws Exception {
-    mockMvc
-        .perform(post("/api/v1/auth/logout"))
-        .andExpect(header().doesNotExist("Location"));
+    mockMvc.perform(post("/api/v1/auth/logout")).andExpect(header().doesNotExist("Location"));
   }
 
   // ── HTTP method tests ─────────────────────────────────────────────────────
@@ -164,9 +162,7 @@ class SecurityHttpRoutingTest {
   @Test
   @DisplayName("DELETE /api/v1/auth/login devuelve 405")
   void login_delete_returns_405() throws Exception {
-    mockMvc
-        .perform(delete("/api/v1/auth/login"))
-        .andExpect(status().isMethodNotAllowed());
+    mockMvc.perform(delete("/api/v1/auth/login")).andExpect(status().isMethodNotAllowed());
   }
 
   // ── Endpoints protegidos sin token → 401 (no redirect) ───────────────────

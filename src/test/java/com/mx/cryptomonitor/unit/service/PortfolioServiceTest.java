@@ -11,6 +11,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,7 +119,7 @@ class PortfolioServiceTest {
                     new BigDecimal("2500.00"),
                     new BigDecimal("2500.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2026, 3, 26, 10, 0))));
+                    OffsetDateTime.of(2026, 3, 26, 10, 0, 0, 0, ZoneOffset.UTC))));
     when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of(entry));
     when(assetPricePort.getCryptoPriceAmount("ETH"))
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2500.00")));
@@ -171,7 +173,7 @@ class PortfolioServiceTest {
                     new BigDecimal("2500.00"),
                     new BigDecimal("2500.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2026, 3, 26, 10, 0))));
+                    OffsetDateTime.of(2026, 3, 26, 10, 0, 0, 0, ZoneOffset.UTC))));
     when(portfolioEntryRepository.findByUserId(userId))
         .thenReturn(List.of(staleEntry))
         .thenReturn(List.of(freshEntry))
@@ -251,7 +253,7 @@ class PortfolioServiceTest {
                     new BigDecimal("13.40"),
                     new BigDecimal("13.40"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2026, 4, 8, 18, 0))));
+                    OffsetDateTime.of(2026, 4, 8, 18, 0, 0, 0, ZoneOffset.UTC))));
     when(portfolioEntryRepository.findByUserId(userId))
         .thenReturn(List.of(staleEntry))
         .thenReturn(List.of(staleEntrySecondAttempt))
@@ -307,7 +309,7 @@ class PortfolioServiceTest {
                     new BigDecimal("1000.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 3, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 3, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -317,7 +319,7 @@ class PortfolioServiceTest {
                     new BigDecimal("500.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 10, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 10, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -327,7 +329,7 @@ class PortfolioServiceTest {
                     new BigDecimal("691.38"),
                     new BigDecimal("23.046"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 17, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 17, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -337,7 +339,7 @@ class PortfolioServiceTest {
                     new BigDecimal("800.00"),
                     new BigDecimal("20.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 24, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 24, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -347,7 +349,7 @@ class PortfolioServiceTest {
                     new BigDecimal("1750.00"),
                     new BigDecimal("35.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 31, 10, 0))));
+                    OffsetDateTime.of(2025, 3, 31, 10, 0, 0, 0, ZoneOffset.UTC))));
     when(assetPricePort.getCryptoPriceAmount("HYPE"))
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("60.54244444")));
     when(assetCatalogQueryPort.findAssetIdBySymbol("HYPE")).thenReturn(Optional.empty());
@@ -378,7 +380,7 @@ class PortfolioServiceTest {
                     new BigDecimal("20.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 4, 7, 0, 0))));
+                    OffsetDateTime.of(2025, 4, 7, 0, 0, 0, 0, ZoneOffset.UTC))));
     when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
     when(cryptoHistoricalPricePort.getHistoricalUsdPrices(
             org.mockito.ArgumentMatchers.eq("bitcoin"),
@@ -429,7 +431,7 @@ class PortfolioServiceTest {
                     new BigDecimal("20.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 4, 7, 0, 0))));
+                    OffsetDateTime.of(2025, 4, 7, 0, 0, 0, 0, ZoneOffset.UTC))));
     when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
     when(cryptoHistoricalPricePort.getHistoricalUsdPrices("bitcoin", 30))
         .thenReturn(

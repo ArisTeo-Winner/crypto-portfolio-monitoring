@@ -13,8 +13,12 @@ public interface TransactionMapper {
   TransactionMapper INSTANCE = Mappers.getMapper(TransactionMapper.class);
 
   @Mapping(target = "transactionId", ignore = true)
-  @Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
-  @Mapping(target = "updatedAt", expression = "java(java.time.LocalDateTime.now())")
+  @Mapping(
+      target = "createdAt",
+      expression = "java(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC))")
+  @Mapping(
+      target = "updatedAt",
+      expression = "java(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC))")
   Transaction toEntity(TransactionRequest request);
 
   TransactionResponse toResponse(Transaction transaction);

@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -165,6 +165,6 @@ class GetAssetHoldingsHistoryServiceTest {
         new BigDecimal(quantity).multiply(new BigDecimal(pricePerUnit)),
         new BigDecimal(pricePerUnit),
         BigDecimal.ZERO,
-        LocalDateTime.parse(transactionDate));
+        OffsetDateTime.parse(transactionDate + "Z").withOffsetSameInstant(ZoneOffset.UTC));
   }
 }

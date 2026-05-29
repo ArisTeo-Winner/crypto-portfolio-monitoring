@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +79,7 @@ class PortfolioHistoryRecentUserIT {
   @MockBean private MarketPriceHistoryPort marketPriceHistoryPort;
 
   private User testUser;
-  private LocalDateTime txDate;
+  private OffsetDateTime txDate;
 
   @BeforeEach
   void setUp() {
@@ -93,7 +93,7 @@ class PortfolioHistoryRecentUserIT {
                 .build());
 
     txDate =
-        LocalDateTime.now(ZoneOffset.UTC)
+        OffsetDateTime.now(ZoneOffset.UTC)
             .minusDays(DAYS_AGO)
             .withHour(9)
             .withMinute(0)
@@ -118,7 +118,7 @@ class PortfolioHistoryRecentUserIT {
     assertThat(series).as("Series must not be empty").isNotEmpty();
 
     long firstTime = series.get(0).get("time").asLong();
-    long txEpoch = txDate.toInstant(ZoneOffset.UTC).getEpochSecond();
+    long txEpoch = txDate.toInstant().getEpochSecond();
     long oneDaySeconds = 86_400L;
 
     assertThat(firstTime)
@@ -133,7 +133,7 @@ class PortfolioHistoryRecentUserIT {
   void rangeAll_noMonthsOfLeadingZerosBeforeTransaction() throws Exception {
     List<JsonNode> series = callHistory("ALL");
 
-    long txEpoch = txDate.toInstant(ZoneOffset.UTC).getEpochSecond();
+    long txEpoch = txDate.toInstant().getEpochSecond();
     long oneDaySeconds = 86_400L;
 
     long zeroPrefixCountBeforeTx =
@@ -240,7 +240,7 @@ class PortfolioHistoryRecentUserIT {
     return auth;
   }
 
-  private Transaction btcBuy(LocalDateTime date, BigDecimal qty, BigDecimal price) {
+  private Transaction btcBuy(OffsetDateTime date, BigDecimal qty, BigDecimal price) {
     return Transaction.builder()
         .user(testUser)
         .portfolioEntryId(UUID.randomUUID())

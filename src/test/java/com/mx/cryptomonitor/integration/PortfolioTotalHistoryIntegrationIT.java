@@ -10,7 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.hamcrest.Matchers;
@@ -88,7 +89,7 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
 
   @Test
   void totalHistorySharesRedisPriceCacheAndKeepsUserQuantitiesIsolated() throws Exception {
-    LocalDateTime buyDate = LocalDateTime.of(2026, 1, 1, 0, 0);
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     transactionRepository.saveAndFlush(transaction(firstUser, "BTC", new BigDecimal("1"), buyDate));
     transactionRepository.saveAndFlush(
         transaction(secondUser, "BTC", new BigDecimal("2"), buyDate));
@@ -143,7 +144,7 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
   }
 
   private Transaction transaction(
-      User user, String symbol, BigDecimal quantity, LocalDateTime time) {
+      User user, String symbol, BigDecimal quantity, OffsetDateTime time) {
     return Transaction.builder()
         .user(user)
         .portfolioEntryId(UUID.randomUUID())

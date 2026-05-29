@@ -1,7 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.response;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
@@ -12,7 +12,7 @@ public record TransactionDetailsResponse(
     AssetType assetType,
     String transactionType,
     String transferType,
-    LocalDateTime transactionDate,
+    OffsetDateTime transactionDate,
     BigDecimal quantity,
     BigDecimal pricePerUnit,
     BigDecimal grossAmount,

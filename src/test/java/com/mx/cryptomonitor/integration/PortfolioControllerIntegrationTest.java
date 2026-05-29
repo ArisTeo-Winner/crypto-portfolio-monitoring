@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.hamcrest.Matchers;
@@ -254,7 +256,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("100"),
             new BigDecimal("10.00"),
             new BigDecimal("1000.00"),
-            LocalDateTime.of(2025, 3, 3, 10, 0)));
+            OffsetDateTime.of(2025, 3, 3, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -263,7 +265,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("50"),
             new BigDecimal("10.00"),
             new BigDecimal("500.00"),
-            LocalDateTime.of(2025, 3, 10, 10, 0)));
+            OffsetDateTime.of(2025, 3, 10, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -272,7 +274,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("30"),
             new BigDecimal("23.04600000"),
             new BigDecimal("691.38"),
-            LocalDateTime.of(2025, 3, 17, 10, 0)));
+            OffsetDateTime.of(2025, 3, 17, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -281,7 +283,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("40"),
             new BigDecimal("20.00"),
             new BigDecimal("800.00"),
-            LocalDateTime.of(2025, 3, 24, 10, 0)));
+            OffsetDateTime.of(2025, 3, 24, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -290,7 +292,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("50"),
             new BigDecimal("35.00"),
             new BigDecimal("1750.00"),
-            LocalDateTime.of(2025, 3, 31, 10, 0)));
+            OffsetDateTime.of(2025, 3, 31, 10, 0, 0, 0, ZoneOffset.UTC)));
 
     mockMvc
         .perform(
@@ -309,7 +311,7 @@ class PortfolioControllerIntegrationTest {
 
   @Test
   void chartMarkersAndRealizedPnlReturnOnlyAuthenticatedUsersTransactions() throws Exception {
-    LocalDateTime transactionDate = LocalDateTime.now().minusDays(2);
+    OffsetDateTime transactionDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(2);
     Transaction buy =
         transaction(
             testUser,
@@ -390,8 +392,8 @@ class PortfolioControllerIntegrationTest {
 
   @Test
   void getAssetHoldingsHistoryReturnsUnixSecondSeries() throws Exception {
-    LocalDateTime buyDate = LocalDateTime.of(2026, 1, 1, 0, 0);
-    LocalDateTime sellDate = LocalDateTime.of(2026, 1, 3, 0, 0);
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    OffsetDateTime sellDate = OffsetDateTime.of(2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC);
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -439,7 +441,7 @@ class PortfolioControllerIntegrationTest {
 
   @Test
   void getAssetHoldingsHistoryAllUsesDynamicResolutionInsteadOfLiteralAllRange() throws Exception {
-    LocalDateTime buyDate = LocalDateTime.of(2026, 5, 17, 0, 0);
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 5, 17, 0, 0, 0, 0, ZoneOffset.UTC);
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -487,7 +489,7 @@ class PortfolioControllerIntegrationTest {
 
   @Test
   void getPortfolioTotalHistoryAggregatesAssetsAndKeepsUsersIsolated() throws Exception {
-    LocalDateTime buyDate = LocalDateTime.of(2026, 1, 1, 0, 0);
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -588,7 +590,7 @@ class PortfolioControllerIntegrationTest {
       BigDecimal quantity,
       BigDecimal pricePerUnit,
       BigDecimal totalValue,
-      LocalDateTime transactionDate) {
+      OffsetDateTime transactionDate) {
     return Transaction.builder()
         .user(user)
         .portfolioEntryId(UUID.randomUUID())
@@ -609,7 +611,13 @@ class PortfolioControllerIntegrationTest {
       User user, String assetSymbol, BigDecimal quantity, BigDecimal pricePerUnit) {
     BigDecimal totalValue = quantity.multiply(pricePerUnit).setScale(2, RoundingMode.HALF_UP);
     return transaction(
-        user, assetSymbol, "BUY", quantity, pricePerUnit, totalValue, LocalDateTime.now());
+        user,
+        assetSymbol,
+        "BUY",
+        quantity,
+        pricePerUnit,
+        totalValue,
+        OffsetDateTime.now(ZoneOffset.UTC));
   }
 
   private TestingAuthenticationToken userAuthentication() {

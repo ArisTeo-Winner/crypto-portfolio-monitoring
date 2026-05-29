@@ -10,7 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -197,7 +198,7 @@ class PortfolioAssetCategoriesIT {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private void save(String symbol, com.mx.cryptomonitor.transaction.domain.model.AssetType type) {
-    LocalDateTime now = LocalDateTime.of(2025, 1, 1, 0, 0, 0);
+    OffsetDateTime now = OffsetDateTime.of(2025, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     transactionRepository.saveAndFlush(
         Transaction.builder()
             .user(testUser)

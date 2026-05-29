@@ -701,7 +701,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       applyPerformanceSnapshot(runningAccumulator, assetState, snapshot);
       addOrReplaceSeriesPoint(
           series,
-          snapshot.transactionDate(),
+          snapshot.transactionDate().withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime(),
           calculateMarkedValue(runningAccumulator.assetsBySymbol, false));
     }
 
@@ -721,7 +721,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       return Optional.empty();
     }
 
-    Instant fromInclusive = snapshots.getFirst().transactionDate().toInstant(ZoneOffset.UTC);
+    Instant fromInclusive = snapshots.getFirst().transactionDate().toInstant();
     Instant toInclusive = now().toInstant(ZoneOffset.UTC);
     Integer historicalDays = resolveHistoricalPeriodDays(period);
     Instant historicalPeriodStart =
@@ -787,7 +787,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
 
     snapshots.stream()
         .map(PortfolioTransactionSnapshot::transactionDate)
-        .map(dateTime -> dateTime.toInstant(ZoneOffset.UTC))
+        .map(dateTime -> dateTime.toInstant())
         .filter(transactionInstant -> !transactionInstant.isBefore(historicalPeriodStart))
         .forEach(timeline::add);
     timeline.add(toInclusive);
@@ -836,7 +836,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     BigDecimal holdings = BigDecimal.ZERO;
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
-      Instant transactionInstant = snapshot.transactionDate().toInstant(ZoneOffset.UTC);
+      Instant transactionInstant = snapshot.transactionDate().toInstant();
       if (transactionInstant.isAfter(instant)) {
         break;
       }

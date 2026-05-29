@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -198,7 +198,7 @@ class PortfolioAssetMarkersIntegrationIT extends InfraIntegrationTest {
       Instant transactionTime) {
     BigDecimal quantityValue = new BigDecimal(quantity);
     BigDecimal priceValue = new BigDecimal(price);
-    LocalDateTime timestamp = LocalDateTime.ofInstant(transactionTime, ZoneOffset.UTC);
+    OffsetDateTime timestamp = OffsetDateTime.ofInstant(transactionTime, ZoneOffset.UTC);
     return Transaction.builder()
         .user(user)
         .portfolioEntryId(UUID.randomUUID())

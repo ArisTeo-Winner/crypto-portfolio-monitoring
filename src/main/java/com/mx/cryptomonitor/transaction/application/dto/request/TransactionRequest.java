@@ -1,7 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 
@@ -16,7 +16,7 @@ public record TransactionRequest(
     @Positive(message = "La cantidad debe ser mayor que cero") BigDecimal quantity,
     @NotNull(message = "El precio por unidad no puede ser nulo") BigDecimal pricePerUnit,
     @NotNull(message = "El valor total no puede ser nulo") BigDecimal totalValue,
-    LocalDateTime transactionDate,
+    OffsetDateTime transactionDate,
     BigDecimal fee,
     String notes,
     String transferType) {
@@ -28,7 +28,7 @@ public record TransactionRequest(
       BigDecimal quantity,
       BigDecimal pricePerUnit,
       BigDecimal totalValue,
-      LocalDateTime transactionDate,
+      OffsetDateTime transactionDate,
       BigDecimal fee,
       String notes) {
     this(

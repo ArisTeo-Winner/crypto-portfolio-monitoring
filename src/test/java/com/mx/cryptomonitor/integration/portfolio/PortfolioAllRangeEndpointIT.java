@@ -8,7 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -75,9 +76,9 @@ class PortfolioAllRangeEndpointIT {
   @Test
   void rangeAllReturnsEnrichedResponseStartingFromFirstTransaction() throws Exception {
     // Primera compra: BTC hace ~1 año (2025-01-15)
-    LocalDateTime firstBuy = LocalDateTime.of(2025, 1, 15, 10, 0, 0);
+    OffsetDateTime firstBuy = OffsetDateTime.of(2025, 1, 15, 10, 0, 0, 0, ZoneOffset.UTC);
     // Segunda compra: ETH hace ~6 meses (2024-11-01)
-    LocalDateTime secondBuy = LocalDateTime.of(2024, 11, 1, 9, 0, 0);
+    OffsetDateTime secondBuy = OffsetDateTime.of(2024, 11, 1, 9, 0, 0, 0, ZoneOffset.UTC);
 
     transactionRepository.saveAndFlush(btcBuy(firstBuy, "1", "95000"));
     transactionRepository.saveAndFlush(ethBuy(secondBuy, "3", "3200"));
@@ -128,7 +129,7 @@ class PortfolioAllRangeEndpointIT {
 
   @Test
   void rangeAllWithSingleAssetReturnsSeriesFromFirstTxDay() throws Exception {
-    LocalDateTime txDate = LocalDateTime.of(2025, 6, 1, 0, 0, 0);
+    OffsetDateTime txDate = OffsetDateTime.of(2025, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     transactionRepository.saveAndFlush(btcBuy(txDate, "0.5", "100000"));
 
     Mockito.when(
@@ -157,7 +158,7 @@ class PortfolioAllRangeEndpointIT {
                 .value(Instant.parse("2025-06-01T00:00:00Z").getEpochSecond()));
   }
 
-  private Transaction btcBuy(LocalDateTime date, String qty, String price) {
+  private Transaction btcBuy(OffsetDateTime date, String qty, String price) {
     return Transaction.builder()
         .user(testUser)
         .portfolioEntryId(UUID.randomUUID())
@@ -174,7 +175,7 @@ class PortfolioAllRangeEndpointIT {
         .build();
   }
 
-  private Transaction ethBuy(LocalDateTime date, String qty, String price) {
+  private Transaction ethBuy(OffsetDateTime date, String qty, String price) {
     return Transaction.builder()
         .user(testUser)
         .portfolioEntryId(UUID.randomUUID())

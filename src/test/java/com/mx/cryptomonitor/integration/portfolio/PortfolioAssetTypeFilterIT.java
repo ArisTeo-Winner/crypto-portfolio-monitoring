@@ -8,7 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -90,7 +91,7 @@ class PortfolioAssetTypeFilterIT {
                 .passwordHash("hash")
                 .build());
 
-    LocalDateTime txDate = LocalDateTime.of(2025, 1, 1, 0, 0, 0);
+    OffsetDateTime txDate = OffsetDateTime.of(2025, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
     // Transacción CRYPTO: 1 BTC a $100
     transactionRepository.saveAndFlush(

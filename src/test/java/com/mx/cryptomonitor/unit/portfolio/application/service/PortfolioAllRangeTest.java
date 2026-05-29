@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -65,9 +65,8 @@ class PortfolioAllRangeTest {
   @Test
   void seriesStartsAtOrAfterFirstTransactionDay() {
     UUID userId = UUID.randomUUID();
-    LocalDateTime firstTxDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(400);
-    long firstTxDayAligned =
-        alignToUtcDayStart(firstTxDate.toInstant(ZoneOffset.UTC).getEpochSecond());
+    OffsetDateTime firstTxDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(400);
+    long firstTxDayAligned = alignToUtcDayStart(firstTxDate.toInstant().getEpochSecond());
 
     when(transactionHistoryPort.getTransactionsByUser(userId))
         .thenReturn(List.of(snapshot("BTC", firstTxDate, new BigDecimal("1"))));
@@ -99,7 +98,7 @@ class PortfolioAllRangeTest {
   @Test
   void seriesEndsAtDayAlignedTimestamp() {
     UUID userId = UUID.randomUUID();
-    LocalDateTime txDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(2);
+    OffsetDateTime txDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(2);
 
     when(transactionHistoryPort.getTransactionsByUser(userId))
         .thenReturn(List.of(snapshot("BTC", txDate, new BigDecimal("1"))));
@@ -122,7 +121,7 @@ class PortfolioAllRangeTest {
   }
 
   private PortfolioTransactionSnapshot snapshot(
-      String symbol, LocalDateTime date, BigDecimal quantity) {
+      String symbol, OffsetDateTime date, BigDecimal quantity) {
     return new PortfolioTransactionSnapshot(
         symbol, "CRYPTO", "BUY", null, quantity, quantity, BigDecimal.ONE, BigDecimal.ZERO, date);
   }
