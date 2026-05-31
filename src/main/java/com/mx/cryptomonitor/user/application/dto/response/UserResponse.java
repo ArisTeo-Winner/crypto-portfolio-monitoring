@@ -16,4 +16,6 @@ public record UserResponse(
     String country,
     LocalDate dateOfBirth,
     boolean active,
-    LocalDateTime createdAt) {}
+    LocalDateTime createdAt,
+    String preferredCurrency,
+    String timezone) {}

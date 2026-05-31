@@ -16,37 +16,37 @@ import org.junit.jupiter.api.Test;
 /**
  * Verifica que los archivos de migración Flyway ya aplicados no han sido modificados.
  *
- * <p>Flyway rechaza en arranque cualquier migración cuyo checksum difiera del almacenado
- * en flyway_schema_history. Este test detecta modificaciones antes de llegar a Docker,
- * comparando el CRC32 actual de cada archivo contra valores de referencia fijos.
+ * <p>Flyway rechaza en arranque cualquier migración cuyo checksum difiera del almacenado en
+ * flyway_schema_history. Este test detecta modificaciones antes de llegar a Docker, comparando el
+ * CRC32 actual de cada archivo contra valores de referencia fijos.
  *
- * <p><b>Regla:</b> nunca modificar una entrada existente. Si se necesita corregir una
- * migración ya aplicada, crear una nueva migración de corrección.
+ * <p><b>Regla:</b> nunca modificar una entrada existente. Si se necesita corregir una migración ya
+ * aplicada, crear una nueva migración de corrección.
  *
- * <p><b>Al agregar una nueva migración:</b> ejecutar {@code PrintMigrationChecksums}
- * para obtener el checksum y añadirlo al mapa EXPECTED_CHECKSUMS.
+ * <p><b>Al agregar una nueva migración:</b> ejecutar {@code PrintMigrationChecksums} para obtener
+ * el checksum y añadirlo al mapa EXPECTED_CHECKSUMS.
  */
 class FlywayMigrationImmutabilityTest {
 
   /**
    * Checksums CRC32 de referencia por archivo de migración.
    *
-   * <p>Valores calculados con {@link PrintMigrationChecksums} sobre el contenido
-   * normalizado a LF — algoritmo idéntico al que usa Flyway internamente.
-   * Estos valores son inmutables una vez registrados.
+   * <p>Valores calculados con {@link PrintMigrationChecksums} sobre el contenido normalizado a LF —
+   * algoritmo idéntico al que usa Flyway internamente. Estos valores son inmutables una vez
+   * registrados.
    */
   private static final Map<String, Long> EXPECTED_CHECKSUMS =
       Map.of(
-          "V1__baseline_schema.sql",                             950141308L,
-          "V2__converge_existing_schema.sql",                   3851596011L,
-          "V3__add_transaction_idempotency_keys.sql",           3020362484L,
-          "V2026_02_18_01__update_audit_log_events.sql",        1786701587L,
-          "V2026_04_25_01__backfill_user_timestamps.sql",       1702085796L,
-          "V2026_05_07_01__add_transaction_realized_pnl.sql",   1136446865L,
+          "V1__baseline_schema.sql", 950141308L,
+          "V2__converge_existing_schema.sql", 3851596011L,
+          "V3__add_transaction_idempotency_keys.sql", 3020362484L,
+          "V2026_02_18_01__update_audit_log_events.sql", 1786701587L,
+          "V2026_04_25_01__backfill_user_timestamps.sql", 1702085796L,
+          "V2026_05_07_01__add_transaction_realized_pnl.sql", 1136446865L,
           "V2026_05_21_01__increase_transaction_precision.sql", 1574739165L,
-          "V2026_05_26_01__increase_refresh_token_length.sql",  1348383442L,
-          "V2026_05_29_01__transaction_date_to_timestamptz.sql",2571599070L
-      );
+          "V2026_05_26_01__increase_refresh_token_length.sql", 1348383442L,
+          "V2026_05_29_01__transaction_date_to_timestamptz.sql", 2571599070L,
+          "V2026_05_30_01__add_user_preferences.sql", 3972633310L);
 
   @Test
   void no_versioned_migration_file_must_be_modified_after_registration() throws IOException {
@@ -114,9 +114,7 @@ class FlywayMigrationImmutabilityTest {
       CRC32 crc32 = new CRC32();
       byte[] content = is.readAllBytes();
       String normalized =
-          new String(content, StandardCharsets.UTF_8)
-              .replace("\r\n", "\n")
-              .replace("\r", "\n");
+          new String(content, StandardCharsets.UTF_8).replace("\r\n", "\n").replace("\r", "\n");
       crc32.update(normalized.getBytes(StandardCharsets.UTF_8));
       return crc32.getValue();
     } catch (IOException e) {

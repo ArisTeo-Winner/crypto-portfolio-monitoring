@@ -139,6 +139,12 @@ public class UserService {
       user.setCountry(
           updatedUser.getCountry() != null ? updatedUser.getCountry() : user.getCountry());
       user.setBio(updatedUser.getBio() != null ? updatedUser.getBio() : user.getBio());
+      user.setPreferredCurrency(
+          updatedUser.getPreferredCurrency() != null
+              ? updatedUser.getPreferredCurrency()
+              : user.getPreferredCurrency());
+      user.setTimezone(
+          updatedUser.getTimezone() != null ? updatedUser.getTimezone() : user.getTimezone());
       user.setUpdatedAt(LocalDateTime.now());
 
       return userRepository.save(user);
@@ -171,6 +177,14 @@ public class UserService {
     LocalDateTime now = LocalDateTime.now();
     user.setCreatedAt(now);
     user.setUpdatedAt(now);
+    user.setPreferredCurrency(
+        request.preferredCurrency() != null && !request.preferredCurrency().isBlank()
+            ? request.preferredCurrency().toUpperCase()
+            : "USD");
+    user.setTimezone(
+        request.timezone() != null && !request.timezone().isBlank()
+            ? request.timezone()
+            : "America/Mexico_City");
 
     // 🔥 Asegurar que los roles no sean null
     if (user.getRoles() == null) {
@@ -217,6 +231,14 @@ public class UserService {
     user.setPostalCode(request.postalCode() != null ? request.postalCode() : user.getPostalCode());
     user.setCountry(request.country() != null ? request.country() : user.getCountry());
     user.setBio(request.bio() != null ? request.bio() : user.getBio());
+    user.setPreferredCurrency(
+        request.preferredCurrency() != null && !request.preferredCurrency().isBlank()
+            ? request.preferredCurrency().toUpperCase()
+            : user.getPreferredCurrency());
+    user.setTimezone(
+        request.timezone() != null && !request.timezone().isBlank()
+            ? request.timezone()
+            : user.getTimezone());
     user.setUpdatedAt(LocalDateTime.now());
 
     return userMapper.toResponse(userRepository.save(user));

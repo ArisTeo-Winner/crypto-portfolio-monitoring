@@ -40,6 +40,8 @@ class UserControllerRegisterIT extends UserModuleIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     String payload = objectMapper.writeValueAsString(request);
@@ -77,6 +79,8 @@ class UserControllerRegisterIT extends UserModuleIntegrationTest {
             "StrongP@ssw0rd!2026",
             "Nora",
             "Campos",
+            null,
+            null,
             null,
             null,
             null,

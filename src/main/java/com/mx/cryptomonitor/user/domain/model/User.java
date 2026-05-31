@@ -69,6 +69,14 @@ public class User {
 
   private String bio;
 
+  @Builder.Default
+  @Column(name = "preferred_currency", nullable = false, length = 3)
+  private String preferredCurrency = "USD";
+
+  @Builder.Default
+  @Column(name = "timezone", nullable = false, length = 50)
+  private String timezone = "America/Mexico_City";
+
   @Builder.Default private boolean active = true;
 
   @Builder.Default

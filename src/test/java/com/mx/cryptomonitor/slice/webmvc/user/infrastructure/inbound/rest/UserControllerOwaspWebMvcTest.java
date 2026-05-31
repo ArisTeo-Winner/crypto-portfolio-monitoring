@@ -72,7 +72,20 @@ class UserControllerOwaspWebMvcTest {
   void registerValidationErrorShouldFollowProblemDetailsContract() throws Exception {
     UserRegistrationRequest invalidRequest =
         new UserRegistrationRequest(
-            "x", "invalid-email", "weak", "John", "Doe", null, null, null, null, null, null, null);
+            "x",
+            "invalid-email",
+            "weak",
+            "John",
+            "Doe",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     MvcResult result =
         mockMvc
@@ -122,6 +135,8 @@ class UserControllerOwaspWebMvcTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     mockMvc
@@ -144,6 +159,8 @@ class UserControllerOwaspWebMvcTest {
             "StrongP@ssw0rd!2026",
             "Rate",
             "User",
+            null,
+            null,
             null,
             null,
             null,
@@ -184,7 +201,9 @@ class UserControllerOwaspWebMvcTest {
             null,
             null,
             true,
-            LocalDateTime.now());
+            LocalDateTime.now(),
+            null,
+            null);
     when(userService.findByEmail("safe@example.com")).thenReturn(Optional.of(response));
 
     mockMvc

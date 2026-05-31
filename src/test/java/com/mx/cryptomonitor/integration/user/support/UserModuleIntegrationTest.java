@@ -146,6 +146,8 @@ public abstract class UserModuleIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     mockMvc

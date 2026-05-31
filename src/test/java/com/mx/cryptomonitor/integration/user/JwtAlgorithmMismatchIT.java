@@ -14,10 +14,9 @@ import io.jsonwebtoken.security.Keys;
 /**
  * Verifica que el JwtRequestFilter rechaza tokens con algoritmo incorrecto.
  *
- * <p>El caso concreto que motivó estos tests: un cliente enviaba un token HS256
- * (generado en Postman o jwt.io con un secret simétrico) contra un servidor que
- * espera RS256. El filtro lanzaba UnsupportedJwtException sin producir un 401
- * limpio, lo que dificultaba el diagnóstico.
+ * <p>El caso concreto que motivó estos tests: un cliente enviaba un token HS256 (generado en
+ * Postman o jwt.io con un secret simétrico) contra un servidor que espera RS256. El filtro lanzaba
+ * UnsupportedJwtException sin producir un 401 limpio, lo que dificultaba el diagnóstico.
  */
 class JwtAlgorithmMismatchIT extends UserModuleIntegrationTest {
 

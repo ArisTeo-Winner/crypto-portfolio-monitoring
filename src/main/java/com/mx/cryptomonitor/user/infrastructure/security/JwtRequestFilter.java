@@ -110,7 +110,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
       } catch (ExpiredJwtException e) {
         logger.warn("Token expirado para ruta: {}", requestURI);
       } catch (JwtException e) {
-        // Cubre UnsupportedJwtException (HS256 vs RS256), MalformedJwtException, SignatureException.
+        // Cubre UnsupportedJwtException (HS256 vs RS256), MalformedJwtException,
+        // SignatureException.
         // No re-lanzar: username queda null y Spring Security emite 401 limpio.
         logger.warn("Token JWT inválido para ruta {}: {}", requestURI, e.getMessage());
       } catch (IllegalArgumentException e) {

@@ -68,6 +68,8 @@ class UserControllerIT {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     // Actúa como un cliente real llamando al endpoint

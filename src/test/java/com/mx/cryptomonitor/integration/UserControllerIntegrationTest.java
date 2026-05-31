@@ -45,6 +45,8 @@ class UserControllerIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     userService.registerUser(registrationRequest);

@@ -109,6 +109,8 @@ public class UserControllerIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     logger.info("Datos mapeados UserRegistrationRequest:{}", request);
@@ -200,6 +202,8 @@ public class UserControllerIntegrationTest {
             TEST_USERNAME + "_" + unique,
             "testuser+" + unique + "@example.com",
             TEST_PASSWORD,
+            null,
+            null,
             null,
             null,
             null,

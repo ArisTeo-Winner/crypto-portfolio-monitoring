@@ -40,7 +40,9 @@ public record UserRegistrationRequest(
     String state,
     String postalCode,
     String country,
-    LocalDate dateOfBirth) {
+    LocalDate dateOfBirth,
+    String preferredCurrency,
+    String timezone) {
 
   /**
    * Avoid leaking secrets via logs. Some Spring components may log request objects using {@code

@@ -190,7 +190,7 @@ class UserControllerRateLimitAllEndpointsWebMvcTest {
         .setAuthentication(new UsernamePasswordAuthenticationToken("user@example.com", "N/A"));
 
     UserMeUpdateRequest request =
-        new UserMeUpdateRequest("A", "B", null, null, null, null, null, null, null);
+        new UserMeUpdateRequest("A", "B", null, null, null, null, null, null, null, null, null);
 
     mockMvc
         .perform(
@@ -239,7 +239,9 @@ class UserControllerRateLimitAllEndpointsWebMvcTest {
                 null,
                 null,
                 true,
-                LocalDateTime.now()));
+                LocalDateTime.now(),
+                null,
+                null));
 
     mockMvc
         .perform(

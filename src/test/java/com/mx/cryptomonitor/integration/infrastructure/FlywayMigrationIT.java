@@ -16,10 +16,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Verifica que todas las migraciones Flyway se aplican y validan correctamente
- * contra una base de datos limpia, replicando el comportamiento de arranque en Docker.
+ * Verifica que todas las migraciones Flyway se aplican y validan correctamente contra una base de
+ * datos limpia, replicando el comportamiento de arranque en Docker.
  *
  * <p>Este test detecta:
+ *
  * <ul>
  *   <li>Errores de SQL en archivos de migración
  *   <li>Migraciones que no pueden aplicarse en orden
@@ -58,9 +59,7 @@ class FlywayMigrationIT {
             .filter(m -> m.getState() == MigrationState.FAILED)
             .count();
 
-    assertThat(failed)
-        .as("No debe haber migraciones en estado FAILED")
-        .isZero();
+    assertThat(failed).as("No debe haber migraciones en estado FAILED").isZero();
   }
 
   @Test
@@ -92,13 +91,12 @@ class FlywayMigrationIT {
             .filter(m -> m.getState() == MigrationState.SUCCESS)
             .toArray(MigrationInfo[]::new);
 
-    assertThat(applied)
-        .as("Debe haber al menos una migración aplicada")
-        .isNotEmpty();
+    assertThat(applied).as("Debe haber al menos una migración aplicada").isNotEmpty();
 
     for (MigrationInfo info : applied) {
       assertThat(info.getChecksum())
-          .as("La migración %s debe tener checksum registrado en flyway_schema_history",
+          .as(
+              "La migración %s debe tener checksum registrado en flyway_schema_history",
               info.getVersion())
           .isNotNull();
     }

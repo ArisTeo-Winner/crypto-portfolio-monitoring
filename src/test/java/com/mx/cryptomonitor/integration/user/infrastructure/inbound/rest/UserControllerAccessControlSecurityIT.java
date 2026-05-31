@@ -154,7 +154,9 @@ class UserControllerAccessControlSecurityIT {
                     null,
                     null,
                     true,
-                    LocalDateTime.now())));
+                    LocalDateTime.now(),
+                    null,
+                    null)));
 
     mockMvc
         .perform(get("/api/v1/users").accept(MediaType.APPLICATION_JSON))

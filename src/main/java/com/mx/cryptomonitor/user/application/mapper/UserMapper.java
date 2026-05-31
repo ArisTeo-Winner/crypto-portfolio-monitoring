@@ -25,6 +25,8 @@ public interface UserMapper {
   @Mapping(target = "lastLogin", ignore = true)
   @Mapping(target = "active", constant = "true")
   @Mapping(target = "passwordHash", source = "password")
+  @Mapping(target = "preferredCurrency", ignore = true)
+  @Mapping(target = "timezone", ignore = true)
   User toEntity(UserRegistrationRequest request);
 
   // Mapeo de User a UserResponse

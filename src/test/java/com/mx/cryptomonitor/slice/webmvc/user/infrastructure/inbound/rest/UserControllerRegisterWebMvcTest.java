@@ -81,6 +81,8 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     UserResponse mockResponse =
@@ -97,7 +99,9 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             true,
-            LocalDateTime.now());
+            LocalDateTime.now(),
+            null,
+            null);
 
     when(userService.registerUser(any(UserRegistrationRequest.class))).thenReturn(mockResponse);
 
@@ -124,6 +128,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "John",
             "Doe",
+            null,
+            null,
             null,
             null,
             null,
@@ -159,6 +165,8 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     mockMvc
@@ -181,6 +189,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "Jane",
             "Doe",
+            null,
+            null,
             null,
             null,
             null,
@@ -220,6 +230,8 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     when(userService.registerUser(any(UserRegistrationRequest.class)))
@@ -245,6 +257,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "Rate",
             "Limited",
+            null,
+            null,
             null,
             null,
             null,

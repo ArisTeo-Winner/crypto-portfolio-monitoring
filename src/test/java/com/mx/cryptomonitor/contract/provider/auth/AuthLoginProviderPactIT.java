@@ -62,6 +62,8 @@ class AuthLoginProviderPactIT extends UserModuleIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
     mockMvc
         .perform(

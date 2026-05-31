@@ -1,0 +1,3 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(3)  NOT NULL DEFAULT 'USD',
+  ADD COLUMN IF NOT EXISTS timezone           VARCHAR(50) NOT NULL DEFAULT 'America/Mexico_City';
