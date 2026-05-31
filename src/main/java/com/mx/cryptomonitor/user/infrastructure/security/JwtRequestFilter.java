@@ -26,6 +26,7 @@ import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -106,10 +107,14 @@ public class JwtRequestFilter extends OncePerRequestFilter {
       jwt = authorizationHeader.substring(7);
       try {
         username = jwtTokenUtil.getUsernameFromToken(jwt);
+      } catch (ExpiredJwtException e) {
+        logger.warn("Token expirado para ruta: {}", requestURI);
+      } catch (JwtException e) {
+        // Cubre UnsupportedJwtException (HS256 vs RS256), MalformedJwtException, SignatureException.
+        // No re-lanzar: username queda null y Spring Security emite 401 limpio.
+        logger.warn("Token JWT inválido para ruta {}: {}", requestURI, e.getMessage());
       } catch (IllegalArgumentException e) {
         logger.error("No se pudo obtener el nombre de usuario del token", e);
-      } catch (ExpiredJwtException e) {
-        logger.warn("El token ha expirado", e);
       }
     } else {
       // Sin header Authorization: no hay credenciales que procesar.

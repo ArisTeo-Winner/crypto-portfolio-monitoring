@@ -87,8 +87,7 @@ public abstract class UserModuleIntegrationTest {
         "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add("spring.flyway.enabled", () -> "false");
 
-    // JWT — deterministic secret so tokens are reproducible within a test run
-    registry.add("jwt.secret-base64", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+    // JWT — las claves RSA vienen de application-test.properties (jwt.private-key-base64 / public)
     registry.add("jwt.access-token-expiration", () -> "3600000");
     registry.add("jwt.refresh-token-expiration", () -> "604800000");
 
@@ -164,11 +163,19 @@ public abstract class UserModuleIntegrationTest {
                     .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
-            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
             .andReturn();
 
     String body = loginResult.getResponse().getContentAsString();
-    return new Tokens(JsonPath.read(body, "$.accessToken"), JsonPath.read(body, "$.refreshToken"));
+    String accessToken = JsonPath.read(body, "$.accessToken");
+
+    // El refresh token viaja en cookie HttpOnly — nunca en el body JSON.
+    String setCookie = loginResult.getResponse().getHeader("Set-Cookie");
+    String refreshToken =
+        setCookie != null && setCookie.contains("refresh_token=")
+            ? setCookie.split("refresh_token=")[1].split(";")[0]
+            : "";
+
+    return new Tokens(accessToken, refreshToken);
   }
 
   /** Access and refresh tokens returned by the login endpoint. */

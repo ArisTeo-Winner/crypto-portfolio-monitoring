@@ -181,6 +181,7 @@ public class TokenService {
                 });
 
     refreshTokenStoreService.markRevokedByRawToken(refreshTokenValue);
+    closeSession(storedToken.sessionId());
     auditLogService.log(
         AuditEventType.REFRESH_TOKEN_REVOKED, "Refresh token revoked", storedToken.userId());
   }

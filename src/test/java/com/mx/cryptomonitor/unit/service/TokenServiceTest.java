@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.UUID;
+
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ import com.mx.cryptomonitor.user.application.service.JwtUserDetailsService;
 import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService;
 import com.mx.cryptomonitor.user.application.service.TokenService;
 import com.mx.cryptomonitor.user.domain.model.RefreshToken;
+import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.port.TokenIssuerPort;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
@@ -78,18 +81,25 @@ class TokenServiceTest {
 
   @Test
   void revokeRefreshToken_should_mark_token_as_revoked() {
+    UUID sessionId = UUID.randomUUID();
     RefreshTokenStoreService.StoredRefreshToken existing =
         new RefreshTokenStoreService.StoredRefreshToken(
-            java.util.UUID.randomUUID(),
-            java.util.UUID.randomUUID(),
-            java.util.UUID.randomUUID(),
-            false);
+            UUID.randomUUID(), UUID.randomUUID(), sessionId, false);
+
+    Session session = new Session();
+    session.setActive(true);
+
     when(refreshTokenStoreService.findByRawToken("refresh-xyz")).thenReturn(Optional.of(existing));
+    when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
 
     tokenService.revokeRefreshToken("refresh-xyz");
 
     verify(refreshTokenStoreService).findByRawToken("refresh-xyz");
     verify(refreshTokenStoreService).markRevokedByRawToken("refresh-xyz");
+    verify(sessionRepository).findById(sessionId);
+    verify(sessionRepository).save(session);
+    assertThat(session.isActive()).isFalse();
+    assertThat(session.getLogoutTime()).isNotNull();
   }
 
   @Test
