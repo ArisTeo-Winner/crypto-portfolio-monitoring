@@ -27,9 +27,6 @@ public class Session {
   @JoinColumn(name = "user_id", nullable = false)
   private User user;
 
-  @Column(name = "refresh_token_id")
-  private UUID refreshTokenId;
-
   @Column(name = "login_time")
   private OffsetDateTime loginTime;
 

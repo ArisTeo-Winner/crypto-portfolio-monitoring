@@ -101,6 +101,7 @@ class UserControllerRegisterWebMvcTest {
             true,
             LocalDateTime.now(),
             null,
+            null,
             null);
 
     when(userService.registerUser(any(UserRegistrationRequest.class))).thenReturn(mockResponse);

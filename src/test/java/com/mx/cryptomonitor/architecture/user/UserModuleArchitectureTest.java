@@ -6,10 +6,15 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import com.tngtech.archunit.core.domain.Dependency;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 @AnalyzeClasses(
     packages = "com.mx.cryptomonitor",
@@ -85,14 +90,43 @@ class UserModuleArchitectureTest {
           .dependOnClassesThat()
           .belongToAnyOf(StringRedisTemplate.class);
 
+  // REST controllers must not call repositories directly — they must go through an application
+  // service. Outbound adapters and security handlers may use repositories legitimately.
   @ArchTest
-  static final ArchRule refresh_token_repository_should_not_be_used_outside_repository_package =
+  static final ArchRule user_controllers_should_not_depend_on_repositories =
       noClasses()
           .that()
-          .resideOutsideOfPackage("..user.domain.repository..")
+          .resideInAPackage("..user.infrastructure.inbound.rest..")
           .should()
           .dependOnClassesThat()
-          .haveSimpleName("RefreshTokenRepository");
+          .resideInAPackage("..user.domain.repository..");
+
+  // Every declared repository must be used by at least one class in the user module
+  // (application service or infrastructure adapter). A repository with zero internal callers
+  // is dead code and should be removed along with its Flyway table.
+  @ArchTest
+  static final ArchRule user_repositories_must_have_at_least_one_internal_caller =
+      classes()
+          .that()
+          .resideInAPackage("..user.domain.repository..")
+          .should(
+              new ArchCondition<JavaClass>("have at least one caller inside the user module") {
+                @Override
+                public void check(JavaClass repository, ConditionEvents events) {
+                  boolean hasInternalCaller =
+                      repository.getDirectDependenciesToSelf().stream()
+                          .map(Dependency::getOriginClass)
+                          .anyMatch(c -> c.getPackageName().startsWith("com.mx.cryptomonitor.user"));
+                  if (!hasInternalCaller) {
+                    events.add(
+                        SimpleConditionEvent.violated(
+                            repository,
+                            repository.getSimpleName()
+                                + " no tiene ningún caller dentro del módulo user"
+                                + " — repositorio muerto, eliminar junto a su tabla Flyway"));
+                  }
+                }
+              });
 
   @ArchTest
   static final ArchRule user_application_should_depend_on_token_port_not_jwt_adapter =

@@ -67,7 +67,6 @@ public class AuthService {
       session.setUser(user);
       session.setLoginTime(OffsetDateTime.now());
       session.setActive(true);
-      session.setRefreshTokenId(null);
       sessionRepository.save(session);
 
       LocalDateTime refreshTokenExpiry =
@@ -146,7 +145,6 @@ public class AuthService {
     session.setUser(user);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
-    session.setRefreshTokenId(null);
     return sessionRepository.save(session);
   }
 
@@ -163,7 +161,6 @@ public class AuthService {
     session.setUser(user);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
-    session.setRefreshTokenId(null);
     sessionRepository.save(session);
 
     LocalDateTime refreshTokenExpiry =

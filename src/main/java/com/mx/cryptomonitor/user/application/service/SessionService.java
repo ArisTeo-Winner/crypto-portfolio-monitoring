@@ -9,9 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.user.application.dto.response.SessionSummaryResponse;
 import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService.SessionRedisEntry;
+import com.mx.cryptomonitor.user.domain.exception.UserNotFoundException;
 import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,16 +22,20 @@ import lombok.RequiredArgsConstructor;
 public class SessionService {
 
   private final SessionRepository sessionRepository;
+  private final UserRepository userRepository;
   private final RefreshTokenStoreService refreshTokenStoreService;
 
-  @Transactional
-  public Session createSession(User user, UUID refreshTokenId) {
+  public UUID resolveUserId(String email) {
+    return userRepository
+        .findByEmail(email)
+        .map(User::getId)
+        .orElseThrow(() -> new UserNotFoundException("Usuario no encontrado"));
+  }
 
+  @Transactional
+  public Session createSession(User user) {
     Session session = new Session();
-    // session.setSessionId(UUID.randomUUID());
     session.setUser(user);
-    // Redis is the source of truth for refresh tokens; keep DB FK column unset.
-    session.setRefreshTokenId(null);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
     return sessionRepository.save(session);

@@ -95,7 +95,7 @@ class UserControllerValidationWebMvcTest {
   @DisplayName("PUT /users/me -> 400 ProblemDetail VALIDATION_ERROR for oversize fields")
   void meUpdate_oversizeBio_returns_400_problemDetail() throws Exception {
     String longBio = "x".repeat(501);
-    UserMeUpdateRequest request = new UserMeUpdateRequest(null, null, null, null, null, null, null, null, longBio);
+    UserMeUpdateRequest request = new UserMeUpdateRequest(null, null, null, null, null, null, null, null, longBio, null, null, null);
 
     mockMvc
         .perform(

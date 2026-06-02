@@ -156,6 +156,7 @@ class UserControllerAccessControlSecurityIT {
                     true,
                     LocalDateTime.now(),
                     null,
+                    null,
                     null)));
 
     mockMvc

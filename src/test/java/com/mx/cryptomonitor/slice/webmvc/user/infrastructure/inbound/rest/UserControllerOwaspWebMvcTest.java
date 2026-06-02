@@ -203,6 +203,7 @@ class UserControllerOwaspWebMvcTest {
             true,
             LocalDateTime.now(),
             null,
+            null,
             null);
     when(userService.findByEmail("safe@example.com")).thenReturn(Optional.of(response));
 

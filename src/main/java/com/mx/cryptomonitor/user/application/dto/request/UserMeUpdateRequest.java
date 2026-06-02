@@ -1,5 +1,8 @@
 package com.mx.cryptomonitor.user.application.dto.request;
 
+import java.time.LocalDate;
+
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 
 public record UserMeUpdateRequest(
@@ -14,4 +17,5 @@ public record UserMeUpdateRequest(
     @Size(max = 500, message = "bio too long") String bio,
     @Size(max = 3, message = "preferredCurrency must be ISO 4217 code (3 chars)")
         String preferredCurrency,
-    @Size(max = 50, message = "timezone too long") String timezone) {}
+    @Size(max = 50, message = "timezone too long") String timezone,
+    @Past(message = "dateOfBirth must be a past date") LocalDate dateOfBirth) {}

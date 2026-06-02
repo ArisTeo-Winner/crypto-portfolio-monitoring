@@ -231,6 +231,8 @@ public class UserService {
     user.setPostalCode(request.postalCode() != null ? request.postalCode() : user.getPostalCode());
     user.setCountry(request.country() != null ? request.country() : user.getCountry());
     user.setBio(request.bio() != null ? request.bio() : user.getBio());
+    user.setDateOfBirth(
+        request.dateOfBirth() != null ? request.dateOfBirth() : user.getDateOfBirth());
     user.setPreferredCurrency(
         request.preferredCurrency() != null && !request.preferredCurrency().isBlank()
             ? request.preferredCurrency().toUpperCase()

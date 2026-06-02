@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.user.application.dto.response.SessionSummaryResponse;
 import com.mx.cryptomonitor.user.application.service.SessionService;
-import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtTokenUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,20 +24,13 @@ import lombok.RequiredArgsConstructor;
 public class UserSessionController {
 
   private final SessionService sessionService;
-  private final UserRepository userRepository;
   private final JwtTokenUtil jwtTokenUtil;
 
   @GetMapping
   public ResponseEntity<List<SessionSummaryResponse>> listSessions(
       HttpServletRequest request, Authentication authentication) {
 
-    String email = authentication.getName();
-    UUID userId =
-        userRepository
-            .findByEmail(email)
-            .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
-            .getId();
-
+    UUID userId = sessionService.resolveUserId(authentication.getName());
     UUID currentSessionId = extractSessionId(request);
     return ResponseEntity.ok(sessionService.listActiveSessions(userId, currentSessionId));
   }
@@ -47,13 +39,7 @@ public class UserSessionController {
   public ResponseEntity<Void> revokeSession(
       @PathVariable UUID sessionId, HttpServletRequest request, Authentication authentication) {
 
-    String email = authentication.getName();
-    UUID userId =
-        userRepository
-            .findByEmail(email)
-            .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"))
-            .getId();
-
+    UUID userId = sessionService.resolveUserId(authentication.getName());
     UUID currentSessionId = extractSessionId(request);
     sessionService.revokeSession(userId, sessionId, currentSessionId);
     return ResponseEntity.noContent().build();

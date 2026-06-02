@@ -23,7 +23,6 @@ import com.mx.cryptomonitor.user.application.service.AuthenticationService;
 import com.mx.cryptomonitor.user.application.service.JwtUserDetailsService;
 import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService;
 import com.mx.cryptomonitor.user.application.service.TokenService;
-import com.mx.cryptomonitor.user.domain.model.RefreshToken;
 import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.port.TokenIssuerPort;
@@ -48,29 +47,20 @@ class TokenServiceTest {
   @InjectMocks private TokenService tokenService;
 
   @Test
-  void accessToken_should_persist_refresh_token_with_expected_expiration() {
-    logger.info(
-        "---TokenServiceTest >>> accessToken_should_persist_refresh_token_with_expected_expiration()---");
+  void accessToken_should_store_refresh_token_in_redis() {
+    logger.info("---TokenServiceTest >>> accessToken_should_store_refresh_token_in_redis()---");
 
     User user = User.builder().email("token@example.com").username("token_user").build();
 
     when(tokenIssuerPort.generateRefreshToken("token@example.com")).thenReturn("refresh-abc");
-    when(tokenIssuerPort.getRefreshExpiration()).thenReturn(120_000L); // 120s
+    when(tokenIssuerPort.getRefreshExpiration()).thenReturn(120_000L);
     when(refreshTokenStoreService.store(
             eq("refresh-abc"), eq(user.getId()), any(), any(), eq("127.0.0.1"), eq("JUnit")))
         .thenReturn(
             new RefreshTokenStoreService.StoredRefreshToken(
                 java.util.UUID.randomUUID(), user.getId(), java.util.UUID.randomUUID(), false));
 
-    RefreshToken saved = tokenService.accessToken(user, "127.0.0.1", "JUnit");
-
-    assertThat(saved.getRefreshToken()).isEqualTo("REDIS_HASHED");
-    assertThat(saved.getUser()).isEqualTo(user);
-    assertThat(saved.getIpAddress()).isEqualTo("127.0.0.1");
-    assertThat(saved.getUserAgent()).isEqualTo("JUnit");
-    assertThat(saved.getCreatedAt()).isNotNull();
-    assertThat(saved.getExpiresAt()).isNotNull();
-    assertThat(saved.getExpiresAt()).isAfter(saved.getCreatedAt());
+    tokenService.accessToken(user, "127.0.0.1", "JUnit");
 
     verify(tokenIssuerPort).generateRefreshToken("token@example.com");
     verify(refreshTokenStoreService)

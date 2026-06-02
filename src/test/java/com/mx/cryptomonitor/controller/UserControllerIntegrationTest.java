@@ -30,7 +30,6 @@ import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
 import com.mx.cryptomonitor.user.application.dto.request.UserRegistrationRequest;
 import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService;
 import com.mx.cryptomonitor.user.domain.model.User;
-import com.mx.cryptomonitor.user.domain.repository.RefreshTokenRepository;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
@@ -51,8 +50,6 @@ public class UserControllerIntegrationTest {
 
   @Autowired private UserRepository userRepository;
 
-  @Autowired private RefreshTokenRepository refreshTokenRepository;
-
   @Autowired private SessionRepository sessionRepository;
 
   @MockBean private RefreshTokenStoreService refreshTokenStoreService;
@@ -70,7 +67,6 @@ public class UserControllerIntegrationTest {
      * Limpiar los datos antes de cada prueba. NOTA. Solo aplica para @ActiveProfiles("test"), puede
      * causar problema con bd local si no ajusta adecuadamente
      */
-    refreshTokenRepository.deleteAll();
     sessionRepository.deleteAll();
 
     org.mockito.Mockito.when(

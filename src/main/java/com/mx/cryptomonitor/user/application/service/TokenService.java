@@ -15,7 +15,6 @@ import com.mx.cryptomonitor.user.domain.exception.InvalidTokenException;
 import com.mx.cryptomonitor.user.domain.exception.SessionNotFoundException;
 import com.mx.cryptomonitor.user.domain.exception.UserNotFoundException;
 import com.mx.cryptomonitor.user.domain.model.AuditEventType;
-import com.mx.cryptomonitor.user.domain.model.RefreshToken;
 import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.port.TokenIssuerPort;
@@ -40,37 +39,23 @@ public class TokenService {
   private final RefreshTokenStoreService refreshTokenStoreService;
 
   @Transactional
-  public RefreshToken accessToken(User user, String ipAddress, String userAgent) {
-
+  public void accessToken(User user, String ipAddress, String userAgent) {
     String refreshTokenValue = tokenIssuerPort.generateRefreshToken(user.getEmail());
     Session session = new Session();
     session.setUser(user);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
-    session.setRefreshTokenId(null);
     sessionRepository.save(session);
 
     LocalDateTime refreshTokenExpiry =
         LocalDateTime.now().plusSeconds(tokenIssuerPort.getRefreshExpiration() / 1000);
-    RefreshTokenStoreService.StoredRefreshToken storedRefreshToken =
-        refreshTokenStoreService.store(
-            refreshTokenValue,
-            user.getId(),
-            session.getSessionId(),
-            refreshTokenExpiry,
-            ipAddress,
-            userAgent);
-
-    RefreshToken token = new RefreshToken();
-    token.setId(storedRefreshToken.tokenId());
-    token.setUser(user);
-    token.setRefreshToken("REDIS_HASHED");
-    token.setCreatedAt(LocalDateTime.now());
-    token.setExpiresAt(refreshTokenExpiry);
-    token.setIpAddress(ipAddress);
-    token.setUserAgent(userAgent);
-    token.setRevoked(false);
-    return token;
+    refreshTokenStoreService.store(
+        refreshTokenValue,
+        user.getId(),
+        session.getSessionId(),
+        refreshTokenExpiry,
+        ipAddress,
+        userAgent);
   }
 
   @Transactional
@@ -137,7 +122,6 @@ public class TokenService {
     session.setUser(user);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
-    session.setRefreshTokenId(null);
     sessionRepository.save(session);
 
     // Capturar IP y UA para el nuevo token rotado — obligatorio para audit trail
