@@ -20,18 +20,14 @@ class AssetSearchContractIT {
   @Autowired private MockMvc mockMvc;
 
   @Test
-  void shouldReturnAssetsForSelector() throws Exception {
+  void shouldReturnEmptyResultsWhenCatalogNotLoaded() throws Exception {
+    // Redis catalog is empty in the test profile — no fallback exists by design
     mockMvc
         .perform(get("/api/v1/assets/search").param("q", "btc"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.query").value("btc"))
-        .andExpect(jsonPath("$.total").value(1))
-        .andExpect(jsonPath("$.items[0].assetId").value("bitcoin"))
-        .andExpect(jsonPath("$.items[0].symbol").value("BTC"))
-        .andExpect(jsonPath("$.items[0].name").value("Bitcoin"))
-        .andExpect(jsonPath("$.items[0].assetType").value("CRYPTO"))
-        .andExpect(jsonPath("$.items[0].logoUrl").isEmpty())
-        .andExpect(jsonPath("$.items[0].supportedForTransactions").value(true));
+        .andExpect(jsonPath("$.total").value(0))
+        .andExpect(jsonPath("$.items").isEmpty());
   }
 
   @Test

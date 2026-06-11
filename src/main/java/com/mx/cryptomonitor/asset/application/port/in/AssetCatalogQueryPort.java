@@ -5,4 +5,6 @@ import java.util.Optional;
 public interface AssetCatalogQueryPort {
 
   Optional<String> findAssetIdBySymbol(String symbol);
+
+  Optional<String> findNameBySymbol(String symbol);
 }

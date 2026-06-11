@@ -20,4 +20,8 @@ public record BuyTransactionRequest(
         BigDecimal pricePerUnit,
     @PositiveOrZero(message = "La comision no puede ser negativa") BigDecimal fee,
     @NotNull(message = "La fecha de transaccion no puede ser nula") OffsetDateTime transactionDate,
-    @Size(max = 255, message = "Las notas no pueden exceder 255 caracteres") String notes) {}
+    @Size(max = 255, message = "Las notas no pueden exceder 255 caracteres") String notes,
+    String assetName,
+    String exchange,
+    String broker,
+    String currency) {}

@@ -16,4 +16,9 @@ public record TransactionResponse(
     BigDecimal fee,
     String notes,
     OffsetDateTime createdAt,
-    OffsetDateTime updatedAt) {}
+    OffsetDateTime updatedAt,
+    String logoUrl,
+    String assetName,
+    String exchange,
+    String broker,
+    String currency) {}

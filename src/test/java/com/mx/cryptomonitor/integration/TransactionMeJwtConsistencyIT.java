@@ -182,7 +182,12 @@ class TransactionMeJwtConsistencyIT {
         new BigDecimal("10.00"),
         "buy btc",
         OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
-        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC));
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private String validTransactionRequest() {
@@ -194,7 +199,7 @@ class TransactionMeJwtConsistencyIT {
           "quantity": 0.50,
           "pricePerUnit": 95000.00,
           "totalValue": 47500.00,
-          "transactionDate": "2026-03-06T12:00:00",
+          "transactionDate": "2026-03-06T12:00:00Z",
           "fee": 10.00,
           "notes": "buy btc"
         }

@@ -76,6 +76,18 @@ public class Transaction {
   @Column(name = "realized_pnl", precision = 18, scale = 8)
   private BigDecimal realizedPnl = BigDecimal.ZERO;
 
+  @Column(name = "asset_name", length = 255)
+  private String assetName;
+
+  @Column(name = "exchange", length = 20)
+  private String exchange;
+
+  @Column(name = "broker", length = 50)
+  private String broker;
+
+  @Column(name = "currency", length = 3)
+  private String currency;
+
   @Column(name = "notes")
   private String notes;
 

@@ -47,6 +47,7 @@ class TransactionControllerIT {
     user.setEmail("test@gmail.com");
     user.setPasswordHash("password123");
     user.setFirstName("test");
+    user.setActive(true);
 
     userRepository.save(user);
 
@@ -70,11 +71,12 @@ class TransactionControllerIT {
   }
 
   @Test
-  @WithMockUser(roles = "USER")
+  @WithMockUser(username = "test@gmail.com", roles = "USER")
   void testGetTransactionsByUserAndSymbol() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/transactions/{userId}/{assetSymbol}", user.getId(), assetSymbol)
+            get("/api/v1/me/transactions")
+                .param("assetSymbol", assetSymbol)
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))

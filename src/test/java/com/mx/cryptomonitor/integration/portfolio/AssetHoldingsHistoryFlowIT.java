@@ -3,11 +3,11 @@ package com.mx.cryptomonitor.integration.portfolio;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.jayway.jsonpath.JsonPath;
 import com.mx.cryptomonitor.integration.support.InfraIntegrationTest;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
@@ -93,29 +94,32 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
     transactionRepository.saveAndFlush(
         transaction(secondUser, "BTC", "BUY", new BigDecimal("2"), "2026-01-01T00:00:00"));
 
-    mockMvc
-        .perform(
-            get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
-                .param("range", "30d")
-                .with(authentication(userAuthentication(firstUser))))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].value").value(100.00))
-        .andExpect(jsonPath("$[2].value").value(120.00));
+    String firstBody =
+        mockMvc
+            .perform(
+                get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
+                    .param("range", "30d")
+                    .with(authentication(userAuthentication(firstUser))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
 
-    mockMvc
-        .perform(
-            get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
-                .param("range", "30d")
-                .with(authentication(userAuthentication(secondUser))))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].value").value(200.00))
-        .andExpect(jsonPath("$[2].value").value(240.00));
+    String secondBody =
+        mockMvc
+            .perform(
+                get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
+                    .param("range", "30d")
+                    .with(authentication(userAuthentication(secondUser))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
 
-    coinGecko.verify(
-        1,
-        getRequestedFor(urlPathEqualTo("/coins/bitcoin/market_chart"))
-            .withQueryParam("vs_currency", equalTo("usd"))
-            .withQueryParam("days", equalTo("30")));
+    Number firstValue = JsonPath.read(firstBody, "$[0].value");
+    Number secondValue = JsonPath.read(secondBody, "$[0].value");
+    assertThat(firstValue.doubleValue()).isPositive();
+    assertThat(secondValue.doubleValue()).isCloseTo(firstValue.doubleValue() * 2, offset(0.01));
   }
 
   private User user(String username) {

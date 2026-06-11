@@ -31,8 +31,8 @@ import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 /**
  * Full-stack integration tests for all UserController CRUD endpoints.
  *
- * <p>Runs against real PostgreSQL + Redis containers (via UserModuleIntegrationTest).
- * Each nested class maps to one endpoint group and exhaustively covers: happy paths,
+ * <p>Runs against real PostgreSQL + Redis containers (via UserModuleIntegrationTest). Each nested
+ * class maps to one endpoint group and exhaustively covers: happy paths,
  * authentication/authorization, input validation, response contract, and state isolation.
  */
 @DisplayName("UserController — CRUD completo")
@@ -57,8 +57,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "user_" + suffix, "min_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "user_" + suffix,
+              "min_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -111,8 +123,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "def_" + suffix, "def_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "def_" + suffix,
+              "def_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       String body =
           mockMvc
@@ -131,8 +155,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "tz_" + suffix, "tz_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "tz_" + suffix,
+              "tz_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       String body =
           mockMvc
@@ -152,8 +188,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String email = "ts_" + suffix + "@test.local";
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "ts_" + suffix, email, STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "ts_" + suffix,
+              email,
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       LocalDateTime before = LocalDateTime.now();
 
@@ -179,14 +227,39 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String email = "dup_" + suffix + "@test.local";
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "dup1_" + suffix, email, STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "dup1_" + suffix,
+              email,
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
       UserRegistrationRequest req2 =
           new UserRegistrationRequest(
-              "dup2_" + suffix, email, STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "dup2_" + suffix,
+              email,
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
-      mockMvc.perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
+      mockMvc
+          .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
           .andExpect(status().isCreated());
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req2)))
@@ -202,14 +275,39 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String username = "same_user_" + suffix;
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              username, "ua_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              username,
+              "ua_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
       UserRegistrationRequest req2 =
           new UserRegistrationRequest(
-              username, "ub_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              username,
+              "ub_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
-      mockMvc.perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
+      mockMvc
+          .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
           .andExpect(status().isCreated());
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req2)))
@@ -259,8 +357,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "inv_" + suffix, "not-an-email", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "inv_" + suffix,
+              "not-an-email",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -273,8 +383,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "usr", "short_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "usr",
+              "short_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -287,8 +409,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "a".repeat(51), "long_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "a".repeat(51),
+              "long_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -301,8 +435,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "user name", "sp_" + suffix + "@test.local", STRONG_PASSWORD,
-              null, null, null, null, null, null, null, null, null, null, null);
+              "user name",
+              "sp_" + suffix + "@test.local",
+              STRONG_PASSWORD,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -315,8 +461,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "wk_" + suffix, "wk_" + suffix + "@test.local", "weakpass1!",
-              null, null, null, null, null, null, null, null, null, null, null);
+              "wk_" + suffix,
+              "wk_" + suffix + "@test.local",
+              "weakpass1!",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -329,8 +487,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "wk2_" + suffix, "wk2_" + suffix + "@test.local", "Weakpass1",
-              null, null, null, null, null, null, null, null, null, null, null);
+              "wk2_" + suffix,
+              "wk2_" + suffix + "@test.local",
+              "Weakpass1",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -343,8 +513,20 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       String suffix = suffix();
       UserRegistrationRequest req =
           new UserRegistrationRequest(
-              "wk3_" + suffix, "wk3_" + suffix + "@test.local", "Ab1!",
-              null, null, null, null, null, null, null, null, null, null, null);
+              "wk3_" + suffix,
+              "wk3_" + suffix + "@test.local",
+              "Ab1!",
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null);
 
       mockMvc
           .perform(post(BASE + "/register").contentType(json()).content(toJson(req)))
@@ -419,8 +601,18 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
 
       UserMeUpdateRequest req =
           new UserMeUpdateRequest(
-              "Carlos", "Mendoza", null, null, "Guadalajara",
-              "Jalisco", null, "México", null, "MXN", "America/Mexico_City", null);
+              "Carlos",
+              "Mendoza",
+              null,
+              null,
+              "Guadalajara",
+              "Jalisco",
+              null,
+              "México",
+              null,
+              "MXN",
+              "America/Mexico_City",
+              null);
 
       mockMvc
           .perform(
@@ -447,9 +639,17 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
 
       UserMeUpdateRequest req =
           new UserMeUpdateRequest(
-              "Aristeo", "Ortiz", "+52 55 9999 0000", "Av. Reforma 500",
-              "CDMX", "CDMX", "06600", "México",
-              "Apasionado del cripto", "MXN", "America/Mexico_City",
+              "Aristeo",
+              "Ortiz",
+              "+52 55 9999 0000",
+              "Av. Reforma 500",
+              "CDMX",
+              "CDMX",
+              "06600",
+              "México",
+              "Apasionado del cripto",
+              "MXN",
+              "America/Mexico_City",
               java.time.LocalDate.of(1990, 5, 15));
 
       mockMvc
@@ -536,25 +736,49 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
       Tokens tokens = registerAndLogin();
 
       // Primera actualización: establece firstName y ciudad
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokens))
-              .contentType(json())
-              .content(
-                  toJson(new UserMeUpdateRequest(
-                      "Original", null, null, null, "Monterrey",
-                      null, null, null, null, null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokens))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              "Original",
+                              null,
+                              null,
+                              null,
+                              "Monterrey",
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null))))
           .andExpect(status().isOk());
 
       // Segunda actualización: solo cambia lastName, firstName debe seguir siendo "Original"
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokens))
-              .contentType(json())
-              .content(
-                  toJson(new UserMeUpdateRequest(
-                      null, "Nuevo Apellido", null, null, null,
-                      null, null, null, null, null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokens))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              null,
+                              "Nuevo Apellido",
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null))))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.firstName").value("Original"))
           .andExpect(jsonPath("$.lastName").value("Nuevo Apellido"))
@@ -569,13 +793,16 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
 
       String originalFirstNameB = JsonPath.read(getMe(tokensB), "$.firstName");
 
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokensA))
-              .contentType(json())
-              .content(toJson(new UserMeUpdateRequest(
-                  "SoyA", null, null, null, null,
-                  null, null, null, null, null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokensA))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              "SoyA", null, null, null, null, null, null, null, null, null, null,
+                              null))))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.firstName").value("SoyA"));
 
@@ -592,13 +819,26 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     void updateMe_bioTooLong_returns400() throws Exception {
       Tokens tokens = registerAndLogin();
 
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokens))
-              .contentType(json())
-              .content(toJson(new UserMeUpdateRequest(
-                  null, null, null, null, null,
-                  null, null, null, "x".repeat(501), null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokens))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              "x".repeat(501),
+                              null,
+                              null,
+                              null))))
           .andExpect(status().isBadRequest())
           .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
     }
@@ -608,13 +848,16 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     void updateMe_currencyTooLong_returns400() throws Exception {
       Tokens tokens = registerAndLogin();
 
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokens))
-              .contentType(json())
-              .content(toJson(new UserMeUpdateRequest(
-                  null, null, null, null, null,
-                  null, null, null, null, "USDX", null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokens))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              null, null, null, null, null, null, null, null, null, "USDX", null,
+                              null))))
           .andExpect(status().isBadRequest());
     }
 
@@ -623,13 +866,26 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     void updateMe_firstNameTooLong_returns400() throws Exception {
       Tokens tokens = registerAndLogin();
 
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokens))
-              .contentType(json())
-              .content(toJson(new UserMeUpdateRequest(
-                  "A".repeat(121), null, null, null, null,
-                  null, null, null, null, null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokens))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              "A".repeat(121),
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null))))
           .andExpect(status().isBadRequest());
     }
 
@@ -638,25 +894,41 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     void updateMe_phoneNumberTooLong_returns400() throws Exception {
       Tokens tokens = registerAndLogin();
 
-      mockMvc.perform(
-          put(BASE + "/me")
-              .header("Authorization", bearer(tokens))
-              .contentType(json())
-              .content(toJson(new UserMeUpdateRequest(
-                  null, null, "1".repeat(31), null, null,
-                  null, null, null, null, null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .header("Authorization", bearer(tokens))
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              null,
+                              null,
+                              "1".repeat(31),
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null))))
           .andExpect(status().isBadRequest());
     }
 
     @Test
     @DisplayName("401 — sin token")
     void updateMe_noToken_returns401() throws Exception {
-      mockMvc.perform(
-          put(BASE + "/me")
-              .contentType(json())
-              .content(toJson(new UserMeUpdateRequest(
-                  "Test", null, null, null, null,
-                  null, null, null, null, null, null, null))))
+      mockMvc
+          .perform(
+              put(BASE + "/me")
+                  .contentType(json())
+                  .content(
+                      toJson(
+                          new UserMeUpdateRequest(
+                              "Test", null, null, null, null, null, null, null, null, null, null,
+                              null))))
           .andExpect(status().isUnauthorized());
     }
   }
@@ -791,8 +1063,7 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
               .orElseThrow(() -> new AssertionError("Usuario no encontrado"));
 
       mockMvc
-          .perform(
-              delete(BASE + "/{id}", user.getId()).header("Authorization", bearer(tokens)))
+          .perform(delete(BASE + "/{id}", user.getId()).header("Authorization", bearer(tokens)))
           .andExpect(status().isOk());
 
       assertThat(userRepository.findById(user.getId())).isEmpty();
@@ -876,7 +1147,8 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
               post(BASE + "/password/change")
                   .header("Authorization", bearer(tokens))
                   .contentType(json())
-                  .content(toJson(new PasswordChangeRequest("WrongCurrent@1!", "NewP@ssw0rd!2026"))))
+                  .content(
+                      toJson(new PasswordChangeRequest("WrongCurrent@1!", "NewP@ssw0rd!2026"))))
           .andExpect(status().isBadRequest());
     }
 
@@ -963,7 +1235,8 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
           .perform(
               post(BASE + "/password/reset")
                   .contentType(json())
-                  .content(toJson(new PasswordResetRequest("noexiste_" + suffix() + "@test.local"))))
+                  .content(
+                      toJson(new PasswordResetRequest("noexiste_" + suffix() + "@test.local"))))
           .andExpect(status().isAccepted());
     }
 
@@ -982,10 +1255,7 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     @DisplayName("400 — email ausente")
     void resetPassword_missingEmail_returns400() throws Exception {
       mockMvc
-          .perform(
-              post(BASE + "/password/reset")
-                  .contentType(json())
-                  .content("{}"))
+          .perform(post(BASE + "/password/reset").contentType(json()).content("{}"))
           .andExpect(status().isBadRequest());
     }
   }
@@ -1013,10 +1283,7 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     @DisplayName("400 — token ausente en el body")
     void verifyEmail_missingToken_returns400() throws Exception {
       mockMvc
-          .perform(
-              post(BASE + "/email/verify")
-                  .contentType(json())
-                  .content("{}"))
+          .perform(post(BASE + "/email/verify").contentType(json()).content("{}"))
           .andExpect(status().isBadRequest());
     }
   }

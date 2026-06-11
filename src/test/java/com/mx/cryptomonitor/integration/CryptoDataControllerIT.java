@@ -123,7 +123,7 @@ class CryptoDataControllerIT extends AbstractCoinMarketCapWireMockIT {
   void shouldReturn429_whenCmcReturns429() {
     stubFor(
         get(urlPathEqualTo("/v2/cryptocurrency/quotes/latest"))
-            .withQueryParam("symbol", equalTo("BTC"))
+            .withQueryParam("symbol", equalTo("RATE429"))
             .willReturn(
                 aResponse()
                     .withStatus(429)
@@ -131,7 +131,7 @@ class CryptoDataControllerIT extends AbstractCoinMarketCapWireMockIT {
 
     webTestClient
         .get()
-        .uri("/api/v1/crypto/BTC/price")
+        .uri("/api/v1/crypto/RATE429/price")
         .exchange()
         .expectStatus()
         .isEqualTo(429)

@@ -73,7 +73,11 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("45000.00000000"),
             FEE,
             OffsetDateTime.now(ZoneOffset.UTC),
-            "regresion-fee-precision-buy");
+            "regresion-fee-precision-buy",
+            null,
+            null,
+            null,
+            null);
 
     MvcResult result =
         mockMvc
@@ -112,7 +116,11 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("45000.00000000"),
             FEE,
             OffsetDateTime.now(ZoneOffset.UTC),
-            "regresion-fee-precision-buy-modal");
+            "regresion-fee-precision-buy-modal",
+            null,
+            null,
+            null,
+            null);
 
     MvcResult createResult =
         mockMvc
@@ -168,7 +176,11 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("50000.12345678"),
             BigDecimal.ZERO,
             OffsetDateTime.now(ZoneOffset.UTC),
-            "setup-eth-position-for-sell-test");
+            "setup-eth-position-for-sell-test",
+            null,
+            null,
+            null,
+            null);
 
     mockMvc
         .perform(
@@ -191,7 +203,11 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             new BigDecimal("50000.12345678"),
             FEE,
             OffsetDateTime.now(ZoneOffset.UTC),
-            "regresion-fee-precision-sell-modal");
+            "regresion-fee-precision-sell-modal",
+            null,
+            null,
+            null,
+            null);
 
     MvcResult createResult =
         mockMvc

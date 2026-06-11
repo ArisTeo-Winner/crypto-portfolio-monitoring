@@ -11,7 +11,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
+import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
@@ -27,7 +30,10 @@ import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistra
 import com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
+import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
+import com.mx.cryptomonitor.transaction.domain.model.DividendType;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
+import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -52,6 +58,9 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final TransactionIdempotencyService transactionIdempotencyService;
   private final TransactionAuditPort transactionAuditPort;
   private final TransactionRealizedPnlService transactionRealizedPnlService;
+  private final AssetProfileProvider assetProfileProvider;
+  private final DividendDetailRepository dividendDetailRepository;
+  private final AssetCatalogQueryPort assetCatalogQueryPort;
 
   @Override
   public TransactionResponse registerTransaction(
@@ -80,6 +89,78 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         toLegacyRequest(request),
         idempotencyKey,
         "Create sell transaction");
+  }
+
+  @Override
+  @Transactional
+  public TransactionResponse registerDividendTransaction(
+      UUID userId, DividendTransactionRequest request, String idempotencyKey) {
+    return transactionIdempotencyService.executeForTransactionResponse(
+        userId,
+        "transactions:dividend",
+        idempotencyKey,
+        request,
+        () -> {
+          try {
+            String resolvedAssetName =
+                (request.assetName() == null || request.assetName().isBlank())
+                    ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+                    : request.assetName();
+
+            TransactionRequest txRequest =
+                new TransactionRequest(
+                    request.assetSymbol().toUpperCase(),
+                    normalizedAssetType(request.assetType()),
+                    "DIVIDEND",
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    request.amount(),
+                    request.transactionDate(),
+                    BigDecimal.ZERO,
+                    null,
+                    null,
+                    resolvedAssetName,
+                    request.exchange(),
+                    request.broker(),
+                    request.currency());
+
+            TransactionResponse response =
+                transactionRegistrationPort.registerTransaction(userId, txRequest);
+
+            DividendType dtype =
+                request.dividendType() != null
+                    ? DividendType.valueOf(request.dividendType().toUpperCase())
+                    : DividendType.CASH;
+
+            Transaction savedTx =
+                transactionRepository
+                    .findByTransactionIdAndUserId(response.transactionId(), userId)
+                    .orElseThrow(() -> new RuntimeException("Dividend transaction not found"));
+
+            DividendDetail detail =
+                DividendDetail.builder()
+                    .transaction(savedTx)
+                    .exDividendDate(request.exDividendDate())
+                    .dividendType(dtype)
+                    .taxWithheld(request.taxWithheld())
+                    .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
+                    .build();
+            dividendDetailRepository.save(detail);
+
+            transactionAuditPort.logCreateSuccess(
+                userId, describeSuccessfulMutation("Create dividend transaction", response));
+            return response;
+          } catch (RuntimeException ex) {
+            log.error(
+                "Error creating dividend transaction for user {}: {}", userId, ex.getMessage(), ex);
+            transactionAuditPort.logCreateFailure(
+                userId,
+                String.format(
+                    "Create dividend transaction failed asset=%s reason=%s",
+                    request.assetSymbol(), ex.getMessage()));
+            throw ex;
+          }
+        });
   }
 
   @Override
@@ -201,7 +282,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
   public List<TransactionResponse> getTransactionsByUser(UUID userId) {
     return transactionRepository.findByUserId(userId, RECENT_FIRST_SORT).stream()
-        .map(transactionMapper::toResponse)
+        .map(this::toResponseWithLogo)
         .toList();
   }
 
@@ -209,7 +290,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     return transactionRepository
         .findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT)
         .stream()
-        .map(transactionMapper::toResponse)
+        .map(this::toResponseWithLogo)
         .toList();
   }
 
@@ -233,21 +314,21 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
           .findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
               userId, assetSymbol, normalizedAssetType, transactionType)
           .stream()
-          .map(transactionMapper::toResponse)
+          .map(this::toResponseWithLogo)
           .toList();
     }
     if (assetSymbol != null) {
       return transactionRepository
           .findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT)
           .stream()
-          .map(transactionMapper::toResponse)
+          .map(this::toResponseWithLogo)
           .toList();
     }
     if (assetType != null) {
       return transactionRepository
           .findByUserIdAndAssetType(userId, normalizedAssetType(assetType), RECENT_FIRST_SORT)
           .stream()
-          .map(transactionMapper::toResponse)
+          .map(this::toResponseWithLogo)
           .toList();
     }
 
@@ -255,12 +336,38 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
       return transactionRepository
           .findByUserIdAndTransactionType(userId, transactionType, RECENT_FIRST_SORT)
           .stream()
-          .map(transactionMapper::toResponse)
+          .map(this::toResponseWithLogo)
           .toList();
     }
     return transactionRepository.findByUserId(userId, RECENT_FIRST_SORT).stream()
-        .map(transactionMapper::toResponse)
+        .map(this::toResponseWithLogo)
         .toList();
+  }
+
+  private TransactionResponse toResponseWithLogo(Transaction transaction) {
+    TransactionResponse response = transactionMapper.toResponse(transaction);
+    String logoUrl =
+        transaction.getAssetType() == AssetType.STOCK
+            ? assetProfileProvider.getLogoUrl(transaction.getAssetSymbol()).orElse(null)
+            : null;
+    return new TransactionResponse(
+        response.transactionId(),
+        response.assetSymbol(),
+        response.assetType(),
+        response.transactionType(),
+        response.quantity(),
+        response.pricePerUnit(),
+        response.totalValue(),
+        response.transactionDate(),
+        response.fee(),
+        response.notes(),
+        response.createdAt(),
+        response.updatedAt(),
+        logoUrl,
+        response.assetName(),
+        response.exchange(),
+        response.broker(),
+        response.currency());
   }
 
   @Override
@@ -351,6 +458,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   }
 
   private TransactionRequest toLegacyRequest(BuyTransactionRequest request) {
+    String assetName =
+        (request.assetName() == null || request.assetName().isBlank())
+            ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+            : request.assetName();
     return new TransactionRequest(
         request.assetSymbol().toUpperCase(),
         normalizedAssetType(request.assetType()),
@@ -360,10 +471,19 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         calculateGrossAmount(request.quantity(), request.pricePerUnit()),
         request.transactionDate(),
         normalizedFee(request.fee()),
-        request.notes());
+        request.notes(),
+        null,
+        assetName,
+        request.exchange(),
+        request.broker(),
+        request.currency());
   }
 
   private TransactionRequest toLegacyRequest(SellTransactionRequest request) {
+    String assetName =
+        (request.assetName() == null || request.assetName().isBlank())
+            ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+            : request.assetName();
     return new TransactionRequest(
         request.assetSymbol().toUpperCase(),
         normalizedAssetType(request.assetType()),
@@ -373,7 +493,12 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         calculateGrossAmount(request.quantity(), request.pricePerUnit()),
         request.transactionDate(),
         normalizedFee(request.fee()),
-        request.notes());
+        request.notes(),
+        null,
+        assetName,
+        request.exchange(),
+        request.broker(),
+        request.currency());
   }
 
   private TransactionRequest toLegacyRequest(TransferTransactionRequest request) {

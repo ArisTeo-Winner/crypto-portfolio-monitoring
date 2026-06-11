@@ -53,12 +53,20 @@ public class PortfolioTransactionRegistrationAdapter implements TransactionRegis
   }
 
   private void validateTransactionRequest(TransactionRequest request) {
-    if (request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+    boolean isDividend = "DIVIDEND".equalsIgnoreCase(request.transactionType());
+    if (!isDividend
+        && request.assetType() != null
+        && com.mx.cryptomonitor.transaction.domain.model.AssetType.INDEX == request.assetType()) {
+      throw new InvalidTransactionException(
+          "El tipo de activo INDEX no puede ser transaccionado directamente");
+    }
+    if (!isDividend && request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
       throw new InvalidTransactionException("La cantidad debe ser mayor que cero");
     }
     if (!"BUY".equalsIgnoreCase(request.transactionType())
         && !"SELL".equalsIgnoreCase(request.transactionType())
-        && !"TRANSFER".equalsIgnoreCase(request.transactionType())) {
+        && !"TRANSFER".equalsIgnoreCase(request.transactionType())
+        && !isDividend) {
       throw new InvalidTransactionException(
           "Tipo de transaccion invalido: " + request.transactionType());
     }

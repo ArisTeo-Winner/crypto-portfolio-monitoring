@@ -21,5 +21,6 @@ public interface TransactionMapper {
       expression = "java(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC))")
   Transaction toEntity(TransactionRequest request);
 
+  @Mapping(target = "logoUrl", ignore = true)
   TransactionResponse toResponse(Transaction transaction);
 }

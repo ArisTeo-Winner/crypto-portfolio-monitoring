@@ -47,7 +47,7 @@ public enum AssetType {
     if ("INDICE".equals(normalized)) {
       return INDEX;
     }
-    if ("BONOS".equals(normalized)) {
+    if ("BONOS".equals(normalized) || "BOND".equals(normalized)) {
       return BONDS;
     }
     return AssetType.valueOf(normalized);

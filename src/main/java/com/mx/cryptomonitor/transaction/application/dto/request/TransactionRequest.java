@@ -19,7 +19,11 @@ public record TransactionRequest(
     OffsetDateTime transactionDate,
     BigDecimal fee,
     String notes,
-    String transferType) {
+    String transferType,
+    String assetName,
+    String exchange,
+    String broker,
+    String currency) {
 
   public TransactionRequest(
       String assetSymbol,
@@ -41,6 +45,38 @@ public record TransactionRequest(
         transactionDate,
         fee,
         notes,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  public TransactionRequest(
+      String assetSymbol,
+      AssetType assetType,
+      String transactionType,
+      BigDecimal quantity,
+      BigDecimal pricePerUnit,
+      BigDecimal totalValue,
+      OffsetDateTime transactionDate,
+      BigDecimal fee,
+      String notes,
+      String transferType) {
+    this(
+        assetSymbol,
+        assetType,
+        transactionType,
+        quantity,
+        pricePerUnit,
+        totalValue,
+        transactionDate,
+        fee,
+        notes,
+        transferType,
+        null,
+        null,
+        null,
         null);
   }
 }

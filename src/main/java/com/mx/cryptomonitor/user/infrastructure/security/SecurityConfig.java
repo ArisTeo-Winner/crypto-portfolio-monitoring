@@ -115,6 +115,7 @@ public class SecurityConfig {
                       "/oauth/authorize/**",
                       "/oauth/callback/**",
                       "/api/v1/assets/search",
+                      "/api/v1/assets/popular",
                       "/api/v1/health",
                       "/api/v1/oauth2/**",
                       "/actuator/health/**",

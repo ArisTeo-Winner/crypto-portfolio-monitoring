@@ -36,4 +36,12 @@ public class TransactionExceptionHandler {
     problemDetail.setTitle("Idempotency Conflict");
     return problemDetail;
   }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
+    ProblemDetail problemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    problemDetail.setTitle("Invalid Request");
+    return problemDetail;
+  }
 }

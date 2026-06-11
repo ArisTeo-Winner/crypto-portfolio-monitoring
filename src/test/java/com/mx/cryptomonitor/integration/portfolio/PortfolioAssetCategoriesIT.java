@@ -96,10 +96,10 @@ class PortfolioAssetCategoriesIT {
   void mixedTransactions_returnsCategoriesInCanonicalOrder() throws Exception {
     // Registrar todos los tipos en orden inverso al canónico para verificar que el servicio
     // impone el orden del enum, no el orden de inserción
-    save("BONOS-MX", com.mx.cryptomonitor.transaction.domain.model.AssetType.BONOS);
+    save("BONOS-MX", com.mx.cryptomonitor.transaction.domain.model.AssetType.BOND);
     save("EURUSD", com.mx.cryptomonitor.transaction.domain.model.AssetType.FOREX);
     save("CL1", com.mx.cryptomonitor.transaction.domain.model.AssetType.FUTURES);
-    save("SP500", com.mx.cryptomonitor.transaction.domain.model.AssetType.INDICE);
+    save("SP500", com.mx.cryptomonitor.transaction.domain.model.AssetType.INDEX);
     save("SPY", com.mx.cryptomonitor.transaction.domain.model.AssetType.ETF);
     save("AAPL", com.mx.cryptomonitor.transaction.domain.model.AssetType.STOCK);
     save("BTC", com.mx.cryptomonitor.transaction.domain.model.AssetType.CRYPTO);
@@ -121,8 +121,7 @@ class PortfolioAssetCategoriesIT {
 
   @Test
   void indiceTransaction_appearsAsIndexCategory() throws Exception {
-    // INDICE es el alias de transacción; el frontend debe ver "INDEX" como key
-    save("SP500", com.mx.cryptomonitor.transaction.domain.model.AssetType.INDICE);
+    save("SP500", com.mx.cryptomonitor.transaction.domain.model.AssetType.INDEX);
 
     mockMvc
         .perform(get(URL).with(auth()))
@@ -135,9 +134,8 @@ class PortfolioAssetCategoriesIT {
 
   @Test
   void bonosTransaction_appearsAsBondsCategory() throws Exception {
-    // BONOS es el alias histórico en transaction.AssetType; el frontend debe ver "BONDS"
     save("BTC", com.mx.cryptomonitor.transaction.domain.model.AssetType.CRYPTO);
-    save("BONOS-MX", com.mx.cryptomonitor.transaction.domain.model.AssetType.BONOS);
+    save("BONOS-MX", com.mx.cryptomonitor.transaction.domain.model.AssetType.BOND);
 
     mockMvc
         .perform(get(URL).with(auth()))

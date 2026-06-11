@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.UUID;
@@ -31,8 +32,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.jayway.jsonpath.JsonPath;
+import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
 import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
@@ -64,6 +67,7 @@ class TransactionCreateWithBearerIT {
   @MockBean private RefreshTokenStoreService refreshTokenStoreService;
   @MockBean private MarketDataProvider marketDataProvider;
   @MockBean private AssetPricePort assetPricePort;
+  @MockBean private AssetProfileProvider assetProfileProvider;
 
   @BeforeEach
   void setUpMocks() {
@@ -86,6 +90,12 @@ class TransactionCreateWithBearerIT {
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("125.10")));
     when(marketDataProvider.getLatest("AAPL"))
         .thenReturn(java.util.Optional.of(new BigDecimal("249.56")));
+    when(marketDataProvider.getLatest("MSFT"))
+        .thenReturn(java.util.Optional.of(new BigDecimal("411.35")));
+    when(assetProfileProvider.getLogoUrl("AAPL"))
+        .thenReturn(java.util.Optional.of("https://static2.finnhub.io/aapl.png"));
+    when(assetProfileProvider.getLogoUrl("MSFT"))
+        .thenReturn(java.util.Optional.of("https://static2.finnhub.io/msft.png"));
   }
 
   @Test
@@ -267,6 +277,32 @@ class TransactionCreateWithBearerIT {
   }
 
   @Test
+  void getUserTransactionsShouldExposeFinnhubLogosForStockTableRows() throws Exception {
+    User user = persistRoleUser("tx-stock-logos-" + UUID.randomUUID() + "@example.com");
+    String accessToken = loginAndGetAccessToken(user.getEmail(), "ValidPass123!");
+
+    persistStockTransaction(user, "AAPL", "1", "248.96", "2026-03-19T12:15:00Z");
+    persistStockTransaction(user, "MSFT", "2", "411.35", "2026-03-20T12:15:00Z");
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/transactions")
+                .param("assetType", "STOCK")
+                .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(2)))
+        .andExpect(
+            jsonPath("$[*].assetSymbol")
+                .value(org.hamcrest.Matchers.containsInAnyOrder("AAPL", "MSFT")))
+        .andExpect(
+            jsonPath("$[?(@.assetSymbol == 'AAPL')].logoUrl")
+                .value(org.hamcrest.Matchers.contains("https://static2.finnhub.io/aapl.png")))
+        .andExpect(
+            jsonPath("$[?(@.assetSymbol == 'MSFT')].logoUrl")
+                .value(org.hamcrest.Matchers.contains("https://static2.finnhub.io/msft.png")));
+  }
+
+  @Test
   void getUserTransactionsShouldReturnMostRecentTransactionsFirst() throws Exception {
     User user = persistRoleUser("tx-order-" + UUID.randomUUID() + "@example.com");
     String accessToken = loginAndGetAccessToken(user.getEmail(), "ValidPass123!");
@@ -279,7 +315,7 @@ class TransactionCreateWithBearerIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     validBuyTransactionRequestForEthAt(
-                        "0.4", "2100.00", "2026-03-18T09:15:00", "oldest eth buy")))
+                        "0.4", "2100.00", "2026-03-18T09:15:00Z", "oldest eth buy")))
         .andExpect(status().isCreated());
 
     mockMvc
@@ -290,7 +326,7 @@ class TransactionCreateWithBearerIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     validBuyTransactionRequestForEthAt(
-                        "0.7", "2200.00", "2026-03-20T11:45:00", "middle eth buy")))
+                        "0.7", "2200.00", "2026-03-20T11:45:00Z", "middle eth buy")))
         .andExpect(status().isCreated());
 
     mockMvc
@@ -301,7 +337,7 @@ class TransactionCreateWithBearerIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     validBuyTransactionRequestForEthAt(
-                        "1.0", "2300.00", "2026-03-22T16:30:00", "newest eth buy")))
+                        "1.0", "2300.00", "2026-03-22T16:30:00Z", "newest eth buy")))
         .andExpect(status().isCreated());
 
     mockMvc
@@ -312,11 +348,11 @@ class TransactionCreateWithBearerIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(3)))
         .andExpect(jsonPath("$[0].notes").value("newest eth buy"))
-        .andExpect(jsonPath("$[0].transactionDate").value("2026-03-22T16:30:00"))
+        .andExpect(jsonPath("$[0].transactionDate").value("2026-03-22T16:30:00Z"))
         .andExpect(jsonPath("$[1].notes").value("middle eth buy"))
-        .andExpect(jsonPath("$[1].transactionDate").value("2026-03-20T11:45:00"))
+        .andExpect(jsonPath("$[1].transactionDate").value("2026-03-20T11:45:00Z"))
         .andExpect(jsonPath("$[2].notes").value("oldest eth buy"))
-        .andExpect(jsonPath("$[2].transactionDate").value("2026-03-18T09:15:00"));
+        .andExpect(jsonPath("$[2].transactionDate").value("2026-03-18T09:15:00Z"));
   }
 
   @Test
@@ -678,7 +714,7 @@ class TransactionCreateWithBearerIT {
           "quantity": 0.50,
           "pricePerUnit": 95000.00,
           "totalValue": 47500.00,
-          "transactionDate": "2026-03-07T00:20:00",
+          "transactionDate": "2026-03-07T00:20:00Z",
           "fee": 10.00,
           "notes": "buy btc"
         }
@@ -693,7 +729,7 @@ class TransactionCreateWithBearerIT {
           "quantity": 0.50,
           "pricePerUnit": 95000.00,
           "fee": 10.00,
-          "transactionDate": "2026-03-07T00:20:00",
+          "transactionDate": "2026-03-07T00:20:00Z",
           "notes": "buy btc"
         }
         """;
@@ -707,7 +743,7 @@ class TransactionCreateWithBearerIT {
           "transferType": "TRANSFER_IN",
           "quantity": 0.25,
           "fee": 0.0002,
-          "transactionDate": "2026-03-10T02:11:00",
+          "transactionDate": "2026-03-10T02:11:00Z",
           "notes": "transfer btc"
         }
         """;
@@ -721,7 +757,7 @@ class TransactionCreateWithBearerIT {
           "quantity": 1,
           "pricePerUnit": 757,
           "fee": 0.5,
-          "transactionDate": "2025-08-04T04:53:36.3310833",
+          "transactionDate": "2025-08-04T04:53:36.331083300Z",
           "notes": "Prueba"
         }
         """;
@@ -735,7 +771,7 @@ class TransactionCreateWithBearerIT {
           "quantity": 1,
           "pricePerUnit": 248.96,
           "fee": 0.6,
-          "transactionDate": "2026-03-19T12:15:00",
+          "transactionDate": "2026-03-19T12:15:00Z",
           "notes": "buy apple"
         }
         """;
@@ -749,7 +785,7 @@ class TransactionCreateWithBearerIT {
           "quantity": 2,
           "pricePerUnit": 120.55,
           "fee": 0.25,
-          "transactionDate": "2026-03-20T09:15:00",
+          "transactionDate": "2026-03-20T09:15:00Z",
           "notes": "buy sol"
         }
         """;
@@ -757,7 +793,8 @@ class TransactionCreateWithBearerIT {
 
   private String validBuyTransactionRequestForEth(
       String quantity, String pricePerUnit, String notes) {
-    return validBuyTransactionRequestForEthAt(quantity, pricePerUnit, "2026-03-21T11:30:00", notes);
+    return validBuyTransactionRequestForEthAt(
+        quantity, pricePerUnit, "2026-03-21T11:30:00Z", notes);
   }
 
   private String validBuyTransactionRequestForEthAt(
@@ -784,7 +821,7 @@ class TransactionCreateWithBearerIT {
           "quantity": 1.25,
           "pricePerUnit": 2800.00,
           "fee": 1.00,
-          "transactionDate": "2026-03-22T10:15:00",
+          "transactionDate": "2026-03-22T10:15:00Z",
           "notes": "edited btc into eth"
         }
         """;
@@ -797,7 +834,7 @@ class TransactionCreateWithBearerIT {
           "assetType": "CRYPTO",
           "quantity": 0.40,
           "fee": 0.0001,
-          "transactionDate": "2026-03-22T10:45:00",
+          "transactionDate": "2026-03-22T10:45:00Z",
           "notes": "edited transfer",
           "transferType": "TRANSFER_IN"
         }
@@ -811,7 +848,7 @@ class TransactionCreateWithBearerIT {
           "assetType": "CRYPTO",
           "quantity": 0.40,
           "fee": 0.0001,
-          "transactionDate": "2026-03-22T10:45:00",
+          "transactionDate": "2026-03-22T10:45:00Z",
           "notes": "edited transfer without transferType"
         }
         """;
@@ -825,9 +862,30 @@ class TransactionCreateWithBearerIT {
           "quantity": 3,
           "pricePerUnit": 411.35,
           "fee": 1.25,
-          "transactionDate": "2026-03-22T10:30:00",
+          "transactionDate": "2026-03-22T10:30:00Z",
           "notes": "edited into microsoft"
         }
         """;
+  }
+
+  private void persistStockTransaction(
+      User user, String symbol, String quantity, String pricePerUnit, String transactionDate) {
+    PortfolioEntry portfolioEntry = new PortfolioEntry();
+    portfolioEntry.setUserId(user.getId());
+    portfolioEntry.setAssetSymbol(symbol);
+    portfolioEntry.setAssetType("STOCK");
+    portfolioEntryRepository.save(portfolioEntry);
+
+    Transaction transaction = new Transaction();
+    transaction.setUser(user);
+    transaction.setPortfolioEntryId(portfolioEntry.getPortfolioEntryId());
+    transaction.setAssetSymbol(symbol);
+    transaction.setAssetType(AssetType.STOCK);
+    transaction.setTransactionType("BUY");
+    transaction.setQuantity(new BigDecimal(quantity));
+    transaction.setPricePerUnit(new BigDecimal(pricePerUnit));
+    transaction.setTotalValue(new BigDecimal(quantity).multiply(new BigDecimal(pricePerUnit)));
+    transaction.setTransactionDate(OffsetDateTime.parse(transactionDate));
+    transactionRepository.save(transaction);
   }
 }

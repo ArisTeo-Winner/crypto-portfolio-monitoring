@@ -47,6 +47,7 @@ import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtTokenUtil;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.security.SecurityConfig;
+import com.mx.cryptomonitor.user.infrastructure.security.handler.CustomOAuth2FailureHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.oauth.CustomOAuth2UserService;
 import com.mx.cryptomonitor.user.infrastructure.security.oidc.CustomOidcUserService;
@@ -109,6 +110,7 @@ class UserControllerAccessControlSecurityIT {
 
   // SecurityConfig required dependencies (mocked to avoid scanning unrelated infrastructure).
   @MockBean private JwtUserDetailsService jwtUserDetailsService;
+  @MockBean private CustomOAuth2FailureHandler customOAuth2FailureHandler;
   @MockBean private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
   @MockBean private CustomOAuth2UserService customOAuth2UserService;
   @MockBean private CustomOidcUserService customOidcUserService;

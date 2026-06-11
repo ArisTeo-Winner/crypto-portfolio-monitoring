@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
@@ -247,6 +248,35 @@ public class TransactionController {
     UUID userId = currentUserPort.resolveUserId(authentication);
     TransactionResponse response =
         transactionCommandUseCase.registerTransferTransaction(userId, request, idempotencyKey);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @PostMapping("/dividend")
+  @Operation(
+      summary = "Registrar dividendo manual",
+      description = "Registra una transaccion DIVIDEND para el usuario autenticado.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Dividendo registrado correctamente",
+            content =
+                @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(implementation = TransactionResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Payload invalido"),
+        @ApiResponse(responseCode = "401", description = "Usuario no autenticado"),
+        @ApiResponse(responseCode = "403", description = "Usuario no autorizado"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+      })
+  @PreAuthorize("hasRole('USER')")
+  public ResponseEntity<TransactionResponse> createDividendTransaction(
+      @Valid @RequestBody DividendTransactionRequest request,
+      @RequestHeader(IDEMPOTENCY_HEADER) String idempotencyKey,
+      Authentication authentication) {
+    UUID userId = currentUserPort.resolveUserId(authentication);
+    TransactionResponse response =
+        transactionCommandUseCase.registerDividendTransaction(userId, request, idempotencyKey);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 

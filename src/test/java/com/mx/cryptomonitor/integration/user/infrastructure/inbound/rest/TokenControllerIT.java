@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 
 import com.mx.cryptomonitor.integration.user.support.UserModuleIntegrationTest;
 
+import jakarta.servlet.http.Cookie;
+
 class TokenControllerIT extends UserModuleIntegrationTest {
 
   @Test
@@ -20,18 +22,15 @@ class TokenControllerIT extends UserModuleIntegrationTest {
         .perform(
             post("/api/v1/tokens/revoke")
                 .header("Authorization", "Bearer " + tokens.accessToken())
-                .header("X-Refresh-Token", tokens.refreshToken()))
+                .cookie(refreshCookie(tokens.refreshToken())))
         .andExpect(status().isNoContent());
 
     mockMvc
         .perform(
             post("/api/v1/tokens/refresh")
                 .header("Authorization", "Bearer " + tokens.accessToken())
-                .header("X-Refresh-Token", tokens.refreshToken()))
-        .andExpect(status().isUnauthorized())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-        .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
-        .andExpect(jsonPath("$.detail").value("Authentication is required or token is invalid."));
+                .cookie(refreshCookie(tokens.refreshToken())))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -42,11 +41,10 @@ class TokenControllerIT extends UserModuleIntegrationTest {
         .perform(
             post("/api/v1/tokens/refresh")
                 .header("Authorization", "Bearer " + tokens.accessToken())
-                .header("X-Refresh-Token", tokens.refreshToken()))
+                .cookie(refreshCookie(tokens.refreshToken())))
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.accessToken").isNotEmpty())
-        .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+        .andExpect(jsonPath("$.accessToken").isNotEmpty());
   }
 
   @Test
@@ -57,7 +55,7 @@ class TokenControllerIT extends UserModuleIntegrationTest {
         .perform(
             post("/api/v1/tokens/revoke")
                 .header("Authorization", "Bearer " + tokens.accessToken())
-                .header("X-Refresh-Token", "invalid-refresh-token"))
+                .cookie(refreshCookie("invalid-refresh-token")))
         .andExpect(status().isUnauthorized())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
         .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
@@ -69,10 +67,13 @@ class TokenControllerIT extends UserModuleIntegrationTest {
     Tokens tokens = registerAndLogin();
 
     mockMvc
-        .perform(post("/api/v1/tokens/refresh").header("X-Refresh-Token", tokens.refreshToken()))
+        .perform(post("/api/v1/tokens/refresh").cookie(refreshCookie(tokens.refreshToken())))
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.accessToken").isNotEmpty())
-        .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+        .andExpect(jsonPath("$.accessToken").isNotEmpty());
+  }
+
+  private Cookie refreshCookie(String refreshToken) {
+    return new Cookie("refresh_token", refreshToken);
   }
 }

@@ -26,13 +26,14 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.jayway.jsonpath.JsonPath;
 import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService;
 import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.AuditLogRepository;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
+
+import jakarta.servlet.http.Cookie;
 
 // Keep this test focused on auth flows; lazy init avoids failing on unrelated bean wiring.
 @SpringBootTest(properties = "spring.main.lazy-initialization=true")
@@ -108,22 +109,19 @@ class AuthRefreshTokenRotationIT {
                     .contentType("application/json")
                     .content("{\"email\":\"rotation@example.com\",\"password\":\"ValidPass123!\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(jsonPath("$.accessToken").isNotEmpty())
             .andReturn();
 
-    String loginBody = loginResult.getResponse().getContentAsString();
-    String oldRefreshToken = JsonPath.read(loginBody, "$.refreshToken");
+    String oldRefreshToken = extractRefreshToken(loginResult);
 
     MvcResult refreshResult =
         mockMvc
-            .perform(post("/api/v1/tokens/refresh").header("X-Refresh-Token", oldRefreshToken))
+            .perform(post("/api/v1/tokens/refresh").cookie(refreshCookie(oldRefreshToken)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
-            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
             .andReturn();
 
-    String newRefreshToken =
-        JsonPath.read(refreshResult.getResponse().getContentAsString(), "$.refreshToken");
+    String newRefreshToken = extractRefreshToken(refreshResult);
     assertThat(newRefreshToken).isNotEqualTo(oldRefreshToken);
 
     RefreshTokenStoreService.StoredRefreshToken oldTokenEntity =
@@ -133,7 +131,7 @@ class AuthRefreshTokenRotationIT {
     assertThat(oldTokenEntity.revoked()).isTrue();
 
     mockMvc
-        .perform(post("/api/v1/tokens/refresh").header("X-Refresh-Token", oldRefreshToken))
+        .perform(post("/api/v1/tokens/refresh").cookie(refreshCookie(oldRefreshToken)))
         .andExpect(status().isUnauthorized())
         .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
         .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"))
@@ -151,11 +149,10 @@ class AuthRefreshTokenRotationIT {
             .andExpect(status().isOk())
             .andReturn();
 
-    String refreshToken =
-        JsonPath.read(loginResult.getResponse().getContentAsString(), "$.refreshToken");
+    String refreshToken = extractRefreshToken(loginResult);
 
     mockMvc
-        .perform(post("/api/v1/auth/logout").header("X-Refresh-Token", refreshToken))
+        .perform(post("/api/v1/auth/logout").cookie(refreshCookie(refreshToken)))
         .andExpect(status().isOk());
 
     RefreshTokenStoreService.StoredRefreshToken refreshTokenEntity =
@@ -167,5 +164,15 @@ class AuthRefreshTokenRotationIT {
     Optional<Session> sessionOpt = sessionRepository.findById(refreshTokenEntity.sessionId());
     assertThat(sessionOpt).isPresent();
     assertThat(sessionOpt.orElseThrow().isActive()).isFalse();
+  }
+
+  private Cookie refreshCookie(String refreshToken) {
+    return new Cookie("refresh_token", refreshToken);
+  }
+
+  private String extractRefreshToken(MvcResult result) {
+    String setCookie = result.getResponse().getHeader("Set-Cookie");
+    assertThat(setCookie).contains("refresh_token=");
+    return setCookie.split("refresh_token=")[1].split(";")[0];
   }
 }

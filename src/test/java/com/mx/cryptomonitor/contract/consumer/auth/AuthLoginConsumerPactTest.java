@@ -48,7 +48,11 @@ class AuthLoginConsumerPactTest {
                 .stringType("password", "Secret123!"))
         .willRespondWith()
         .status(200)
-        .body(new PactDslJsonBody().stringType("accessToken").stringType("refreshToken"))
+        .matchHeader(
+            "Set-Cookie",
+            "refresh_token=[^;]+;.*Path=/api/v1/.*HttpOnly.*",
+            "refresh_token=mock-refresh-token; Path=/api/v1/; HttpOnly")
+        .body(new PactDslJsonBody().stringType("accessToken"))
         .toPact();
   }
 
@@ -65,6 +69,7 @@ class AuthLoginConsumerPactTest {
             .postForEntity(mockServer.getUrl() + "/api/v1/auth/login", request, String.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(response.getBody()).contains("accessToken", "refreshToken");
+    assertThat(response.getBody()).contains("accessToken");
+    assertThat(response.getHeaders().getFirst(HttpHeaders.SET_COOKIE)).contains("refresh_token=");
   }
 }

@@ -119,7 +119,7 @@ class PortfolioMarkersIntegrationIT extends InfraIntegrationTest {
         .perform(
             get("/api/v1/me/portfolio/markers")
                 .param("range", "30d")
-                .param("assetTypes", "CRYPTO,BOND")
+                .param("assetTypes", "CRYPTO,INVALID_TYPE")
                 .with(authentication(authToken(firstUser))))
         .andExpect(status().isBadRequest())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))

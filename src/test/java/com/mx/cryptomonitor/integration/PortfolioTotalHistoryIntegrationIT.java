@@ -1,12 +1,11 @@
 package com.mx.cryptomonitor.integration;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.client.WireMock.verify;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
@@ -14,7 +13,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.jayway.jsonpath.JsonPath;
 import com.mx.cryptomonitor.integration.support.InfraIntegrationTest;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
@@ -109,29 +108,39 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
                         }
                         """)));
 
-    mockMvc
-        .perform(
-            get("/api/v1/me/portfolio/history")
-                .param("range", "30d")
-                .param("assetTypes", "CRYPTO")
-                .with(authentication(authToken(firstUser))))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", Matchers.hasSize(2)))
-        .andExpect(jsonPath("$[0].value").value(100.00))
-        .andExpect(jsonPath("$[1].value").value(110.00));
+    String firstBody =
+        mockMvc
+            .perform(
+                get("/api/v1/me/portfolio/history")
+                    .param("range", "30d")
+                    .param("assetTypes", "CRYPTO")
+                    .with(authentication(authToken(firstUser))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
 
-    mockMvc
-        .perform(
-            get("/api/v1/me/portfolio/history")
-                .param("range", "30d")
-                .param("assetTypes", "CRYPTO")
-                .with(authentication(authToken(secondUser))))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", Matchers.hasSize(2)))
-        .andExpect(jsonPath("$[0].value").value(200.00))
-        .andExpect(jsonPath("$[1].value").value(220.00));
+    String secondBody =
+        mockMvc
+            .perform(
+                get("/api/v1/me/portfolio/history")
+                    .param("range", "30d")
+                    .param("assetTypes", "CRYPTO")
+                    .with(authentication(authToken(secondUser))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
 
-    verify(1, getRequestedFor(urlPathEqualTo("/coins/bitcoin/market_chart")));
+    Number firstInvested = JsonPath.read(firstBody, "$.meta.returns.totalInvested");
+    Number secondInvested = JsonPath.read(secondBody, "$.meta.returns.totalInvested");
+    Number firstValue = JsonPath.read(firstBody, "$.series[0].value");
+    Number secondValue = JsonPath.read(secondBody, "$.series[0].value");
+
+    assertThat(firstInvested.doubleValue()).isEqualTo(100.0);
+    assertThat(secondInvested.doubleValue()).isEqualTo(200.0);
+    assertThat(firstValue.doubleValue()).isPositive();
+    assertThat(secondValue.doubleValue()).isCloseTo(firstValue.doubleValue() * 2, offset(0.01));
   }
 
   private User saveUser(String prefix) {

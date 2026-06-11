@@ -1,11 +1,15 @@
 package com.mx.cryptomonitor.asset.infrastructure.inbound.rest;
 
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mx.cryptomonitor.asset.application.dto.response.AssetOptionResponse;
 import com.mx.cryptomonitor.asset.application.dto.response.AssetSearchResponse;
 import com.mx.cryptomonitor.asset.application.service.AssetSearchService;
 import com.mx.cryptomonitor.asset.infrastructure.inbound.rest.security.AssetSearchRateLimiter;
@@ -43,6 +47,14 @@ public class AssetController {
         @ApiResponse(responseCode = "429", description = "Rate limit excedido"),
         @ApiResponse(responseCode = "500", description = "Error interno del servidor")
       })
+  @GetMapping("/popular")
+  public Map<String, List<AssetOptionResponse>> getPopular() {
+    return Map.of(
+        "stocks", assetSearchService.getPopular("stock"),
+        "etfs", assetSearchService.getPopular("etf"),
+        "cryptos", assetSearchService.getPopular("crypto"));
+  }
+
   @GetMapping("/search")
   public ResponseEntity<AssetSearchResponse> search(
       @RequestParam("q") String query,

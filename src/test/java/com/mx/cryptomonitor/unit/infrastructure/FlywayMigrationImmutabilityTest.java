@@ -47,7 +47,9 @@ class FlywayMigrationImmutabilityTest {
           Map.entry("V2026_05_26_01__increase_refresh_token_length.sql", 1348383442L),
           Map.entry("V2026_05_29_01__transaction_date_to_timestamptz.sql", 2571599070L),
           Map.entry("V2026_05_30_01__add_user_preferences.sql", 3972633310L),
-          Map.entry("V2026_06_01_01__drop_refresh_tokens_table_and_column.sql", 191602315L));
+          Map.entry("V2026_06_01_01__drop_refresh_tokens_table_and_column.sql", 191602315L),
+          Map.entry("V2026_06_10_01__add_transaction_fields_and_dividend_detail.sql", 3346267960L),
+          Map.entry("V2026_06_10_02__rename_asset_type_values.sql", 2997432758L));
 
   @Test
   void no_versioned_migration_file_must_be_modified_after_registration() throws IOException {

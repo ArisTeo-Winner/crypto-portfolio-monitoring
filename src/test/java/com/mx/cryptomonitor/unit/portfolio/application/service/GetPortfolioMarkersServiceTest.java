@@ -192,7 +192,7 @@ class GetPortfolioMarkersServiceTest {
 
   @Test
   void rejectsInvalidAssetTypes() {
-    assertThatThrownBy(() -> service.getMarkers(USER_ID, "30d", "CRYPTO,BOND"))
+    assertThatThrownBy(() -> service.getMarkers(USER_ID, "30d", "CRYPTO,INVALID_TYPE"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 

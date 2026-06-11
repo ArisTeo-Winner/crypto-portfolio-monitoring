@@ -30,6 +30,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
+import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
@@ -47,6 +49,7 @@ import com.mx.cryptomonitor.transaction.application.service.TransactionService;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
+import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,6 +65,9 @@ class TransactionServiceTest {
   @Mock private TransactionIdempotencyService transactionIdempotencyService;
   @Mock private TransactionAuditPort transactionAuditPort;
   @Mock private TransactionRealizedPnlService transactionRealizedPnlService;
+  @Mock private AssetProfileProvider assetProfileProvider;
+  @Mock private DividendDetailRepository dividendDetailRepository;
+  @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
 
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
@@ -81,7 +87,13 @@ class TransactionServiceTest {
             transactionMapper,
             transactionIdempotencyService,
             transactionAuditPort,
-            transactionRealizedPnlService);
+            transactionRealizedPnlService,
+            assetProfileProvider,
+            dividendDetailRepository,
+            assetCatalogQueryPort);
+    lenient()
+        .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
+        .thenReturn(Optional.empty());
     lenient()
         .doAnswer(invocation -> invocation.<Supplier<TransactionResponse>>getArgument(4).get())
         .when(transactionIdempotencyService)
@@ -108,7 +120,12 @@ class TransactionServiceTest {
             new BigDecimal("10.00"),
             "buy btc",
             OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
-            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            null,
+            null,
+            null,
+            null,
+            null);
     transaction = new Transaction();
     transaction.setTransactionId(UUID.randomUUID());
     transaction.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
@@ -161,7 +178,11 @@ class TransactionServiceTest {
             new BigDecimal("89208.14"),
             new BigDecimal("0.50"),
             OffsetDateTime.of(2026, 1, 24, 17, 55, 0, 0, ZoneOffset.UTC),
-            "Compra manual");
+            "Compra manual",
+            null,
+            null,
+            null,
+            null);
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
         .thenReturn(transactionResponse);
@@ -189,7 +210,11 @@ class TransactionServiceTest {
             new BigDecimal("70392.39"),
             new BigDecimal("1.25"),
             OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
-            "Venta parcial");
+            "Venta parcial",
+            null,
+            null,
+            null,
+            null);
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
         .thenReturn(transactionResponse);

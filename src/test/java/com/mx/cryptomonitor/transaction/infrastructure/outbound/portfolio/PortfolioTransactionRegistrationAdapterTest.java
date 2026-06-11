@@ -85,7 +85,12 @@ class PortfolioTransactionRegistrationAdapterTest {
             new BigDecimal("10.00"),
             "adapter regression check",
             OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC),
-            OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC));
+            OffsetDateTime.of(2026, 3, 11, 12, 0, 0, 0, ZoneOffset.UTC),
+            null,
+            null,
+            null,
+            null,
+            null);
 
     when(userRepository.findById(userId)).thenReturn(Optional.of(user));
     when(portfolioEntryPort.applyTransaction(any(UUID.class), any())).thenReturn(portfolioEntryId);

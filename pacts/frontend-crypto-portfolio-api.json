@@ -43,35 +43,23 @@
       },
       "response": {
         "body": {
-          "accessToken": "string",
-          "refreshToken": "string"
+          "accessToken": "string"
         },
         "generators": {
           "body": {
             "$.accessToken": {
               "size": 20,
               "type": "RandomString"
-            },
-            "$.refreshToken": {
-              "size": 20,
-              "type": "RandomString"
             }
           }
         },
         "headers": {
-          "Content-Type": "application/json; charset=UTF-8"
+          "Content-Type": "application/json; charset=UTF-8",
+          "Set-Cookie": "refresh_token=mock-refresh-token; Path=/api/v1/; HttpOnly"
         },
         "matchingRules": {
           "body": {
             "$.accessToken": {
-              "combine": "AND",
-              "matchers": [
-                {
-                  "match": "type"
-                }
-              ]
-            },
-            "$.refreshToken": {
               "combine": "AND",
               "matchers": [
                 {
@@ -87,6 +75,15 @@
                 {
                   "match": "regex",
                   "regex": "application/json(;\\s?charset=[\\w\\-]+)?"
+                }
+              ]
+            },
+            "Set-Cookie": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "refresh_token=[^;]+;.*Path=/api/v1/.*HttpOnly.*"
                 }
               ]
             }

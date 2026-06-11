@@ -42,7 +42,7 @@
 		<sonar.tests>src/test/java</sonar.tests>
 		<sonar.java.source>${java.release}</sonar.java.source>
 		<sonar.java.binaries>${project.build.outputDirectory}</sonar.java.binaries>
-		<sonar.junit.reportPaths>${project.build.directory}/surefire-reports</sonar.junit.reportPaths>
+		<sonar.junit.reportPaths>${project.build.directory}/surefire-reports,${project.build.directory}/failsafe-reports</sonar.junit.reportPaths>
 		<sonar.coverage.jacoco.xmlReportPaths>${project.reporting.outputDirectory}/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 	</properties>
 	<dependencyManagement>
@@ -379,6 +379,9 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
 					<forkedProcessExitTimeoutInSeconds>120</forkedProcessExitTimeoutInSeconds>
+					<excludes>
+						<exclude>**/*IT.java</exclude>
+					</excludes>
 					<systemPropertyVariables>
 						<!-- Pact: escribe los contratos generados en pacts/ (raíz del proyecto) -->
 						<pact.rootDir>${project.basedir}/pacts</pact.rootDir>
@@ -387,6 +390,32 @@
 						<pact_do_not_track>true</pact_do_not_track>
 					</systemPropertyVariables>
 				</configuration>
+			</plugin>
+			
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<configuration>
+					<forkedProcessExitTimeoutInSeconds>120</forkedProcessExitTimeoutInSeconds>
+					<includes>
+						<include>**/*IT.java</include>
+					</includes>
+					<systemPropertyVariables>
+						<!-- Pact: writes generated contracts to pacts/ at the project root -->
+						<pact.rootDir>${project.basedir}/pacts</pact.rootDir>
+						<pact.writer.overwrite>true</pact.writer.overwrite>
+						<!-- Disable Pact anonymous telemetry -->
+						<pact_do_not_track>true</pact_do_not_track>
+					</systemPropertyVariables>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 			
 			<plugin>

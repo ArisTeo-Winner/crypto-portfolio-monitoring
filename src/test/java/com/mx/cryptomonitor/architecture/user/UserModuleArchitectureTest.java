@@ -85,7 +85,8 @@ class UserModuleArchitectureTest {
               "..user.application.service..",
               "..shared.infrastructure.security.ratelimit..",
               "..portfolio.infrastructure.outbound.redis..",
-              "..marketdata.infrastructure.outbound..")
+              "..marketdata.infrastructure.outbound..",
+              "..asset.infrastructure.outbound.redis..")
           .should()
           .dependOnClassesThat()
           .belongToAnyOf(StringRedisTemplate.class);
@@ -116,7 +117,8 @@ class UserModuleArchitectureTest {
                   boolean hasInternalCaller =
                       repository.getDirectDependenciesToSelf().stream()
                           .map(Dependency::getOriginClass)
-                          .anyMatch(c -> c.getPackageName().startsWith("com.mx.cryptomonitor.user"));
+                          .anyMatch(
+                              c -> c.getPackageName().startsWith("com.mx.cryptomonitor.user"));
                   if (!hasInternalCaller) {
                     events.add(
                         SimpleConditionEvent.violated(

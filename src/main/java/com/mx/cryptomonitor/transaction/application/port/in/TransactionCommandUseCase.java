@@ -3,6 +3,7 @@ package com.mx.cryptomonitor.transaction.application.port.in;
 import java.util.UUID;
 
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
@@ -25,6 +26,9 @@ public interface TransactionCommandUseCase {
 
   TransactionResponse updateTransaction(
       UUID userId, UUID transactionId, UpdateTransactionRequest request, String idempotencyKey);
+
+  TransactionResponse registerDividendTransaction(
+      UUID userId, DividendTransactionRequest request, String idempotencyKey);
 
   void deleteTransactionById(UUID userId, UUID transactionId, String idempotencyKey);
 }
