@@ -49,7 +49,9 @@ class FlywayMigrationImmutabilityTest {
           Map.entry("V2026_05_30_01__add_user_preferences.sql", 3972633310L),
           Map.entry("V2026_06_01_01__drop_refresh_tokens_table_and_column.sql", 191602315L),
           Map.entry("V2026_06_10_01__add_transaction_fields_and_dividend_detail.sql", 3346267960L),
-          Map.entry("V2026_06_10_02__rename_asset_type_values.sql", 2997432758L));
+          Map.entry("V2026_06_10_02__rename_asset_type_values.sql", 2997432758L),
+          Map.entry("V2026_06_14_01__transaction_fields_and_dividend.sql", 3948000389L),
+          Map.entry("V2026_06_14_02__rename_asset_type_values.sql", 3233817003L));
 
   @Test
   void no_versioned_migration_file_must_be_modified_after_registration() throws IOException {

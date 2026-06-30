@@ -30,14 +30,14 @@ class AssetTypeUnificationIT extends UserModuleIntegrationTest {
   }
 
   @Test
-  void bondAssetTypeIsAcceptedForBuyTransaction() throws Exception {
+  void governmentBondAssetTypeIsAcceptedForBuyTransaction() throws Exception {
     Tokens tokens = registerAndLogin();
 
     String body =
         """
         {
           "assetSymbol":    "TLT",
-          "assetType":      "BOND",
+          "assetType":      "GOVERNMENT_BOND",
           "quantity":       10,
           "pricePerUnit":   95.00,
           "transactionDate": "2026-06-10T09:30:00Z"

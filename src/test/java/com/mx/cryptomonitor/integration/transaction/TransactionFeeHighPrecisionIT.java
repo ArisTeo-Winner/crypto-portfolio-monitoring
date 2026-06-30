@@ -77,6 +77,10 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
 
     MvcResult result =
@@ -117,6 +121,10 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             FEE,
             OffsetDateTime.now(ZoneOffset.UTC),
             "regresion-fee-precision-buy-modal",
+            null,
+            null,
+            null,
+            null,
             null,
             null,
             null,
@@ -180,6 +188,10 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
 
     mockMvc
@@ -204,6 +216,10 @@ class TransactionFeeHighPrecisionIT extends UserModuleIntegrationTest {
             FEE,
             OffsetDateTime.now(ZoneOffset.UTC),
             "regresion-fee-precision-sell-modal",
+            null,
+            null,
+            null,
+            null,
             null,
             null,
             null,

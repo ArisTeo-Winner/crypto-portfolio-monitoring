@@ -125,6 +125,10 @@ class TransactionServiceTest {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
     transaction = new Transaction();
     transaction.setTransactionId(UUID.randomUUID());
@@ -182,6 +186,10 @@ class TransactionServiceTest {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
@@ -211,6 +219,10 @@ class TransactionServiceTest {
             new BigDecimal("1.25"),
             OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
             "Venta parcial",
+            null,
+            null,
+            null,
+            null,
             null,
             null,
             null,

@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.transaction.domain.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -87,6 +88,18 @@ public class Transaction {
 
   @Column(name = "currency", length = 3)
   private String currency;
+
+  @Column(name = "face_value", precision = 18, scale = 8)
+  private BigDecimal faceValue;
+
+  @Column(name = "maturity_date")
+  private LocalDate maturityDate;
+
+  @Column(name = "coupon_rate", precision = 8, scale = 4)
+  private BigDecimal couponRate;
+
+  @Column(name = "auto_reinvestment", nullable = false)
+  private boolean autoReinvestment;
 
   @Column(name = "notes")
   private String notes;

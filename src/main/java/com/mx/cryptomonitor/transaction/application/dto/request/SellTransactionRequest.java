@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import jakarta.validation.constraints.NotBlank;
@@ -24,4 +25,8 @@ public record SellTransactionRequest(
     String assetName,
     String exchange,
     String broker,
-    String currency) {}
+    String currency,
+    BigDecimal faceValue,
+    LocalDate maturityDate,
+    BigDecimal couponRate,
+    Boolean autoReinvestment) {}

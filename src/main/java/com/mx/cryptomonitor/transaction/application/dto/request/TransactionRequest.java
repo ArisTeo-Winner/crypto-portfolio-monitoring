@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
@@ -23,7 +24,11 @@ public record TransactionRequest(
     String assetName,
     String exchange,
     String broker,
-    String currency) {
+    String currency,
+    BigDecimal faceValue,
+    LocalDate maturityDate,
+    BigDecimal couponRate,
+    Boolean autoReinvestment) {
 
   public TransactionRequest(
       String assetSymbol,
@@ -45,6 +50,10 @@ public record TransactionRequest(
         transactionDate,
         fee,
         notes,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -74,6 +83,10 @@ public record TransactionRequest(
         fee,
         notes,
         transferType,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,

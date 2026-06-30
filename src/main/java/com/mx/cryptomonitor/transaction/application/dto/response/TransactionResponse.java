@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.response;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -21,4 +22,8 @@ public record TransactionResponse(
     String assetName,
     String exchange,
     String broker,
-    String currency) {}
+    String currency,
+    BigDecimal faceValue,
+    LocalDate maturityDate,
+    BigDecimal couponRate,
+    Boolean autoReinvestment) {}

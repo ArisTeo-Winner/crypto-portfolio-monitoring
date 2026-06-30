@@ -122,7 +122,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                     resolvedAssetName,
                     request.exchange(),
                     request.broker(),
-                    request.currency());
+                    request.currency(),
+                    null,
+                    null,
+                    null,
+                    null);
 
             TransactionResponse response =
                 transactionRegistrationPort.registerTransaction(userId, txRequest);
@@ -258,6 +262,13 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     } else if ("SELL".equalsIgnoreCase(transaction.getTransactionType())) {
       netAmount = grossAmount.subtract(fee);
       amountLabel = "Total Received";
+    } else if ("REDEEM".equalsIgnoreCase(transaction.getTransactionType())) {
+      // faceValue persisted in totalValue at redemption time
+      netAmount = grossAmount;
+      amountLabel = "Amount Redeemed";
+    } else if ("DIVIDEND".equalsIgnoreCase(transaction.getTransactionType())) {
+      netAmount = grossAmount.subtract(fee);
+      amountLabel = "Dividend Received";
     }
 
     return new TransactionDetailsResponse(
@@ -367,7 +378,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         response.assetName(),
         response.exchange(),
         response.broker(),
-        response.currency());
+        response.currency(),
+        response.faceValue(),
+        response.maturityDate(),
+        response.couponRate(),
+        response.autoReinvestment());
   }
 
   @Override
@@ -476,7 +491,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         assetName,
         request.exchange(),
         request.broker(),
-        request.currency());
+        request.currency(),
+        request.faceValue(),
+        request.maturityDate(),
+        request.couponRate(),
+        request.autoReinvestment());
   }
 
   private TransactionRequest toLegacyRequest(SellTransactionRequest request) {
@@ -498,7 +517,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         assetName,
         request.exchange(),
         request.broker(),
-        request.currency());
+        request.currency(),
+        request.faceValue(),
+        request.maturityDate(),
+        request.couponRate(),
+        request.autoReinvestment());
   }
 
   private TransactionRequest toLegacyRequest(TransferTransactionRequest request) {

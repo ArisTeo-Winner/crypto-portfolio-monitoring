@@ -383,7 +383,21 @@ class TransactionControllerCreateTransactionIT {
   void createTransactionReturns400WhenPayloadIsInvalid() throws Exception {
     BuyTransactionRequest invalidRequest =
         new BuyTransactionRequest(
-            "", "", new BigDecimal("-1"), null, null, null, null, null, null, null, null);
+            "",
+            "",
+            new BigDecimal("-1"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     mockMvc
         .perform(
@@ -423,6 +437,10 @@ class TransactionControllerCreateTransactionIT {
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
         null);
   }
 
@@ -435,6 +453,10 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("10.00"),
         OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         "sell btc",
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -478,6 +500,10 @@ class TransactionControllerCreateTransactionIT {
         transferType == null ? "buy btc" : "transfer btc",
         OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,

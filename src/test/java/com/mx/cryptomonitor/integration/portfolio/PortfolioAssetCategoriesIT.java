@@ -96,10 +96,10 @@ class PortfolioAssetCategoriesIT {
   void mixedTransactions_returnsCategoriesInCanonicalOrder() throws Exception {
     // Registrar todos los tipos en orden inverso al canónico para verificar que el servicio
     // impone el orden del enum, no el orden de inserción
-    save("BONOS-MX", com.mx.cryptomonitor.transaction.domain.model.AssetType.BOND);
     save("EURUSD", com.mx.cryptomonitor.transaction.domain.model.AssetType.FOREX);
-    save("CL1", com.mx.cryptomonitor.transaction.domain.model.AssetType.FUTURES);
     save("SP500", com.mx.cryptomonitor.transaction.domain.model.AssetType.INDEX);
+    save("GBM-CORP", com.mx.cryptomonitor.transaction.domain.model.AssetType.CORPORATE_BOND);
+    save("CETES91", com.mx.cryptomonitor.transaction.domain.model.AssetType.GOVERNMENT_BOND);
     save("SPY", com.mx.cryptomonitor.transaction.domain.model.AssetType.ETF);
     save("AAPL", com.mx.cryptomonitor.transaction.domain.model.AssetType.STOCK);
     save("BTC", com.mx.cryptomonitor.transaction.domain.model.AssetType.CRYPTO);
@@ -108,15 +108,16 @@ class PortfolioAssetCategoriesIT {
         .perform(get(URL).with(auth()))
         .andDo(print())
         .andExpect(status().isOk())
-        // 7 categorías en orden canónico del enum: CRYPTO, STOCK, ETF, INDEX, FUTURES, FOREX, BONDS
+        // 7 categorías en orden canónico del enum: CRYPTO, STOCK, ETF, GOVERNMENT_BOND,
+        // CORPORATE_BOND, INDEX, FOREX
         .andExpect(jsonPath("$", hasSize(7)))
         .andExpect(jsonPath("$[0].key", is("CRYPTO")))
         .andExpect(jsonPath("$[1].key", is("STOCK")))
         .andExpect(jsonPath("$[2].key", is("ETF")))
-        .andExpect(jsonPath("$[3].key", is("INDEX")))
-        .andExpect(jsonPath("$[4].key", is("FUTURES")))
-        .andExpect(jsonPath("$[5].key", is("FOREX")))
-        .andExpect(jsonPath("$[6].key", is("BONDS")));
+        .andExpect(jsonPath("$[3].key", is("GOVERNMENT_BOND")))
+        .andExpect(jsonPath("$[4].key", is("CORPORATE_BOND")))
+        .andExpect(jsonPath("$[5].key", is("INDEX")))
+        .andExpect(jsonPath("$[6].key", is("FOREX")));
   }
 
   @Test
@@ -133,31 +134,31 @@ class PortfolioAssetCategoriesIT {
   }
 
   @Test
-  void bonosTransaction_appearsAsBondsCategory() throws Exception {
+  void governmentBondTransaction_appearsAsGovernmentBondCategory() throws Exception {
     save("BTC", com.mx.cryptomonitor.transaction.domain.model.AssetType.CRYPTO);
-    save("BONOS-MX", com.mx.cryptomonitor.transaction.domain.model.AssetType.BOND);
+    save("CETES91", com.mx.cryptomonitor.transaction.domain.model.AssetType.GOVERNMENT_BOND);
 
     mockMvc
         .perform(get(URL).with(auth()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(2)))
         .andExpect(jsonPath("$[0].key", is("CRYPTO")))
-        .andExpect(jsonPath("$[1].key", is("BONDS")))
-        .andExpect(jsonPath("$[1].label", is("Bonds")))
-        .andExpect(jsonPath("$[1].symbols[0]", is("BONOS-MX")));
+        .andExpect(jsonPath("$[1].key", is("GOVERNMENT_BOND")))
+        .andExpect(jsonPath("$[1].label", is("Gov. Bonds")))
+        .andExpect(jsonPath("$[1].symbols[0]", is("CETES91")));
   }
 
   @Test
-  void futuresTransaction_appearAsFuturesCategory() throws Exception {
-    save("CL1", com.mx.cryptomonitor.transaction.domain.model.AssetType.FUTURES);
+  void corporateBondTransaction_appearsAsCorporateBondCategory() throws Exception {
+    save("GBM-CORP", com.mx.cryptomonitor.transaction.domain.model.AssetType.CORPORATE_BOND);
 
     mockMvc
         .perform(get(URL).with(auth()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(1)))
-        .andExpect(jsonPath("$[0].key", is("FUTURES")))
-        .andExpect(jsonPath("$[0].label", is("Futures")))
-        .andExpect(jsonPath("$[0].symbols[0]", is("CL1")));
+        .andExpect(jsonPath("$[0].key", is("CORPORATE_BOND")))
+        .andExpect(jsonPath("$[0].label", is("Corp. Bonds")))
+        .andExpect(jsonPath("$[0].symbols[0]", is("GBM-CORP")));
   }
 
   @Test

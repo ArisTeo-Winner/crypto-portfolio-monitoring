@@ -187,6 +187,10 @@ class TransactionMeJwtConsistencyIT {
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
         null);
   }
 

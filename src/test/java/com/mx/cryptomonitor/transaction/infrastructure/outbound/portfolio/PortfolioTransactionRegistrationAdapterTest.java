@@ -90,6 +90,10 @@ class PortfolioTransactionRegistrationAdapterTest {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
             null);
 
     when(userRepository.findById(userId)).thenReturn(Optional.of(user));
