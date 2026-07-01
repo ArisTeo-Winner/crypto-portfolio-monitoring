@@ -63,7 +63,7 @@ import com.mx.cryptomonitor.user.domain.repository.UserRepository;
  *   <li>Thread-safety: no ConcurrentModificationException, no data mixing between users
  *   <li>Port call parity: mock called exactly once per asset per user (no missing/duplicate calls)
  *   <li>Determinism: same user receives identical timestamp sequence across 5 repeated batches
- *   <li>Performance: individual {@literal <} 400 ms, batch wall-clock {@literal <} 8 s
+ *   <li>Performance: individual {@literal <} 6 000 ms, batch wall-clock {@literal <} 8 s
  *   <li>Correctness: strictly ascending timestamps, non-negative values, no duplicates
  * </ol>
  *
@@ -79,8 +79,9 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
   private static final int USER_COUNT = 50;
   private static final int REPETITIONS = 5;
   // MockMvc + Testcontainers + Mockito invocation tracking under 50 concurrent threads
-  // adds overhead not present in a real JVM. 2 000 ms still catches deadlocks / hangs.
-  private static final long INDIVIDUAL_THRESHOLD_MS = 2_000;
+  // adds overhead not present in a real JVM. 6 000 ms still catches deadlocks / hangs
+  // (a true deadlock would exhaust the 30 s CompletableFuture timeout).
+  private static final long INDIVIDUAL_THRESHOLD_MS = 6_000;
   private static final long BATCH_THRESHOLD_MS = 8_000;
   private static final String BTC = "BTC";
   private static final String ETH = "ETH";
@@ -97,8 +98,11 @@ class PortfolioHistoryConcurrencyIT extends InfraIntegrationTest {
   @MockBean private MarketPriceHistoryPort marketPriceHistoryPort;
 
   @DynamicPropertySource
-  static void disableRateLimiter(DynamicPropertyRegistry registry) {
+  static void configureTestContext(DynamicPropertyRegistry registry) {
     registry.add("security.portfolio-history-rate-limit.enabled", () -> "false");
+    // application-test.properties caps the pool at 5; 50 concurrent users would queue on
+    // HikariCP and add hundreds of ms of random wait — the primary source of flakiness.
+    registry.add("spring.datasource.hikari.maximum-pool-size", () -> "60");
   }
 
   private final List<User> testUsers = new ArrayList<>();

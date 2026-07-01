@@ -52,7 +52,8 @@ public class AssetController {
     return Map.of(
         "stocks", assetSearchService.getPopular("stock"),
         "etfs", assetSearchService.getPopular("etf"),
-        "cryptos", assetSearchService.getPopular("crypto"));
+        "cryptos", assetSearchService.getPopular("crypto"),
+        "governmentBonds", assetSearchService.getPopular("government_bond"));
   }
 
   @GetMapping("/search")

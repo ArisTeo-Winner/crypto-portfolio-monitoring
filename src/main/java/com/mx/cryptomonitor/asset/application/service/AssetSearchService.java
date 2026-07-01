@@ -72,7 +72,11 @@ public class AssetSearchService implements AssetCatalogQueryPort {
 
   private List<AssetCatalogDto> searchInRedis(String lower) {
     List<String> rankingKeys =
-        List.of("catalog:search:stock", "catalog:search:etf", "catalog:search:crypto");
+        List.of(
+            "catalog:search:stock",
+            "catalog:search:etf",
+            "catalog:search:crypto",
+            "catalog:search:government_bond");
     List<AssetCatalogDto> results = new ArrayList<>();
     for (String key : rankingKeys) {
       redisService.getTopSymbols(key, 50).stream()
@@ -114,7 +118,7 @@ public class AssetSearchService implements AssetCatalogQueryPort {
         dto.name(),
         dto.assetType(),
         dto.logoUrl(),
-        !"INDEX".equals(dto.assetType()));
+        !"INDEX".equals(dto.assetType()) && !"FOREX".equals(dto.assetType()));
   }
 
   private String normalizeQuery(String query) {

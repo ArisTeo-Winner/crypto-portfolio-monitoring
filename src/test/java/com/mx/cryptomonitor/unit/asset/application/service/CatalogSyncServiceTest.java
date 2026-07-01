@@ -1,8 +1,10 @@
 package com.mx.cryptomonitor.unit.asset.application.service;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,13 +21,21 @@ import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.asset.application.service.CatalogSyncService;
+import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
+import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
+import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
+import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpPlanRestrictionException;
 
 @ExtendWith(MockitoExtension.class)
 class CatalogSyncServiceTest {
 
   @Mock private CatalogFetchPort fmpAdapter;
   @Mock private CatalogStorePort redisService;
+  @Mock private AssetCatalogRepository catalogRepository;
+
   @InjectMocks private CatalogSyncService syncService;
+
+  // ── syncStocks / syncEtfs (backward-compat, Redis only) ───────────────────
 
   @Test
   void syncStocksSavesEachEntryAndPopulatesRankings() {
@@ -41,7 +51,6 @@ class CatalogSyncServiceTest {
     verify(redisService).saveEntry(stocks.get(1));
     verify(redisService).addToRanking("catalog:search:stock", "AAPL", 3_000_000.0);
     verify(redisService).addToRanking("catalog:search:stock", "MSFT", 2_800_000.0);
-    // Both are within top 10
     verify(redisService).addToRanking("catalog:top10:stock", "AAPL", 3_000_000.0);
     verify(redisService).addToRanking("catalog:top10:stock", "MSFT", 2_800_000.0);
   }
@@ -52,7 +61,7 @@ class CatalogSyncServiceTest {
 
     syncService.syncStocks(50);
 
-    verify(redisService, never()).saveEntry(org.mockito.ArgumentMatchers.any());
+    verify(redisService, never()).saveEntry(any());
   }
 
   @Test
@@ -77,7 +86,7 @@ class CatalogSyncServiceTest {
 
     syncService.syncEtfs(50);
 
-    verify(redisService, never()).saveEntry(org.mockito.ArgumentMatchers.any());
+    verify(redisService, never()).saveEntry(any());
   }
 
   @Test
@@ -95,10 +104,76 @@ class CatalogSyncServiceTest {
   void forceFullSyncDelegatestoSyncWeekly() {
     when(fmpAdapter.fetchTopStocks(anyInt())).thenReturn(List.of());
     when(fmpAdapter.fetchTopEtfs(anyInt())).thenReturn(List.of());
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
 
     syncService.forceFullSync();
 
     verify(fmpAdapter).fetchTopStocks(50);
     verify(fmpAdapter).fetchTopEtfs(50);
+    // Crypto and govt bond static lists are always saved to DB and Redis
+    verify(catalogRepository, atLeastOnce()).save(any(AssetCatalogEntity.class));
+    verify(redisService, atLeastOnce()).saveEntry(any(AssetCatalogDto.class));
+  }
+
+  // ── syncType ──────────────────────────────────────────────────────────────
+
+  @Test
+  void syncTypeStockPersistsToBothDbAndRedis() {
+    List<AssetCatalogDto> stocks =
+        List.of(
+            new AssetCatalogDto("AAPL", "Apple Inc.", "STOCK", null, "NASDAQ", "USD", 3_000_000L));
+    when(fmpAdapter.fetchTopStocks(1)).thenReturn(stocks);
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    syncService.syncType("stock", 1);
+
+    verify(catalogRepository).save(any(AssetCatalogEntity.class));
+    verify(redisService).saveEntry(stocks.get(0));
+    verify(redisService).addToRanking("catalog:search:stock", "AAPL", 3_000_000.0);
+  }
+
+  @Test
+  void syncTypeAbortsAndPreservesCatalogOnInvalidKey() {
+    when(fmpAdapter.fetchTopStocks(anyInt()))
+        .thenThrow(new FmpInvalidKeyException("invalid API key"));
+
+    syncService.syncType("stock", 50);
+
+    verify(redisService, never()).saveEntry(any());
+    verify(catalogRepository, never()).save(any());
+  }
+
+  @Test
+  void syncTypeAbortsAndPreservesCatalogOnPlanRestriction() {
+    when(fmpAdapter.fetchTopStocks(anyInt()))
+        .thenThrow(new FmpPlanRestrictionException("endpoint restricted"));
+
+    syncService.syncType("stock", 50);
+
+    verify(redisService, never()).saveEntry(any());
+    verify(catalogRepository, never()).save(any());
+  }
+
+  @Test
+  void syncTypeGovernmentBondUsesStaticListWithoutFmpCall() {
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    syncService.syncType("government_bond", 50);
+
+    verify(fmpAdapter, never()).fetchTopStocks(anyInt());
+    verify(fmpAdapter, never()).fetchTopEtfs(anyInt());
+    verify(catalogRepository, atLeastOnce()).save(any(AssetCatalogEntity.class));
+    verify(redisService, atLeastOnce()).saveEntry(any(AssetCatalogDto.class));
+  }
+
+  @Test
+  void syncTypeCryptoUsesStaticListWithoutFmpCall() {
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    syncService.syncType("crypto", 50);
+
+    verify(fmpAdapter, never()).fetchTopStocks(anyInt());
+    verify(fmpAdapter, never()).fetchTopEtfs(anyInt());
+    verify(catalogRepository, atLeastOnce()).save(any(AssetCatalogEntity.class));
   }
 }

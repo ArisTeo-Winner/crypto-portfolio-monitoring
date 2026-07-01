@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.unit.asset.infrastructure.outbound.fmp;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.companieslogo.CompaniesLogoAdapter;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.FmpCatalogAdapter;
+import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
+import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpPlanRestrictionException;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -34,7 +37,12 @@ class FmpCatalogAdapterTest {
         .thenReturn("https://companieslogo.com/api/starter/stock-symbol/SPY");
     adapter =
         new FmpCatalogAdapter(
-            WebClient.builder(), server.url("/").toString(), "test-key", companiesLogoAdapter);
+            WebClient.builder(),
+            server.url("/").toString(),
+            "test-key",
+            companiesLogoAdapter,
+            "/api/v3/stock-screener",
+            "/api/v3/etf/list");
   }
 
   @AfterEach
@@ -118,7 +126,12 @@ class FmpCatalogAdapterTest {
     server.start();
     adapter =
         new FmpCatalogAdapter(
-            WebClient.builder(), server.url("/").toString(), "", companiesLogoAdapter);
+            WebClient.builder(),
+            server.url("/").toString(),
+            "",
+            companiesLogoAdapter,
+            "/api/v3/stock-screener",
+            "/api/v3/etf/list");
 
     server.enqueue(jsonResponse("[]"));
 
@@ -126,6 +139,49 @@ class FmpCatalogAdapterTest {
 
     assertThat(result).isEmpty();
     assertThat(server.getRequestCount()).isOne();
+  }
+
+  @Test
+  void fetchTopStocksThrowsFmpInvalidKeyExceptionOnInvalidKey() {
+    server.enqueue(
+        jsonResponse(
+            """
+            {"Error Message": "Invalid API KEY. Feel free to create a Free API Key or visit https://site.financialmodelingprep.com/faqs?search=why-is-my-api-key-invalid for more information."}
+            """));
+
+    assertThatThrownBy(() -> adapter.fetchTopStocks(10))
+        .isInstanceOf(FmpInvalidKeyException.class)
+        .hasMessageContaining("invalid API key");
+
+    assertThat(server.getRequestCount()).isOne();
+  }
+
+  @Test
+  void fetchTopEtfsThrowsFmpInvalidKeyExceptionOnInvalidKey() {
+    server.enqueue(
+        jsonResponse(
+            """
+            {"Error Message": "Invalid API KEY. Feel free to create a Free API Key or visit https://site.financialmodelingprep.com/faqs?search=why-is-my-api-key-invalid for more information."}
+            """));
+
+    assertThatThrownBy(() -> adapter.fetchTopEtfs(10))
+        .isInstanceOf(FmpInvalidKeyException.class)
+        .hasMessageContaining("invalid API key");
+
+    assertThat(server.getRequestCount()).isOne();
+  }
+
+  @Test
+  void fetchTopStocksThrowsFmpPlanRestrictionExceptionWhenEndpointRestricted() {
+    server.enqueue(
+        jsonResponse(
+            """
+            {"message": "Restricted Endpoint. Please upgrade your plan at https://financialmodelingprep.com/developer/docs/pricing"}
+            """));
+
+    assertThatThrownBy(() -> adapter.fetchTopStocks(10))
+        .isInstanceOf(FmpPlanRestrictionException.class)
+        .hasMessageContaining("restricted by current FMP plan");
   }
 
   private MockResponse jsonResponse(String body) {
