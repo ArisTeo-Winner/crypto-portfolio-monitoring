@@ -39,4 +39,7 @@ public interface TransactionRepository
       @Param("assetSymbol") String assetSymbol,
       @Param("assetType") AssetType assetType,
       @Param("transactionType") String transactionType);
+
+  @Query("SELECT DISTINCT t.assetSymbol FROM Transaction t WHERE t.currency = 'MXN'")
+  List<String> findDistinctMxnSymbols();
 }

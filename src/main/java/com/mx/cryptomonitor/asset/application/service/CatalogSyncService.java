@@ -13,8 +13,7 @@ import org.springframework.stereotype.Service;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
-import com.mx.cryptomonitor.asset.domain.exception.CatalogKeyInvalidException;
-import com.mx.cryptomonitor.asset.domain.exception.CatalogPlanRestrictedException;
+import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
 import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
 import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
 
@@ -110,8 +109,9 @@ public class CatalogSyncService {
     List<AssetCatalogDto> data;
     try {
       data = fetchFor(type, limit);
-    } catch (CatalogPlanRestrictedException | CatalogKeyInvalidException e) {
-      log.error("Sync {} abortado, catalogo previo conservado: {}", type, e.getMessage());
+    } catch (CatalogFetchException e) {
+      log.error(
+          "Sync {} abortado por error FMP, catalogo previo conservado: {}", type, e.getMessage());
       return;
     }
     if (data.isEmpty()) {

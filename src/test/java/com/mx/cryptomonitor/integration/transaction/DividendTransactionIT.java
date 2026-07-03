@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.integration.transaction;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -297,6 +298,55 @@ class DividendTransactionIT extends UserModuleIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
         .andExpect(status().isBadRequest());
+  }
+
+  // ── TEST 4g — ON DELETE CASCADE via @OnDelete en DividendDetail ──────────
+
+  @Test
+  void deletingTransactionCascadesDividendDetail() throws Exception {
+    Tokens tokens = registerAndLogin();
+    String idempotencyKey = UUID.randomUUID().toString();
+
+    String body =
+        """
+        {
+          "assetSymbol":     "MSFT",
+          "assetType":       "STOCK",
+          "amount":          75.00,
+          "transactionDate": "2026-06-10T00:00:00Z",
+          "dividendType":    "CASH"
+        }
+        """;
+
+    var result =
+        mockMvc
+            .perform(
+                post("/api/v1/me/transactions/dividend")
+                    .header("Authorization", "Bearer " + tokens.accessToken())
+                    .header("X-Idempotency-Key", idempotencyKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    UUID transactionId =
+        UUID.fromString(
+            JsonPath.read(result.getResponse().getContentAsString(), "$.transactionId"));
+
+    assertThat(dividendDetailRepository.findByTransactionTransactionId(transactionId))
+        .as("dividend_detail must exist before delete")
+        .isPresent();
+
+    mockMvc
+        .perform(
+            delete("/api/v1/me/transactions/" + transactionId)
+                .header("Authorization", "Bearer " + tokens.accessToken())
+                .header("X-Idempotency-Key", UUID.randomUUID().toString()))
+        .andExpect(status().isNoContent());
+
+    assertThat(dividendDetailRepository.findByTransactionTransactionId(transactionId))
+        .as("dividend_detail must be gone after parent transaction is deleted (ON DELETE CASCADE)")
+        .isEmpty();
   }
 
   @Test

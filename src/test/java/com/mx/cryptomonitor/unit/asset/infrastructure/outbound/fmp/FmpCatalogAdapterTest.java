@@ -15,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.companieslogo.CompaniesLogoAdapter;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.FmpCatalogAdapter;
+import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpPlanRestrictionException;
 
@@ -182,6 +183,62 @@ class FmpCatalogAdapterTest {
     assertThatThrownBy(() -> adapter.fetchTopStocks(10))
         .isInstanceOf(FmpPlanRestrictionException.class)
         .hasMessageContaining("restricted by current FMP plan");
+  }
+
+  @Test
+  void fetchTopStocksPropagatesFmpExceptionOnGenericErrorMessage() {
+    server.enqueue(
+        jsonResponse(
+            """
+            {"Error Message": "Limit Reach. Please upgrade your plan or visit our documentation for more details."}
+            """));
+
+    assertThatThrownBy(() -> adapter.fetchTopStocks(50))
+        .isInstanceOf(FmpException.class)
+        .hasMessageContaining("Limit Reach");
+  }
+
+  @Test
+  void fetchTopEtfsPropagatesFmpExceptionOnGenericErrorMessage() {
+    server.enqueue(
+        jsonResponse(
+            """
+            {"Error Message": "Limit Reach. Please upgrade your plan or visit our documentation for more details."}
+            """));
+
+    assertThatThrownBy(() -> adapter.fetchTopEtfs(50))
+        .isInstanceOf(FmpException.class)
+        .hasMessageContaining("Limit Reach");
+  }
+
+  @Test
+  void fetchTopStocksReturnsEmptyListOnConnectionFailure() throws Exception {
+    MockWebServer unreachableServer = new MockWebServer();
+    unreachableServer.start();
+    String unreachableUrl = unreachableServer.url("/").toString();
+    unreachableServer.shutdown();
+
+    adapter =
+        new FmpCatalogAdapter(
+            WebClient.builder(),
+            unreachableUrl,
+            "test-key",
+            companiesLogoAdapter,
+            "/api/v3/stock-screener",
+            "/api/v3/etf/list");
+
+    List<AssetCatalogDto> result = adapter.fetchTopStocks(10);
+
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void fetchTopStocksReturnsEmptyListOnServiceUnavailable() {
+    server.enqueue(new MockResponse().setResponseCode(503));
+
+    List<AssetCatalogDto> result = adapter.fetchTopStocks(10);
+
+    assertThat(result).isEmpty();
   }
 
   private MockResponse jsonResponse(String body) {

@@ -23,6 +23,7 @@ import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.asset.application.service.CatalogSyncService;
 import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
 import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
+import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpPlanRestrictionException;
 
@@ -147,6 +148,26 @@ class CatalogSyncServiceTest {
   void syncTypeAbortsAndPreservesCatalogOnPlanRestriction() {
     when(fmpAdapter.fetchTopStocks(anyInt()))
         .thenThrow(new FmpPlanRestrictionException("endpoint restricted"));
+
+    syncService.syncType("stock", 50);
+
+    verify(redisService, never()).saveEntry(any());
+    verify(catalogRepository, never()).save(any());
+  }
+
+  @Test
+  void syncTypeAbortsAndPreservesCatalogOnGenericFmpException() {
+    when(fmpAdapter.fetchTopStocks(anyInt())).thenThrow(new FmpException("Limit Reach"));
+
+    syncService.syncType("stock", 50);
+
+    verify(redisService, never()).saveEntry(any());
+    verify(catalogRepository, never()).save(any());
+  }
+
+  @Test
+  void syncTypeDoesNotOverwriteCatalogWhenFmpReturnsEmptyList() {
+    when(fmpAdapter.fetchTopStocks(anyInt())).thenReturn(List.of());
 
     syncService.syncType("stock", 50);
 

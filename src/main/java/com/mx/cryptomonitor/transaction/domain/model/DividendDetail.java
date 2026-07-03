@@ -5,6 +5,9 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -36,6 +39,7 @@ public class DividendDetail {
 
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "transaction_id", nullable = false, unique = true)
+  @OnDelete(action = OnDeleteAction.CASCADE)
   private Transaction transaction;
 
   @Column(name = "ex_dividend_date")

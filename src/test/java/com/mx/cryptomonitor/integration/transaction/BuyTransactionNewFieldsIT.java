@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -190,5 +192,151 @@ class BuyTransactionNewFieldsIT extends UserModuleIntegrationTest {
             .filter(t -> "BUY".equals(t.getTransactionType()) && "AAPL".equals(t.getAssetSymbol()))
             .count();
     assertThat(count).isEqualTo(1);
+  }
+
+  // ── TEST 3b — GOVERNMENT_BOND (CETES) con campos de bono ─────────────────
+
+  @Test
+  void buyGovernmentBondPersistsBondSpecificFields() throws Exception {
+    Tokens tokens = registerAndLogin();
+
+    String body =
+        """
+        {
+          "assetSymbol":      "CETES91",
+          "assetType":        "GOVERNMENT_BOND",
+          "quantity":         1,
+          "pricePerUnit":     17990.74,
+          "faceValue":        18524.32,
+          "couponRate":       11.38,
+          "maturityDate":     "2023-09-26",
+          "autoReinvestment": true,
+          "currency":         "MXN",
+          "broker":           "cetesdirecto",
+          "transactionDate":  "2023-06-26T10:00:00Z"
+        }
+        """;
+
+    var result =
+        mockMvc
+            .perform(
+                post("/api/v1/me/transactions/buy")
+                    .header("Authorization", "Bearer " + tokens.accessToken())
+                    .header("X-Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    String txId = JsonPath.read(result.getResponse().getContentAsString(), "$.transactionId");
+    Transaction tx = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+
+    assertThat(tx.getFaceValue()).isEqualByComparingTo(new BigDecimal("18524.32"));
+    assertThat(tx.getMaturityDate()).isEqualTo(LocalDate.of(2023, 9, 26));
+    assertThat(tx.getCouponRate()).isEqualByComparingTo(new BigDecimal("11.38"));
+    assertThat(tx.isAutoReinvestment()).isTrue();
+    assertThat(tx.getCurrency()).isEqualTo("MXN");
+    assertThat(tx.getBroker()).isEqualTo("cetesdirecto");
+  }
+
+  // ── TEST 3c — venta STOCK en BMV (Bursanet) con exchange y currency ───────
+
+  @Test
+  void sellStockOnBmvPersistsExchangeAndCurrency() throws Exception {
+    Tokens tokens = registerAndLogin();
+
+    // Require a prior BUY so the portfolio has sufficient holdings to sell.
+    mockMvc
+        .perform(
+            post("/api/v1/me/transactions/buy")
+                .header("Authorization", "Bearer " + tokens.accessToken())
+                .header("X-Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "assetSymbol":     "AAPLSTAR",
+                      "assetType":       "STOCK",
+                      "quantity":        10,
+                      "pricePerUnit":    4800.00,
+                      "exchange":        "BMV",
+                      "broker":          "Bursanet",
+                      "currency":        "MXN",
+                      "transactionDate": "2026-06-09T09:30:00Z"
+                    }
+                    """))
+        .andExpect(status().isCreated());
+
+    var result =
+        mockMvc
+            .perform(
+                post("/api/v1/me/transactions/sell")
+                    .header("Authorization", "Bearer " + tokens.accessToken())
+                    .header("X-Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "assetSymbol":     "AAPLSTAR",
+                          "assetType":       "STOCK",
+                          "quantity":        10,
+                          "pricePerUnit":    4949.10,
+                          "fee":             123.73,
+                          "exchange":        "BMV",
+                          "broker":          "Bursanet",
+                          "currency":        "MXN",
+                          "transactionDate": "2026-06-10T09:30:00Z"
+                        }
+                        """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.exchange").value("BMV"))
+            .andExpect(jsonPath("$.currency").value("MXN"))
+            .andReturn();
+
+    String txId = JsonPath.read(result.getResponse().getContentAsString(), "$.transactionId");
+    Transaction tx = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+    assertThat(tx.getExchange()).isEqualTo("BMV");
+    assertThat(tx.getCurrency()).isEqualTo("MXN");
+    assertThat(tx.getBroker()).isEqualTo("Bursanet");
+  }
+
+  // ── TEST 3d — campos opcionales omitidos por defecto son null/false ────────
+
+  @Test
+  void buyWithOptionalFieldsOmittedDefaultsToNullAndFalse() throws Exception {
+    Tokens tokens = registerAndLogin();
+
+    String body =
+        """
+        {
+          "assetSymbol":     "ETH",
+          "assetType":       "CRYPTO",
+          "quantity":        0.1,
+          "pricePerUnit":    3000.00,
+          "transactionDate": "2026-06-10T09:30:00Z"
+        }
+        """;
+
+    var result =
+        mockMvc
+            .perform(
+                post("/api/v1/me/transactions/buy")
+                    .header("Authorization", "Bearer " + tokens.accessToken())
+                    .header("X-Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    String txId = JsonPath.read(result.getResponse().getContentAsString(), "$.transactionId");
+    Transaction tx = transactionRepository.findById(UUID.fromString(txId)).orElseThrow();
+
+    assertThat(tx.getExchange()).isNull();
+    assertThat(tx.getBroker()).isNull();
+    assertThat(tx.getCurrency()).isNull();
+    assertThat(tx.getFaceValue()).isNull();
+    assertThat(tx.getMaturityDate()).isNull();
+    assertThat(tx.getCouponRate()).isNull();
+    assertThat(tx.isAutoReinvestment()).isFalse();
   }
 }

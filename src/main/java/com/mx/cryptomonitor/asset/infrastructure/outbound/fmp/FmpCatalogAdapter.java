@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
+import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.companieslogo.CompaniesLogoAdapter;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
@@ -81,11 +82,16 @@ public class FmpCatalogAdapter implements CatalogFetchPort {
                       "USD",
                       i.marketCap() != null ? i.marketCap() / 1_000_000 : null))
           .toList();
-    } catch (FmpPlanRestrictionException | FmpInvalidKeyException e) {
+    } catch (CatalogFetchException e) {
+      // FmpException, FmpInvalidKeyException, FmpPlanRestrictionException: error permanente
+      // del proveedor -> propaga para que CatalogSyncService conserve el catalogo previo.
       log.error("FMP permanent error in fetchTopStocks: {}", e.getMessage());
       throw e;
     } catch (Exception e) {
-      log.warn("FMP fetchTopStocks failed: {}", e.getMessage());
+      // Solo transitorios: timeout, red, 5xx, parseo inesperado.
+      log.warn(
+          "FMP error transitorio en fetchTopStocks, conservando catalogo previo: {}",
+          e.getMessage());
       return List.of();
     }
   }
@@ -119,11 +125,15 @@ public class FmpCatalogAdapter implements CatalogFetchPort {
                       "USD",
                       null))
           .toList();
-    } catch (FmpPlanRestrictionException | FmpInvalidKeyException e) {
+    } catch (CatalogFetchException e) {
+      // FmpException, FmpInvalidKeyException, FmpPlanRestrictionException: error permanente
+      // del proveedor -> propaga para que CatalogSyncService conserve el catalogo previo.
       log.error("FMP permanent error in fetchTopEtfs: {}", e.getMessage());
       throw e;
     } catch (Exception e) {
-      log.warn("FMP fetchTopEtfs failed: {}", e.getMessage());
+      // Solo transitorios: timeout, red, 5xx, parseo inesperado.
+      log.warn(
+          "FMP error transitorio en fetchTopEtfs, conservando catalogo previo: {}", e.getMessage());
       return List.of();
     }
   }

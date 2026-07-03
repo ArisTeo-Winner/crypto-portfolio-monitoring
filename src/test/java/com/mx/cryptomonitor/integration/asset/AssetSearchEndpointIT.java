@@ -12,11 +12,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
+import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.integration.user.support.UserModuleIntegrationTest;
 
 class AssetSearchEndpointIT extends UserModuleIntegrationTest {
 
   @Autowired private StringRedisTemplate redisTemplate;
+  @Autowired private CatalogStorePort catalogStorePort;
 
   @BeforeEach
   void clearCatalog() {
@@ -77,6 +80,22 @@ class AssetSearchEndpointIT extends UserModuleIntegrationTest {
         .andExpect(
             jsonPath("$.items[0].logoUrl")
                 .value(org.hamcrest.Matchers.containsString("companieslogo.com")));
+  }
+
+  @Test
+  void searchFindsGovernmentBondEntryPreloadedViaCatalogStorePort() throws Exception {
+    AssetCatalogDto cetes91 =
+        new AssetCatalogDto(
+            "CETES91", "CETES 91 dias", "GOVERNMENT_BOND", null, "cetesdirecto", "MXN", null);
+    catalogStorePort.saveEntry(cetes91);
+    catalogStorePort.addToRanking("catalog:search:government_bond", "CETES91", 1d);
+
+    mockMvc
+        .perform(get("/api/v1/assets/search").param("q", "CETES"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].symbol").value("CETES91"))
+        .andExpect(jsonPath("$.items[0].assetType").value("GOVERNMENT_BOND"))
+        .andExpect(jsonPath("$.items[0].supportedForTransactions").value(true));
   }
 
   @Test
