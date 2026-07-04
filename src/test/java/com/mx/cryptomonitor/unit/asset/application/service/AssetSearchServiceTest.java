@@ -18,6 +18,7 @@ import com.mx.cryptomonitor.asset.application.dto.response.AssetSearchResponse;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.asset.application.service.AssetSearchService;
+import com.mx.cryptomonitor.asset.domain.exception.CatalogPlanRestrictedException;
 
 class AssetSearchServiceTest {
 
@@ -54,6 +55,17 @@ class AssetSearchServiceTest {
     assertThat(result.items()).hasSize(1);
     assertThat(result.items().get(0).symbol()).isEqualTo("ETH");
     assertThat(result.items().get(0).name()).isEqualTo("Ethereum");
+  }
+
+  @Test
+  void searchReturnsEmptyWhenOnDemandLookupThrowsCatalogFetchException() {
+    when(fmpAdapter.fetchTopStocks(anyInt()))
+        .thenThrow(new CatalogPlanRestrictedException("fetchTopStocks: endpoint restricted"));
+
+    AssetSearchResponse result = service.search("xyz", 10);
+
+    assertThat(result.items()).isEmpty();
+    assertThat(result.total()).isZero();
   }
 
   @Test

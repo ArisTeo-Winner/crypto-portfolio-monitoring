@@ -15,9 +15,12 @@ import com.mx.cryptomonitor.asset.application.dto.response.AssetSearchResponse;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AssetSearchService implements AssetCatalogQueryPort {
@@ -90,10 +93,17 @@ public class AssetSearchService implements AssetCatalogQueryPort {
   }
 
   private List<AssetCatalogDto> lookupOnDemand(String symbol) {
-    List<AssetCatalogDto> found =
-        fmpAdapter.fetchTopStocks(1).stream()
-            .filter(d -> d.symbol().equalsIgnoreCase(symbol))
-            .toList();
+    List<AssetCatalogDto> found;
+    try {
+      found =
+          fmpAdapter.fetchTopStocks(1).stream()
+              .filter(d -> d.symbol().equalsIgnoreCase(symbol))
+              .toList();
+    } catch (CatalogFetchException e) {
+      log.warn(
+          "Lookup on-demand fallo para simbolo {}, devolviendo vacio: {}", symbol, e.getMessage());
+      return List.of();
+    }
     if (!found.isEmpty()) {
       redisService.saveMiscEntry(found.get(0), MISC_TTL);
     }

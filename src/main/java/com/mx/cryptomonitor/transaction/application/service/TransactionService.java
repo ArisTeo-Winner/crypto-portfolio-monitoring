@@ -131,10 +131,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             TransactionResponse response =
                 transactionRegistrationPort.registerTransaction(userId, txRequest);
 
-            DividendType dtype =
-                request.dividendType() != null
-                    ? DividendType.valueOf(request.dividendType().toUpperCase())
-                    : DividendType.CASH;
+            DividendType dtype = resolveDividendType(request.dividendType());
 
             Transaction savedTx =
                 transactionRepository
@@ -556,6 +553,20 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
   private AssetType normalizedAssetType(String assetType) {
     return AssetType.valueOf(assetType.trim().toUpperCase());
+  }
+
+  private DividendType resolveDividendType(String dividendType) {
+    if (dividendType == null) {
+      return DividendType.CASH;
+    }
+    if (dividendType.isBlank()) {
+      throw new InvalidTransactionException("dividendType no puede estar en blanco");
+    }
+    try {
+      return DividendType.valueOf(dividendType.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException e) {
+      throw new InvalidTransactionException("dividendType invalido: " + dividendType);
+    }
   }
 
   private String normalizeTransactionType(String transactionType) {

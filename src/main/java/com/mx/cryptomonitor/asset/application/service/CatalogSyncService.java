@@ -92,7 +92,14 @@ public class CatalogSyncService {
   @Scheduled(cron = "0 0 6 * * *")
   public void syncDailyRanking() {
     log.info("CatalogSync: actualizando ranking diario top 10");
-    List<AssetCatalogDto> stocks = fmpAdapter.fetchTopStocks(10);
+    List<AssetCatalogDto> stocks;
+    try {
+      stocks = fmpAdapter.fetchTopStocks(10);
+    } catch (CatalogFetchException e) {
+      log.error(
+          "Ranking diario abortado por error FMP, ranking previo conservado: {}", e.getMessage());
+      return;
+    }
     stocks.forEach(
         dto ->
             redisService.addToRanking(

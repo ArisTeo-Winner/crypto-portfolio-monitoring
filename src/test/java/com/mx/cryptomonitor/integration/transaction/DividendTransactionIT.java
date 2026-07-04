@@ -178,6 +178,56 @@ class DividendTransactionIT extends UserModuleIntegrationTest {
   }
 
   @Test
+  void blankDividendTypeReturns400() throws Exception {
+    Tokens tokens = registerAndLogin();
+
+    String body =
+        """
+        {
+          "assetSymbol":     "AAPL",
+          "assetType":       "STOCK",
+          "amount":          10.00,
+          "transactionDate": "2026-06-10T00:00:00Z",
+          "dividendType":    ""
+        }
+        """;
+
+    mockMvc
+        .perform(
+            post("/api/v1/me/transactions/dividend")
+                .header("Authorization", "Bearer " + tokens.accessToken())
+                .header("X-Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void invalidDividendTypeReturns400() throws Exception {
+    Tokens tokens = registerAndLogin();
+
+    String body =
+        """
+        {
+          "assetSymbol":     "AAPL",
+          "assetType":       "STOCK",
+          "amount":          10.00,
+          "transactionDate": "2026-06-10T00:00:00Z",
+          "dividendType":    "INVALIDO"
+        }
+        """;
+
+    mockMvc
+        .perform(
+            post("/api/v1/me/transactions/dividend")
+                .header("Authorization", "Bearer " + tokens.accessToken())
+                .header("X-Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void negativeAmountReturns400() throws Exception {
     Tokens tokens = registerAndLogin();
 

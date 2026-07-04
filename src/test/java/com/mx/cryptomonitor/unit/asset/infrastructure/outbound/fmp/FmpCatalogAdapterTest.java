@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
@@ -19,6 +20,9 @@ import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpExcep
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpPlanRestrictionException;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -85,6 +89,26 @@ class FmpCatalogAdapterTest {
     List<AssetCatalogDto> result = adapter.fetchTopStocks(10);
 
     assertThat(result).isEmpty();
+  }
+
+  @Test
+  void fetchTopStocksNeverLogsApiKeyOnServerError() {
+    server.enqueue(new MockResponse().setResponseCode(500));
+
+    Logger logger = (Logger) LoggerFactory.getLogger(FmpCatalogAdapter.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+
+    try {
+      adapter.fetchTopStocks(10);
+    } finally {
+      logger.detachAppender(appender);
+    }
+
+    boolean leaked =
+        appender.list.stream().anyMatch(e -> e.getFormattedMessage().contains("test-key"));
+    assertThat(leaked).as("FMP api-key must never appear in logs").isFalse();
   }
 
   @Test

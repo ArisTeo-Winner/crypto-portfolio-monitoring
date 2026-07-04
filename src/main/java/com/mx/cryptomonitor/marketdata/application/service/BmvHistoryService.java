@@ -33,31 +33,45 @@ public class BmvHistoryService {
   private final BmvPriceHistoryRepository historyRepository;
 
   public List<BmvHistoricalPoint> getHistory(String symbol, LocalDate from, LocalDate to) {
-    LocalDate lastCached = findLastCachedDate(symbol, from, to);
+    List<BmvPriceHistoryEntity> cached =
+        historyRepository.findByEmisoraSerieAndTradeDateBetween(symbol, from, to);
 
-    if (lastCached == null) {
+    if (cached.isEmpty()) {
       fetchAndCache(symbol, from, to);
-    } else if (lastCached.isBefore(to)) {
-      fetchAndCache(symbol, lastCached.plusDays(1), to);
     } else {
-      log.debug(
-          "BmvHistoryService: rango {}..{} para {} ya cacheado, sin llamada a DataBursatil",
-          from,
-          to,
-          symbol);
+      LocalDate firstCached =
+          cached.stream()
+              .map(BmvPriceHistoryEntity::getTradeDate)
+              .min(Comparator.naturalOrder())
+              .orElseThrow();
+      LocalDate lastCached =
+          cached.stream()
+              .map(BmvPriceHistoryEntity::getTradeDate)
+              .max(Comparator.naturalOrder())
+              .orElseThrow();
+
+      boolean hasLeadingGap = firstCached.isAfter(from);
+      boolean hasTrailingGap = lastCached.isBefore(to);
+
+      if (hasLeadingGap) {
+        fetchAndCache(symbol, from, firstCached.minusDays(1));
+      }
+      if (hasTrailingGap) {
+        fetchAndCache(symbol, lastCached.plusDays(1), to);
+      }
+      if (!hasLeadingGap && !hasTrailingGap) {
+        log.debug(
+            "BmvHistoryService: rango {}..{} para {} ya cacheado, sin llamada a DataBursatil",
+            from,
+            to,
+            symbol);
+      }
     }
 
     return historyRepository.findByEmisoraSerieAndTradeDateBetween(symbol, from, to).stream()
         .map(this::toHistoricalPoint)
         .sorted(Comparator.comparing(BmvHistoricalPoint::date))
         .toList();
-  }
-
-  private LocalDate findLastCachedDate(String symbol, LocalDate from, LocalDate to) {
-    return historyRepository.findByEmisoraSerieAndTradeDateBetween(symbol, from, to).stream()
-        .map(BmvPriceHistoryEntity::getTradeDate)
-        .max(Comparator.naturalOrder())
-        .orElse(null);
   }
 
   private void fetchAndCache(String symbol, LocalDate from, LocalDate to) {

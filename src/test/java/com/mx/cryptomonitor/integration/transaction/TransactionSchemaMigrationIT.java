@@ -169,7 +169,23 @@ class TransactionSchemaMigrationIT {
   }
 
   @Test
-  void idxDividendDetailTransactionIdIndexExists() throws Exception {
+  void uniqueConstraintOnDividendDetailTransactionIdExists() throws Exception {
+    // El indice no-unico original (idx_dividend_detail_transaction_id) fue reemplazado por
+    // V2026_06_14_07 con la constraint UNIQUE uq_dividend_detail_transaction_id.
+    try (Connection conn = connection();
+        ResultSet rs =
+            conn.createStatement()
+                .executeQuery(
+                    "SELECT COUNT(*) FROM pg_indexes"
+                        + " WHERE tablename = 'dividend_detail'"
+                        + "   AND indexname = 'uq_dividend_detail_transaction_id'"
+                        + "   AND indexdef LIKE '%UNIQUE%'")) {
+      rs.next();
+      assertThat(rs.getInt(1))
+          .as("uq_dividend_detail_transaction_id unique index must exist")
+          .isEqualTo(1);
+    }
+
     try (Connection conn = connection();
         ResultSet rs =
             conn.createStatement()
@@ -178,7 +194,9 @@ class TransactionSchemaMigrationIT {
                         + " WHERE tablename = 'dividend_detail'"
                         + "   AND indexname = 'idx_dividend_detail_transaction_id'")) {
       rs.next();
-      assertThat(rs.getInt(1)).as("idx_dividend_detail_transaction_id must exist").isEqualTo(1);
+      assertThat(rs.getInt(1))
+          .as("non-unique legacy index idx_dividend_detail_transaction_id must be dropped")
+          .isZero();
     }
   }
 

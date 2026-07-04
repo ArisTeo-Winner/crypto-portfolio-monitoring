@@ -1,5 +1,7 @@
 package com.mx.cryptomonitor.integration.asset;
 
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,16 +12,20 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
+import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.domain.exception.CatalogPlanRestrictedException;
 import com.mx.cryptomonitor.integration.user.support.UserModuleIntegrationTest;
 
 class AssetSearchEndpointIT extends UserModuleIntegrationTest {
 
   @Autowired private StringRedisTemplate redisTemplate;
   @Autowired private CatalogStorePort catalogStorePort;
+  @MockBean private CatalogFetchPort catalogFetchPort;
 
   @BeforeEach
   void clearCatalog() {
@@ -125,6 +131,18 @@ class AssetSearchEndpointIT extends UserModuleIntegrationTest {
   void searchWithNoRedisHitsReturnsEmptyList() throws Exception {
     mockMvc
         .perform(get("/api/v1/assets/search").param("q", "GRNY"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isEmpty())
+        .andExpect(jsonPath("$.total").value(0));
+  }
+
+  @Test
+  void searchReturnsEmptyItemsInsteadOf500WhenFmpFailsPermanently() throws Exception {
+    when(catalogFetchPort.fetchTopStocks(anyInt()))
+        .thenThrow(new CatalogPlanRestrictedException("fetchTopStocks: endpoint restricted"));
+
+    mockMvc
+        .perform(get("/api/v1/assets/search").param("q", "XYZ"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items").isEmpty())
         .andExpect(jsonPath("$.total").value(0));

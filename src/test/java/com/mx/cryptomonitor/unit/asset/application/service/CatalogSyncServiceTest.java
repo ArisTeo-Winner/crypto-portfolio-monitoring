@@ -102,6 +102,16 @@ class CatalogSyncServiceTest {
   }
 
   @Test
+  void syncDailyRankingDoesNotAbortSchedulerOnCatalogFetchException() {
+    when(fmpAdapter.fetchTopStocks(10))
+        .thenThrow(new FmpPlanRestrictionException("endpoint restricted"));
+
+    syncService.syncDailyRanking();
+
+    verify(redisService, never()).addToRanking(eq("catalog:top10:stock"), any(), anyDouble());
+  }
+
+  @Test
   void forceFullSyncDelegatestoSyncWeekly() {
     when(fmpAdapter.fetchTopStocks(anyInt())).thenReturn(List.of());
     when(fmpAdapter.fetchTopEtfs(anyInt())).thenReturn(List.of());

@@ -71,34 +71,40 @@ class BmvHistoryServiceTest {
   void secondCallWithRangeFullyCachedMakesNoCallsToDataBursatil() {
     LocalDate from = LocalDate.of(2026, 1, 1);
     LocalDate to = LocalDate.of(2026, 1, 5);
-    BmvHistoricalPoint point =
+    BmvHistoricalPoint firstPoint =
+        new BmvHistoricalPoint(from, new BigDecimal("10.75"), new BigDecimal("1500.00"));
+    BmvHistoricalPoint lastPoint =
         new BmvHistoricalPoint(to, new BigDecimal("11.00"), new BigDecimal("2000.00"));
-    BmvPriceHistoryEntity persisted = entityFor(to, point);
+    BmvPriceHistoryEntity firstPersisted = entityFor(from, firstPoint);
+    BmvPriceHistoryEntity lastPersisted = entityFor(to, lastPoint);
 
     when(historyRepository.findByEmisoraSerieAndTradeDateBetween(SYMBOL, from, to))
-        .thenReturn(List.of(persisted));
+        .thenReturn(List.of(firstPersisted, lastPersisted));
 
     List<BmvHistoricalPoint> result = bmvHistoryService.getHistory(SYMBOL, from, to);
 
     verify(databursatil, never()).getHistory(any(), any(), any());
-    assertThat(result).containsExactly(point);
+    assertThat(result).containsExactly(firstPoint, lastPoint);
   }
 
   @Test
-  void partiallyCachedRangeOnlyFetchesTheMissingGap() {
+  void partiallyCachedRangeOnlyFetchesTheMissingTrailingGap() {
     LocalDate from = LocalDate.of(2026, 1, 1);
     LocalDate lastCached = LocalDate.of(2026, 1, 3);
     LocalDate to = LocalDate.of(2026, 1, 5);
+    BmvHistoricalPoint firstCachedPoint =
+        new BmvHistoricalPoint(from, new BigDecimal("8.75"), new BigDecimal("450.00"));
     BmvHistoricalPoint cachedPoint =
         new BmvHistoricalPoint(lastCached, new BigDecimal("9.00"), new BigDecimal("500.00"));
     BmvHistoricalPoint gapPoint =
         new BmvHistoricalPoint(to, new BigDecimal("9.50"), new BigDecimal("600.00"));
+    BmvPriceHistoryEntity firstCachedEntity = entityFor(from, firstCachedPoint);
     BmvPriceHistoryEntity cachedEntity = entityFor(lastCached, cachedPoint);
     BmvPriceHistoryEntity gapEntity = entityFor(to, gapPoint);
 
     when(historyRepository.findByEmisoraSerieAndTradeDateBetween(SYMBOL, from, to))
-        .thenReturn(List.of(cachedEntity))
-        .thenReturn(List.of(cachedEntity, gapEntity));
+        .thenReturn(List.of(firstCachedEntity, cachedEntity))
+        .thenReturn(List.of(firstCachedEntity, cachedEntity, gapEntity));
     when(databursatil.getHistory(SYMBOL, lastCached.plusDays(1), to))
         .thenReturn(Mono.just(Map.of(to, gapPoint)));
 
@@ -106,7 +112,35 @@ class BmvHistoryServiceTest {
 
     verify(databursatil).getHistory(SYMBOL, lastCached.plusDays(1), to);
     verify(databursatil, never()).getHistory(eq(SYMBOL), eq(from), any());
-    assertThat(result).containsExactly(cachedPoint, gapPoint);
+    assertThat(result).containsExactly(firstCachedPoint, cachedPoint, gapPoint);
+  }
+
+  @Test
+  void rangeExtendedBackwardsBeyondCacheFetchesLeadingGap() {
+    LocalDate from = LocalDate.of(2026, 6, 1);
+    LocalDate firstCached = LocalDate.of(2026, 6, 10);
+    LocalDate to = LocalDate.of(2026, 6, 20);
+    BmvHistoricalPoint firstCachedPoint =
+        new BmvHistoricalPoint(firstCached, new BigDecimal("12.00"), new BigDecimal("700.00"));
+    BmvHistoricalPoint lastCachedPoint =
+        new BmvHistoricalPoint(to, new BigDecimal("12.50"), new BigDecimal("800.00"));
+    BmvHistoricalPoint gapPoint =
+        new BmvHistoricalPoint(from, new BigDecimal("11.50"), new BigDecimal("400.00"));
+    BmvPriceHistoryEntity firstCachedEntity = entityFor(firstCached, firstCachedPoint);
+    BmvPriceHistoryEntity lastCachedEntity = entityFor(to, lastCachedPoint);
+    BmvPriceHistoryEntity gapEntity = entityFor(from, gapPoint);
+
+    when(historyRepository.findByEmisoraSerieAndTradeDateBetween(SYMBOL, from, to))
+        .thenReturn(List.of(firstCachedEntity, lastCachedEntity))
+        .thenReturn(List.of(gapEntity, firstCachedEntity, lastCachedEntity));
+    when(databursatil.getHistory(SYMBOL, from, firstCached.minusDays(1)))
+        .thenReturn(Mono.just(Map.of(from, gapPoint)));
+
+    List<BmvHistoricalPoint> result = bmvHistoryService.getHistory(SYMBOL, from, to);
+
+    verify(databursatil).getHistory(SYMBOL, from, firstCached.minusDays(1));
+    verify(databursatil, never()).getHistory(eq(SYMBOL), any(), eq(to));
+    assertThat(result).containsExactly(gapPoint, firstCachedPoint, lastCachedPoint);
   }
 
   private BmvPriceHistoryEntity entityFor(LocalDate date, BmvHistoricalPoint point) {
