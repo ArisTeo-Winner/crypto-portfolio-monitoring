@@ -94,4 +94,48 @@ class PriceUpdateServiceTest {
     assertThat(saved.getTotalProfitLoss()).isEqualByComparingTo("22500.00000000");
     assertThat(saved.getLastUpdated()).isNotNull();
   }
+
+  @Test
+  void updatePricesShouldContinueWithRemainingEntriesWhenOneProviderCallFails() {
+    PortfolioEntry btcEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(UUID.randomUUID())
+            .assetSymbol("BTC")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("1.50000000"))
+            .totalInvested(new BigDecimal("120000.00"))
+            .averagePricePerUnit(new BigDecimal("80000.00000000"))
+            .build();
+    PortfolioEntry ethEntry =
+        PortfolioEntry.builder()
+            .portfolioEntryId(UUID.randomUUID())
+            .userId(UUID.randomUUID())
+            .assetSymbol("ETH")
+            .assetType("CRYPTO")
+            .totalQuantity(new BigDecimal("10.00000000"))
+            .totalInvested(new BigDecimal("20000.00"))
+            .averagePricePerUnit(new BigDecimal("2000.00000000"))
+            .build();
+
+    when(portfolioEntryRepository.findAll()).thenReturn(java.util.List.of(btcEntry, ethEntry));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(
+            reactor.core.publisher.Mono.error(
+                new org.springframework.web.reactive.function.client.WebClientRequestException(
+                    new java.net.UnknownHostException("pro-api.coinmarketcap.com"),
+                    org.springframework.http.HttpMethod.GET,
+                    java.net.URI.create("https://pro-api.coinmarketcap.com"),
+                    new org.springframework.http.HttpHeaders())));
+    when(assetPricePort.getCryptoPriceAmount("ETH"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2500.00")));
+    when(portfolioEntryRepository.save(any(PortfolioEntry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    priceUpdateService.updatePrices();
+
+    ArgumentCaptor<PortfolioEntry> captor = ArgumentCaptor.forClass(PortfolioEntry.class);
+    verify(portfolioEntryRepository).save(captor.capture());
+    assertThat(captor.getValue().getAssetSymbol()).isEqualTo("ETH");
+  }
 }

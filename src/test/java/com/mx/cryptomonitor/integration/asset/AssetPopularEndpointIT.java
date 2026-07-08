@@ -68,19 +68,63 @@ class AssetPopularEndpointIT extends UserModuleIntegrationTest {
     mockMvc.perform(get("/api/v1/assets/popular")).andExpect(status().isOk());
   }
 
+  @Test
+  void stocksAndEtfsHaveCompaniesLogoUrlWhileCryptosDoNot() throws Exception {
+    loadEntry(
+        "NVDA",
+        "NVIDIA Corporation",
+        "STOCK",
+        "https://companieslogo.com/api/starter/stock-symbol/NVDA");
+    loadEntry(
+        "VOO",
+        "Vanguard S&P 500 ETF",
+        "ETF",
+        "https://companieslogo.com/api/starter/stock-symbol/VOO");
+    loadEntry("BTC", "Bitcoin", "CRYPTO", "");
+
+    redisTemplate.opsForZSet().add("catalog:top10:stock", "NVDA", 4967d);
+    redisTemplate.opsForZSet().add("catalog:top10:etf", "VOO", 600d);
+    redisTemplate.opsForZSet().add("catalog:top10:crypto", "BTC", 2100d);
+
+    mockMvc
+        .perform(get("/api/v1/assets/popular"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.stocks[0].logoUrl")
+                .value(
+                    org.hamcrest.Matchers.containsString(
+                        "companieslogo.com/api/starter/stock-symbol/")))
+        .andExpect(
+            jsonPath("$.etfs[0].logoUrl")
+                .value(org.hamcrest.Matchers.containsString("companieslogo.com")))
+        .andExpect(jsonPath("$.cryptos[0].logoUrl").value(org.hamcrest.Matchers.nullValue()));
+  }
+
   private void loadEntry(String symbol, String name, String assetType) {
+    loadEntry(symbol, name, assetType, "");
+  }
+
+  private void loadEntry(String symbol, String name, String assetType, String logoUrl) {
     redisTemplate
         .opsForHash()
         .putAll(
             "catalog:entry:" + symbol,
             Map.of(
-                "symbol", symbol,
-                "name", name,
-                "assetType", assetType,
-                "logoUrl", "",
-                "exchange", "",
-                "currency", "USD",
-                "marketCap", "0",
-                "updatedAt", "2026-06-10T00:00:00Z"));
+                "symbol",
+                symbol,
+                "name",
+                name,
+                "assetType",
+                assetType,
+                "logoUrl",
+                logoUrl,
+                "exchange",
+                "",
+                "currency",
+                "USD",
+                "marketCap",
+                "0",
+                "updatedAt",
+                "2026-06-10T00:00:00Z"));
   }
 }

@@ -4,8 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import com.mx.cryptomonitor.asset.application.port.out.LogoResolverPort;
+
 @Component
-public class CompaniesLogoAdapter {
+public class CompaniesLogoAdapter implements LogoResolverPort {
 
   private static final Logger log = LoggerFactory.getLogger(CompaniesLogoAdapter.class);
   private static final String BASE = "https://companieslogo.com";
@@ -14,6 +16,7 @@ public class CompaniesLogoAdapter {
    * Construye la URL del logo sin llamada HTTP previa. CompaniesLogo usa URLs predecibles; el
    * frontend maneja 404 con placeholder.
    */
+  @Override
   public String buildLogoUrl(String ticker) {
     if (ticker == null || ticker.isBlank()) return null;
     return BASE + "/api/starter/stock-symbol/" + ticker.toUpperCase();

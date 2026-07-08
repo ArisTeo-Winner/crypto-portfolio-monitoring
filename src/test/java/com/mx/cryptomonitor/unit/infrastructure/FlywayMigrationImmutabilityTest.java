@@ -56,7 +56,8 @@ class FlywayMigrationImmutabilityTest {
           Map.entry("V2026_06_14_04__seed_asset_catalog.sql", 4139646851L),
           Map.entry("V2026_06_14_05__databursatil_market_data.sql", 2906847268L),
           Map.entry("V2026_06_14_06__migrate_legacy_futures_asset_type.sql", 3435136547L),
-          Map.entry("V2026_06_14_07__dividend_detail_unique_transaction.sql", 2800148474L));
+          Map.entry("V2026_06_14_07__dividend_detail_unique_transaction.sql", 2800148474L),
+          Map.entry("V2026_06_14_08__populate_equity_logos.sql", 1436031483L));
 
   @Test
   void no_versioned_migration_file_must_be_modified_after_registration() throws IOException {

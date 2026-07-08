@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.application.port.out.LogoResolverPort;
 import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
 import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
 import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
@@ -78,6 +79,7 @@ public class CatalogSyncService {
   private final CatalogFetchPort fmpAdapter;
   private final CatalogStorePort redisService;
   private final AssetCatalogRepository catalogRepository;
+  private final LogoResolverPort logoResolver;
 
   @Scheduled(cron = "0 0 0 * * MON")
   public void syncWeekly() {
@@ -128,7 +130,7 @@ public class CatalogSyncService {
     String searchKey = "catalog:search:" + type.toLowerCase(Locale.ROOT);
     String top10Key = "catalog:top10:" + type.toLowerCase(Locale.ROOT);
     for (int i = 0; i < data.size(); i++) {
-      AssetCatalogDto dto = data.get(i);
+      AssetCatalogDto dto = withResolvedLogo(data.get(i));
       catalogRepository.save(toEntity(dto));
       redisService.saveEntry(dto);
       double score = dto.marketCap() != null ? dto.marketCap() : (limit - i);
@@ -137,6 +139,29 @@ public class CatalogSyncService {
         redisService.addToRanking(top10Key, dto.symbol(), score);
       }
     }
+  }
+
+  private AssetCatalogDto withResolvedLogo(AssetCatalogDto dto) {
+    String logoUrl = resolveLogoUrl(dto.symbol(), dto.assetType(), dto.currency());
+    if (logoUrl == null || logoUrl.equals(dto.logoUrl())) {
+      return dto;
+    }
+    return new AssetCatalogDto(
+        dto.symbol(),
+        dto.name(),
+        dto.assetType(),
+        logoUrl,
+        dto.exchange(),
+        dto.currency(),
+        dto.marketCap());
+  }
+
+  private String resolveLogoUrl(String symbol, String assetType, String currency) {
+    return switch (assetType) {
+      case "STOCK", "ETF" -> logoResolver.buildLogoUrl(symbol);
+      case "GOVERNMENT_BOND" -> "USD".equals(currency) ? logoResolver.buildLogoUrl(symbol) : null;
+      default -> null; // CRYPTO, INDEX, FOREX
+    };
   }
 
   // Kept for backward compatibility with existing callers/tests.

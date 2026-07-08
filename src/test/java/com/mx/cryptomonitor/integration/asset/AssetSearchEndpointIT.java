@@ -101,7 +101,71 @@ class AssetSearchEndpointIT extends UserModuleIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].symbol").value("CETES91"))
         .andExpect(jsonPath("$.items[0].assetType").value("GOVERNMENT_BOND"))
-        .andExpect(jsonPath("$.items[0].supportedForTransactions").value(true));
+        .andExpect(jsonPath("$.items[0].supportedForTransactions").value(true))
+        .andExpect(jsonPath("$.items[0].logoUrl").value(org.hamcrest.Matchers.nullValue()));
+  }
+
+  @Test
+  void searchStockReturnsExactCompaniesLogoUrl() throws Exception {
+    redisTemplate
+        .opsForHash()
+        .putAll(
+            "catalog:entry:AAPL",
+            Map.of(
+                "symbol", "AAPL",
+                "name", "Apple Inc.",
+                "assetType", "STOCK",
+                "logoUrl", "https://companieslogo.com/api/starter/stock-symbol/AAPL",
+                "exchange", "NASDAQ",
+                "currency", "USD",
+                "marketCap", "3000000000000",
+                "updatedAt", "2026-06-10T00:00:00Z"));
+    redisTemplate.opsForZSet().add("catalog:search:stock", "AAPL", 3_000_000d);
+
+    mockMvc
+        .perform(get("/api/v1/assets/search").param("q", "AAPL"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].symbol").value("AAPL"))
+        .andExpect(
+            jsonPath("$.items[0].logoUrl")
+                .value("https://companieslogo.com/api/starter/stock-symbol/AAPL"));
+  }
+
+  @Test
+  void searchGovernmentBondUsdReturnsCompaniesLogoUrl() throws Exception {
+    AssetCatalogDto tlt =
+        new AssetCatalogDto(
+            "TLT",
+            "iShares 20+ Year Treasury Bond ETF",
+            "GOVERNMENT_BOND",
+            "https://companieslogo.com/api/starter/stock-symbol/TLT",
+            null,
+            "USD",
+            null);
+    catalogStorePort.saveEntry(tlt);
+    catalogStorePort.addToRanking("catalog:search:government_bond", "TLT", 1d);
+
+    mockMvc
+        .perform(get("/api/v1/assets/search").param("q", "TLT"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].symbol").value("TLT"))
+        .andExpect(
+            jsonPath("$.items[0].logoUrl")
+                .value(org.hamcrest.Matchers.containsString("companieslogo.com")));
+  }
+
+  @Test
+  void searchCryptoReturnsNullLogoUrl() throws Exception {
+    AssetCatalogDto btc =
+        new AssetCatalogDto("BTC", "Bitcoin", "CRYPTO", null, null, "USD", 1_900_000L);
+    catalogStorePort.saveEntry(btc);
+    catalogStorePort.addToRanking("catalog:search:crypto", "BTC", 1_900_000d);
+
+    mockMvc
+        .perform(get("/api/v1/assets/search").param("q", "BTC"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].symbol").value("BTC"))
+        .andExpect(jsonPath("$.items[0].logoUrl").value(org.hamcrest.Matchers.nullValue()));
   }
 
   @Test

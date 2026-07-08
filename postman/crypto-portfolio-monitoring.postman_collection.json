@@ -1,0 +1,1105 @@
+{
+  "info": {
+    "_postman_id": "b6f2a4d0-3c1e-4a8b-9f2a-crypto-portfolio-monitoring",
+    "name": "Crypto Portfolio Monitoring API",
+    "description": "Colección de endpoints para crypto-portfolio-monitoring (User/Auth, Roles, Sessions, Transactions, Portfolio, Assets, MarketData).\n\nOrden recomendado de ejecución (Collection Runner):\n1. 00 - Auth & Users > Register\n2. 00 - Auth & Users > Login (captura accessToken automáticamente)\n3. Cualquier otra carpeta\n\nEl access token se guarda en la variable de colección `accessToken` mediante un test script en el request de Login, y se usa vía Bearer Auth heredado a nivel de colección. El refresh token viaja como cookie HttpOnly — Postman lo gestiona automáticamente en su cookie jar mientras uses el mismo `baseUrl`.\n\nRequests marcados como 'DESTRUCTIVO' (delete account, delete user, delete role) rompen el flujo si se ejecutan a mitad de una corrida completa — se recomienda correrlos manualmente al final.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "testUsername", "value": "", "type": "string" },
+    { "key": "testEmail", "value": "", "type": "string" },
+    { "key": "testPassword", "value": "Test1234!", "type": "string" },
+    { "key": "newPassword", "value": "NewTest1234!", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string", "description": "UUID manual — ningún endpoint expone el id de usuario (UserResponse no lo incluye)" },
+    { "key": "sessionId", "value": "", "type": "string" },
+    { "key": "roleId", "value": "", "type": "string" },
+    { "key": "permissionId", "value": "", "type": "string", "description": "UUID manual — no hay endpoint público de listado de permissions" },
+    { "key": "transactionId", "value": "", "type": "string" },
+    { "key": "portfolioId", "value": "", "type": "string" },
+    { "key": "assetSymbol", "value": "BTC", "type": "string" },
+    { "key": "bmvSymbol", "value": "AMXL*", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "00 - Auth & Users",
+      "item": [
+        {
+          "name": "Register user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const rand = Math.floor(Math.random() * 1000000);",
+                  "pm.collectionVariables.set('testUsername', 'postmanuser' + rand);",
+                  "pm.collectionVariables.set('testEmail', 'postman.user' + rand + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{testUsername}}\",\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"firstName\": \"Postman\",\n  \"lastName\": \"Tester\",\n  \"phoneNumber\": \"5555555555\",\n  \"address\": \"Calle Falsa 123\",\n  \"city\": \"CDMX\",\n  \"state\": \"CDMX\",\n  \"postalCode\": \"01000\",\n  \"country\": \"MX\",\n  \"dateOfBirth\": \"1995-05-20\",\n  \"preferredCurrency\": \"USD\",\n  \"timezone\": \"America/Mexico_City\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/register",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "register" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "}",
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('accessToken present', function () { pm.expect(pm.response.json().accessToken).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "auth", "login" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get my profile (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "me" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update my profile (me)",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Postman\",\n  \"lastName\": \"Updated\",\n  \"phoneNumber\": \"5555555555\",\n  \"address\": \"Nueva Direccion 456\",\n  \"city\": \"CDMX\",\n  \"state\": \"CDMX\",\n  \"postalCode\": \"01000\",\n  \"country\": \"MX\",\n  \"bio\": \"Actualizado desde Postman\",\n  \"preferredCurrency\": \"USD\",\n  \"timezone\": \"America/Mexico_City\",\n  \"dateOfBirth\": \"1995-05-20\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "me" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Request password reset",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/password/reset",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "password", "reset" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 204) {",
+                  "  pm.collectionVariables.set('testPassword', pm.collectionVariables.get('newPassword'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{testPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/password/change",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "password", "change" ]
+            },
+            "description": "NOTA: al ejecutarlo, testPassword se actualiza automaticamente para que Login siga funcionando en corridas posteriores."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"sample-verification-token\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/email/verify",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "email", "verify" ]
+            },
+            "description": "Requiere un token real generado por el flujo de verificacion de email (400 con el token de ejemplo)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get user by email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{testEmail}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "{{testEmail}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List all users (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users" ]
+            },
+            "description": "Requiere ROLE_ADMIN. El usuario de prueba registrado via este collection tiene ROLE_USER por defecto y recibira 403."
+          },
+          "response": []
+        },
+        {
+          "name": "Update user profile (legacy)",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{testUsername}}\",\n  \"email\": \"{{testEmail}}\",\n  \"firstName\": \"Postman\",\n  \"lastName\": \"Legacy\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile?email={{testEmail}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "profile" ],
+              "query": [ { "key": "email", "value": "{{testEmail}}" } ]
+            },
+            "description": "Endpoint legado que acepta el entity User completo como body."
+          },
+          "response": []
+        },
+        {
+          "name": "Test find user by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}/test",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "{{userId}}", "test" ]
+            },
+            "description": "Requiere setear manualmente la variable userId (UUID) — ningun endpoint de la API expone el id del usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete user by id (ADMIN) [DESTRUCTIVO]",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "{{userId}}" ]
+            },
+            "description": "DESTRUCTIVO. Requiere ROLE_ADMIN y la variable userId seteada manualmente."
+          },
+          "response": []
+        },
+        {
+          "name": "Public GET test",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/public/test-get",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "public", "test-get" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Public POST test",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/public/test-post",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "public", "test-post" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "OAuth2 - Start Google login (redirect)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/oauth2/authorize/google",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "oauth2", "authorize", "google" ]
+            },
+            "description": "Responde 302 redirigiendo al flujo OAuth2 de Google. Solo tiene sentido probarlo desde un navegador; Postman seguira el redirect pero no completara el login interactivo de Google."
+          },
+          "response": []
+        },
+        {
+          "name": "OAuth2 - Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/dashboard",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "auth", "dashboard" ]
+            },
+            "description": "Requiere un principal OAuth2User autenticado via el flujo de Google — con un Bearer JWT normal devolvera 401."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "auth", "logout" ]
+            },
+            "description": "Lee el refresh token de la cookie HttpOnly gestionada automaticamente por el cookie jar de Postman."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete my account (me) [DESTRUCTIVO]",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "users", "me" ]
+            },
+            "description": "DESTRUCTIVO. Elimina la cuenta del usuario autenticado actual — ejecutar manualmente al final de la corrida, no como parte del flujo automatico."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 - Tokens & Sessions",
+      "item": [
+        {
+          "name": "Refresh token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('accessToken', pm.response.json().accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tokens/refresh",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "tokens", "refresh" ]
+            },
+            "description": "Usa el refresh token de la cookie HttpOnly (gestionada por el cookie jar de Postman tras Login)."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke refresh token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tokens/revoke",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "tokens", "revoke" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List my sessions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const sessions = pm.response.json();",
+                  "  const other = sessions.find(function (s) { return !s.current; });",
+                  "  if (other) { pm.collectionVariables.set('sessionId', other.id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/sessions",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "sessions" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/sessions/{{sessionId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "sessions", "{{sessionId}}" ]
+            },
+            "description": "No puedes revocar tu propia sesion activa actual — necesita una segunda sesion (ej. login desde otro cliente) para tener un sessionId distinto al del token en uso."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Roles (ADMIN)",
+      "item": [
+        {
+          "name": "List roles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const roles = pm.response.json();",
+                  "  if (roles.length > 0) { pm.collectionVariables.set('roleId', roles[0].id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/roles",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "roles" ]
+            },
+            "description": "Requiere authority USER_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Get role by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/roles/{{roleId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "roles", "{{roleId}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('roleId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"POSTMAN_TEST_ROLE\",\n  \"description\": \"Rol creado desde la coleccion Postman\",\n  \"permissions\": []\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/roles",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "roles" ]
+            },
+            "description": "Requiere authority USER_CREATE."
+          },
+          "response": []
+        },
+        {
+          "name": "Add permission to role",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/roles/{{roleId}}/permissions/{{permissionId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "roles", "{{roleId}}", "permissions", "{{permissionId}}" ]
+            },
+            "description": "Requiere authority USER_UPDATE y la variable permissionId seteada manualmente (no hay endpoint publico de listado de permissions)."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove permission from role",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/roles/{{roleId}}/permissions/{{permissionId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "roles", "{{roleId}}", "permissions", "{{permissionId}}" ]
+            },
+            "description": "Requiere authority USER_UPDATE."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete role [DESTRUCTIVO]",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/roles/{{roleId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "roles", "{{roleId}}" ]
+            },
+            "description": "DESTRUCTIVO. Requiere authority USER_DELETE."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Transactions",
+      "item": [
+        {
+          "name": "Create transaction (generic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"{{assetSymbol}}\",\n  \"assetType\": \"CRYPTO\",\n  \"transactionType\": \"BUY\",\n  \"quantity\": 0.5,\n  \"pricePerUnit\": 60000,\n  \"totalValue\": 30000,\n  \"transactionDate\": \"2026-01-15T10:00:00Z\",\n  \"fee\": 1.5,\n  \"notes\": \"Creado via endpoint generico\",\n  \"assetName\": \"Bitcoin\",\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buy transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('transactionId', pm.response.json().transactionId);",
+                  "}",
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"{{assetSymbol}}\",\n  \"assetType\": \"CRYPTO\",\n  \"quantity\": 0.25,\n  \"pricePerUnit\": 89208.14,\n  \"fee\": 0.50,\n  \"transactionDate\": \"2026-01-24T17:55:00Z\",\n  \"notes\": \"Compra manual via Postman\",\n  \"assetName\": \"Bitcoin\",\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/buy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "buy" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sell transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"{{assetSymbol}}\",\n  \"assetType\": \"CRYPTO\",\n  \"quantity\": 0.10,\n  \"pricePerUnit\": 70392.39,\n  \"fee\": 1.25,\n  \"transactionDate\": \"2026-03-10T02:11:00Z\",\n  \"notes\": \"Venta parcial via Postman\",\n  \"assetName\": \"Bitcoin\",\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/sell",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "sell" ]
+            },
+            "description": "Puede devolver 400 si el usuario no tiene suficiente cantidad del activo (ejecutar despues de Buy transaction)."
+          },
+          "response": []
+        },
+        {
+          "name": "Transfer transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"{{assetSymbol}}\",\n  \"assetType\": \"CRYPTO\",\n  \"transferType\": \"TRANSFER_IN\",\n  \"quantity\": 0.05,\n  \"fee\": 0.0002,\n  \"transactionDate\": \"2026-03-10T02:11:00Z\",\n  \"notes\": \"Transferencia desde Bitget via Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/transfer",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "transfer" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Dividend transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"AAPL\",\n  \"assetName\": \"Apple Inc.\",\n  \"assetType\": \"STOCK\",\n  \"amount\": 125.50,\n  \"transactionDate\": \"2026-06-10T00:00:00Z\",\n  \"exDividendDate\": \"2026-05-09\",\n  \"dividendType\": \"CASH\",\n  \"taxWithheld\": 37.65,\n  \"broker\": \"IBKR\",\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/dividend",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "dividend" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List my transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions?assetSymbol=&assetType=&transactionType=",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions" ],
+              "query": [
+                { "key": "assetSymbol", "value": "", "disabled": true },
+                { "key": "assetType", "value": "", "disabled": true },
+                { "key": "transactionType", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Todos los filtros son opcionales; habilita el query param que quieras probar (ej. assetSymbol=BTC, assetType=CRYPTO, transactionType=BUY)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get transaction details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/details/{{transactionId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "details", "{{transactionId}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update transaction",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"{{assetSymbol}}\",\n  \"assetType\": \"CRYPTO\",\n  \"quantity\": 0.30,\n  \"pricePerUnit\": 61000,\n  \"transactionDate\": \"2026-01-24T17:55:00Z\",\n  \"fee\": 0.75,\n  \"notes\": \"Actualizado via Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/{{transactionId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "{{transactionId}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete transaction [DESTRUCTIVO]",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/{{transactionId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "{{transactionId}}" ]
+            },
+            "description": "DESTRUCTIVO. Ejecutar al final si quieres probar tambien Get portfolio/holdings con datos ya reconciliados."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Portfolio",
+      "item": [
+        {
+          "name": "Get my portfolio (holdings)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const entries = pm.response.json();",
+                  "  if (entries.length > 0) { pm.collectionVariables.set('portfolioId', entries[0].portfolioEntryId); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get portfolio entry by symbol",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/{{assetSymbol}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "{{assetSymbol}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get holdings performance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/{{portfolioId}}/holdings-performance?period=ALL",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "{{portfolioId}}", "holdings-performance" ],
+              "query": [ { "key": "period", "value": "ALL" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reconcile my portfolio",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/reconcile",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "reconcile" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get equity history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/equity/history?range=180",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "equity", "history" ],
+              "query": [ { "key": "range", "value": "180" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get equity markers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/equity/markers?range=180",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "equity", "markers" ],
+              "query": [ { "key": "range", "value": "180" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get realized PnL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/realized?range=180",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "realized" ],
+              "query": [ { "key": "range", "value": "180" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get total history (aggregated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/history?range=30d",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "history" ],
+              "query": [
+                { "key": "range", "value": "30d" },
+                { "key": "assetTypes", "value": "CRYPTO,STOCK", "disabled": true }
+              ]
+            },
+            "description": "Enviar header Accept: application/vnd.portfolio.v1+json para obtener el formato legado."
+          },
+          "response": []
+        },
+        {
+          "name": "Get portfolio markers (aggregated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/markers?range=30d",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "markers" ],
+              "query": [
+                { "key": "range", "value": "30d" },
+                { "key": "assetTypes", "value": "CRYPTO,STOCK", "disabled": true }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get asset categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/asset-categories",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "asset-categories" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get asset holdings history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/assets/{{assetSymbol}}/history?range=180d",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "assets", "{{assetSymbol}}", "history" ],
+              "query": [ { "key": "range", "value": "180d" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get asset markers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/portfolio/assets/{{assetSymbol}}/markers?range=180d",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "portfolio", "assets", "{{assetSymbol}}", "markers" ],
+              "query": [ { "key": "range", "value": "180d" } ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Assets",
+      "item": [
+        {
+          "name": "Search assets",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets/search?q=BTC&limit=10",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets", "search" ],
+              "query": [
+                { "key": "q", "value": "BTC" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get popular assets",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets/popular",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets", "popular" ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Market Data",
+      "item": [
+        {
+          "name": "BMV historical prices",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketdata/bmv/historical/{{bmvSymbol}}?from=2026-01-01&to=2026-01-31",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "marketdata", "bmv", "historical", "{{bmvSymbol}}" ],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-01-31" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "USD/MXN FX rate",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketdata/fx/usdmxn",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "marketdata", "fx", "usdmxn" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Stock price (previous close)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketdata/stock?symbol=AAPL",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "marketdata", "stock" ],
+              "query": [ { "key": "symbol", "value": "AAPL" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Stock historical price",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketdata/stock/historical/AAPL/2026-01-15",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "marketdata", "stock", "historical", "AAPL", "2026-01-15" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Stock time series (OHLCV)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketdata/stock/time-series?symbol=AAPL&interval=1day&outputSize=30",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "marketdata", "stock", "time-series" ],
+              "query": [
+                { "key": "symbol", "value": "AAPL" },
+                { "key": "interval", "value": "1day" },
+                { "key": "outputSize", "value": "30" }
+              ]
+            },
+            "description": "Requiere TWELVEDATA_API_KEY configurada en el servidor; sin ella responde 503."
+          },
+          "response": []
+        },
+        {
+          "name": "Crypto price",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/crypto/BTC/price",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "crypto", "BTC", "price" ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

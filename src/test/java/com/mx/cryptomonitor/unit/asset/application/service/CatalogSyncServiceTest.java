@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.application.port.out.LogoResolverPort;
 import com.mx.cryptomonitor.asset.application.service.CatalogSyncService;
 import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
 import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
@@ -33,6 +34,7 @@ class CatalogSyncServiceTest {
   @Mock private CatalogFetchPort fmpAdapter;
   @Mock private CatalogStorePort redisService;
   @Mock private AssetCatalogRepository catalogRepository;
+  @Mock private LogoResolverPort logoResolver;
 
   @InjectMocks private CatalogSyncService syncService;
 
@@ -135,11 +137,22 @@ class CatalogSyncServiceTest {
             new AssetCatalogDto("AAPL", "Apple Inc.", "STOCK", null, "NASDAQ", "USD", 3_000_000L));
     when(fmpAdapter.fetchTopStocks(1)).thenReturn(stocks);
     when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+    when(logoResolver.buildLogoUrl("AAPL"))
+        .thenReturn("https://companieslogo.com/api/starter/stock-symbol/AAPL");
 
     syncService.syncType("stock", 1);
 
+    AssetCatalogDto expected =
+        new AssetCatalogDto(
+            "AAPL",
+            "Apple Inc.",
+            "STOCK",
+            "https://companieslogo.com/api/starter/stock-symbol/AAPL",
+            "NASDAQ",
+            "USD",
+            3_000_000L);
     verify(catalogRepository).save(any(AssetCatalogEntity.class));
-    verify(redisService).saveEntry(stocks.get(0));
+    verify(redisService).saveEntry(expected);
     verify(redisService).addToRanking("catalog:search:stock", "AAPL", 3_000_000.0);
   }
 
