@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
@@ -16,6 +18,9 @@ import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
+import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
+import com.mx.cryptomonitor.asset.domain.model.AssetType;
+import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +36,7 @@ public class AssetSearchService implements AssetCatalogQueryPort {
 
   private final CatalogStorePort redisService;
   private final CatalogFetchPort fmpAdapter;
+  private final AssetCatalogRepository assetCatalogRepository;
 
   public AssetSearchResponse search(String query, Integer limit) {
     String q = normalizeQuery(query);
@@ -71,6 +77,46 @@ public class AssetSearchService implements AssetCatalogQueryPort {
         .map(Optional::get)
         .map(this::toResponse)
         .toList();
+  }
+
+  public List<AssetOptionResponse> listByType(String type, int limit) {
+    if (type == null) {
+      return assetCatalogRepository.findAll(PageRequest.of(0, limit, Sort.by("symbol"))).stream()
+          .map(this::toDto)
+          .map(this::toResponse)
+          .toList();
+    }
+
+    String normalizedType = AssetType.fromString(type).name();
+    String rankingKey = "catalog:search:" + normalizedType.toLowerCase(Locale.ROOT);
+
+    List<AssetCatalogDto> entries =
+        redisService.getTopSymbols(rankingKey, limit).stream()
+            .map(redisService::findEntry)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
+
+    if (entries.isEmpty()) {
+      entries =
+          assetCatalogRepository.findByAssetType(normalizedType).stream()
+              .limit(limit)
+              .map(this::toDto)
+              .toList();
+    }
+
+    return entries.stream().map(this::toResponse).toList();
+  }
+
+  private AssetCatalogDto toDto(AssetCatalogEntity entity) {
+    return new AssetCatalogDto(
+        entity.getSymbol(),
+        entity.getName(),
+        entity.getAssetType(),
+        entity.getLogoUrl(),
+        entity.getExchange(),
+        entity.getCurrency(),
+        entity.getMarketCap());
   }
 
   private List<AssetCatalogDto> searchInRedis(String lower) {

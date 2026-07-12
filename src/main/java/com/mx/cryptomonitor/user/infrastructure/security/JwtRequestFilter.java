@@ -66,6 +66,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
           "/api/v1/users/public/test-post",
           "/api/v1/marketdata/**",
           "/api/v1/crypto/**",
+          "/api/v1/assets",
           "/api/v1/assets/search",
           "/api/v1/health",
           "/actuator/health/**",

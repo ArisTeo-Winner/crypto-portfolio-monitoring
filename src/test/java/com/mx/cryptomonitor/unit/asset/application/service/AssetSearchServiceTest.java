@@ -19,16 +19,18 @@ import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.asset.application.service.AssetSearchService;
 import com.mx.cryptomonitor.asset.domain.exception.CatalogPlanRestrictedException;
+import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
 
 class AssetSearchServiceTest {
 
   private final CatalogStorePort redisService = mock(CatalogStorePort.class);
   private final CatalogFetchPort fmpAdapter = mock(CatalogFetchPort.class);
+  private final AssetCatalogRepository assetCatalogRepository = mock(AssetCatalogRepository.class);
   private AssetSearchService service;
 
   @BeforeEach
   void setUp() {
-    service = new AssetSearchService(redisService, fmpAdapter);
+    service = new AssetSearchService(redisService, fmpAdapter, assetCatalogRepository);
     when(redisService.getTopSymbols(anyString(), anyInt())).thenReturn(List.of());
     when(redisService.findEntry(anyString())).thenReturn(Optional.empty());
     when(fmpAdapter.fetchTopStocks(anyInt())).thenReturn(List.of());

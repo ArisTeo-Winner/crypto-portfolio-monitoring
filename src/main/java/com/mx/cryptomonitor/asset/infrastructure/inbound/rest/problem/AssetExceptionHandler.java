@@ -11,6 +11,7 @@ import com.mx.cryptomonitor.asset.infrastructure.inbound.rest.AssetController;
 import com.mx.cryptomonitor.shared.infrastructure.problem.ApiProblemDetailsFactory;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice(assignableTypes = AssetController.class)
 public class AssetExceptionHandler {
@@ -18,6 +19,21 @@ public class AssetExceptionHandler {
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ProblemDetail> handleInvalidParams(
       IllegalArgumentException ex, HttpServletRequest request) {
+    ProblemDetail problem =
+        ApiProblemDetailsFactory.create(
+            HttpStatus.BAD_REQUEST,
+            "invalid-parameters",
+            "Invalid Parameters",
+            ex.getMessage(),
+            request,
+            "VALIDATION_ERROR",
+            null);
+    return ApiProblemDetailsFactory.toProblemResponse(problem);
+  }
+
+  @ExceptionHandler(ConstraintViolationException.class)
+  public ResponseEntity<ProblemDetail> handleConstraintViolation(
+      ConstraintViolationException ex, HttpServletRequest request) {
     ProblemDetail problem =
         ApiProblemDetailsFactory.create(
             HttpStatus.BAD_REQUEST,
