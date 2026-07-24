@@ -48,3 +48,46 @@ Con el backend arriba:
 newman run postman/CryptoPortfolio_NuevosEndpoints.postman_collection.json \
   -e postman/CryptoPortfolio_Local.postman_environment.json --bail
 ```
+
+## Colección principal — carpetas `05 - Assets` y `07 - Market Data MXN / Banxico`
+
+El archivo `crypto-portfolio-monitoring.postman_collection.json` (colección
+principal, distinta de la de arriba) se extendió con requests para el catálogo
+filtrado por tipo y para la valuación a mercado (mark-to-market) de CETES:
+
+- **`05 - Assets`**: `GET /api/v1/assets?type=STOCK|ETF|GOVERNMENT_BOND`, el
+  catálogo completo sin filtro, los casos negativos (`type` inválido, `limit`
+  fuera de rango) y `GET /api/v1/assets/popular` con verificación de logos
+  reales de Finnhub (incluido GOOG/GOOGL).
+- **`07 - Market Data MXN / Banxico`**: curva de tasas CETES de Banxico
+  (`GET /api/v1/marketdata/banxico/cetes/curve`) y el mark-to-market de una
+  posición CETES viva (`GET /api/v1/portfolio/cetes/{transactionId}/mark-to-market`),
+  incluyendo los casos 404 (transacción ajena/inexistente) y 400 (transacción
+  que no es un bono gubernamental).
+
+### Requisitos adicionales para que estas carpetas pasen
+
+- **`BANXICO_TOKEN`** configurado en el backend (variable de entorno en
+  Docker) para que la curva de tasas CETES devuelva datos reales.
+- **`FINNHUB_TOKEN`** configurado para que `GET /api/v1/assets/popular`
+  devuelva logos reales de STOCK (`logoUrl` no `null`), incluido GOOG/GOOGL.
+- El **sync del catálogo** (`forceFullSync`, al arranque o vía el job
+  semanal) debe haber corrido al menos una vez para que los logos y el market
+  cap de STOCK estén poblados antes de correr `05 - Assets`.
+
+### Orden de ejecución recomendado
+
+1. `00 - Auth & Users` → `Register user` y `Login` (captura `accessToken`).
+2. (Opcional) Esperar a que el sync del catálogo haya corrido al menos una
+   vez, o dispararlo manualmente, antes de correr `05 - Assets`.
+3. `05 - Assets` — catálogo por tipo y `popular` (verifica logos Finnhub).
+4. `07 - Market Data MXN / Banxico`, en orden:
+   1. `Banxico CETES rate curve` (pública).
+   2. `Buy CETES91 (live position, for MtM)` — crea la posición viva y guarda
+      `cetes_tx_id`.
+   3. `CETES mark-to-market (live position)` — usa `cetes_tx_id`.
+   4. `CETES mark-to-market - not found (404)`.
+   5. `Buy STOCK transaction (helper for MtM 400 test)` — guarda
+      `stock_tx_id`.
+   6. `CETES mark-to-market - not a government bond (400)` — usa
+      `stock_tx_id`.

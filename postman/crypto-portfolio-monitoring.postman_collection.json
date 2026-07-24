@@ -25,7 +25,11 @@
     { "key": "transactionId", "value": "", "type": "string" },
     { "key": "portfolioId", "value": "", "type": "string" },
     { "key": "assetSymbol", "value": "BTC", "type": "string" },
-    { "key": "bmvSymbol", "value": "AMXL*", "type": "string" }
+    { "key": "bmvSymbol", "value": "AMXL*", "type": "string" },
+    { "key": "cetes_tx_id", "value": "", "type": "string" },
+    { "key": "cetes_maturity_date", "value": "", "type": "string" },
+    { "key": "cetes_transaction_date", "value": "", "type": "string" },
+    { "key": "stock_tx_id", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -986,7 +990,219 @@
           "response": []
         },
         {
+          "name": "List catalog by type - STOCK",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('response is a non-empty array', function () {",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items).to.be.an('array');",
+                  "  pm.expect(items.length).to.be.greaterThan(0);",
+                  "});",
+                  "pm.test('all items have assetType STOCK', function () {",
+                  "  const items = pm.response.json();",
+                  "  items.forEach(function (item) { pm.expect(item.assetType).to.eql('STOCK'); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets?type=STOCK",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets" ],
+              "query": [ { "key": "type", "value": "STOCK" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List catalog by type - ETF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('all items have assetType ETF', function () {",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items).to.be.an('array');",
+                  "  items.forEach(function (item) { pm.expect(item.assetType).to.eql('ETF'); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets?type=ETF",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets" ],
+              "query": [ { "key": "type", "value": "ETF" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List catalog by type - GOVERNMENT_BOND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('all items have assetType GOVERNMENT_BOND', function () {",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items).to.be.an('array');",
+                  "  items.forEach(function (item) { pm.expect(item.assetType).to.eql('GOVERNMENT_BOND'); });",
+                  "});",
+                  "pm.test('includes a CETES symbol', function () {",
+                  "  const items = pm.response.json();",
+                  "  const hasCetes = items.some(function (item) { return item.symbol.indexOf('CETES') === 0; });",
+                  "  pm.expect(hasCetes).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets?type=GOVERNMENT_BOND",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets" ],
+              "query": [ { "key": "type", "value": "GOVERNMENT_BOND" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List full catalog (no type filter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('catalog includes several distinct asset types', function () {",
+                  "  const items = pm.response.json();",
+                  "  pm.expect(items).to.be.an('array');",
+                  "  const types = new Set(items.map(function (item) { return item.assetType; }));",
+                  "  pm.expect(types.size).to.be.greaterThan(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List catalog - invalid type (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets?type=XYZ",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets" ],
+              "query": [ { "key": "type", "value": "XYZ" } ]
+            },
+            "description": "Tipo de activo invalido: AssetType.fromString lanza IllegalArgumentException -> 400."
+          },
+          "response": []
+        },
+        {
+          "name": "List catalog - limit out of range (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets?type=STOCK&limit=500",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "assets" ],
+              "query": [
+                { "key": "type", "value": "STOCK" },
+                { "key": "limit", "value": "500" }
+              ]
+            },
+            "description": "limit tiene @Max(200) -> ConstraintViolationException -> 400."
+          },
+          "response": []
+        },
+        {
           "name": "Get popular assets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('stocks[0].logoUrl is not null (real Finnhub logo)', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.stocks).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json.stocks[0].logoUrl).to.not.be.null;",
+                  "});",
+                  "pm.test('GOOG or GOOGL is present with a non-null logoUrl', function () {",
+                  "  const json = pm.response.json();",
+                  "  const google = json.stocks.find(function (s) { return s.symbol === 'GOOG' || s.symbol === 'GOOGL'; });",
+                  "  pm.expect(google, 'GOOG/GOOGL not found in popular stocks').to.not.be.undefined;",
+                  "  pm.expect(google.logoUrl).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "auth": { "type": "noauth" },
             "method": "GET",
@@ -995,7 +1211,8 @@
               "raw": "{{baseUrl}}/api/v1/assets/popular",
               "host": [ "{{baseUrl}}" ],
               "path": [ "api", "v1", "assets", "popular" ]
-            }
+            },
+            "description": "Requiere que el sync del catalogo (forceFullSync) haya corrido con FINNHUB_TOKEN configurado para que los logos de STOCK sean reales (no null)."
           },
           "response": []
         }
@@ -1096,6 +1313,226 @@
               "host": [ "{{baseUrl}}" ],
               "path": [ "api", "v1", "crypto", "BTC", "price" ]
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07 - Market Data MXN / Banxico",
+      "item": [
+        {
+          "name": "Banxico CETES rate curve",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('curve has rates for terms 28, 91, 182, 364, 728', function () {",
+                  "  const curve = pm.response.json();",
+                  "  ['28', '91', '182', '364', '728'].forEach(function (term) {",
+                  "    pm.expect(curve).to.have.property(term);",
+                  "  });",
+                  "});",
+                  "pm.test('each rate is a number greater than 0', function () {",
+                  "  const curve = pm.response.json();",
+                  "  Object.values(curve).forEach(function (rate) {",
+                  "    pm.expect(rate).to.be.a('number');",
+                  "    pm.expect(rate).to.be.greaterThan(0);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketdata/banxico/cetes/curve",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "marketdata", "banxico", "cetes", "curve" ]
+            },
+            "description": "Publica (cubierta por el permitAll de /api/v1/marketdata/**). Requiere BANXICO_TOKEN configurado y que la curva se haya cacheado al menos una vez (Redis/Postgres o llamada directa a Banxico)."
+          },
+          "response": []
+        },
+        {
+          "name": "Buy CETES91 (live position, for MtM)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const maturity = new Date();",
+                  "maturity.setUTCDate(maturity.getUTCDate() + 60);",
+                  "pm.collectionVariables.set('cetes_maturity_date', maturity.toISOString().slice(0, 10));",
+                  "pm.collectionVariables.set('cetes_transaction_date', new Date().toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('cetes_tx_id', pm.response.json().transactionId);",
+                  "}",
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"CETES91\",\n  \"assetType\": \"GOVERNMENT_BOND\",\n  \"quantity\": 1854,\n  \"pricePerUnit\": 9.70,\n  \"faceValue\": 18540.00,\n  \"couponRate\": 6.49,\n  \"maturityDate\": \"{{cetes_maturity_date}}\",\n  \"autoReinvestment\": true,\n  \"broker\": \"cetesdirecto\",\n  \"currency\": \"MXN\",\n  \"exchange\": \"cetesdirecto\",\n  \"transactionDate\": \"{{cetes_transaction_date}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/buy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "buy" ]
+            },
+            "description": "Crea una posicion CETES91 VIVA (maturityDate 60 dias en el futuro, calculada en el pre-request script) para probar el mark-to-market. Guarda el transactionId en {{cetes_tx_id}}."
+          },
+          "response": []
+        },
+        {
+          "name": "CETES mark-to-market (live position)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('vencida is false (posicion viva)', function () {",
+                  "  pm.expect(pm.response.json().vencida).to.eql(false);",
+                  "});",
+                  "pm.test('valorHoy is not null', function () {",
+                  "  pm.expect(pm.response.json().valorHoy).to.not.be.null;",
+                  "});",
+                  "pm.test('tasaHoy is not null (viene de Banxico)', function () {",
+                  "  pm.expect(pm.response.json().tasaHoy).to.not.be.null;",
+                  "});",
+                  "pm.test('diasRestantes is greater than 0', function () {",
+                  "  pm.expect(pm.response.json().diasRestantes).to.be.greaterThan(0);",
+                  "});",
+                  "pm.test('mtmPnl is present and numeric', function () {",
+                  "  const mtmPnl = pm.response.json().mtmPnl;",
+                  "  pm.expect(mtmPnl).to.not.be.null;",
+                  "  pm.expect(typeof mtmPnl).to.eql('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/portfolio/cetes/{{cetes_tx_id}}/mark-to-market",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "portfolio", "cetes", "{{cetes_tx_id}}", "mark-to-market" ]
+            },
+            "description": "Requiere Bearer (heredado a nivel de coleccion) y haber corrido 'Buy CETES91 (live position, for MtM)' antes en la misma corrida."
+          },
+          "response": []
+        },
+        {
+          "name": "CETES mark-to-market - not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/portfolio/cetes/{{$guid}}/mark-to-market",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "portfolio", "cetes", "{{$guid}}", "mark-to-market" ]
+            },
+            "description": "UUID aleatorio que no existe / no pertenece al usuario -> GovBondPositionNotFoundException -> 404."
+          },
+          "response": []
+        },
+        {
+          "name": "Buy STOCK transaction (helper for MtM 400 test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('stock_tx_id', pm.response.json().transactionId);",
+                  "}",
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"AAPL\",\n  \"assetType\": \"STOCK\",\n  \"quantity\": 1,\n  \"pricePerUnit\": 190.00,\n  \"exchange\": \"NASDAQ\",\n  \"currency\": \"USD\",\n  \"transactionDate\": \"{{cetes_transaction_date}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/me/transactions/buy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "me", "transactions", "buy" ]
+            },
+            "description": "Crea una transaccion STOCK (no CETES) para probar que el endpoint de MtM la rechaza con 400. Guarda el transactionId en {{stock_tx_id}}."
+          },
+          "response": []
+        },
+        {
+          "name": "CETES mark-to-market - not a government bond (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/portfolio/cetes/{{stock_tx_id}}/mark-to-market",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "v1", "portfolio", "cetes", "{{stock_tx_id}}", "mark-to-market" ]
+            },
+            "description": "Transaccion STOCK, no GOVERNMENT_BOND -> InvalidGovBondPositionException -> 400. Requiere haber corrido 'Buy STOCK transaction (helper for MtM 400 test)' antes."
           },
           "response": []
         }
