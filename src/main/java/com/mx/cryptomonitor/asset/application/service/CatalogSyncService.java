@@ -1,19 +1,26 @@
 package com.mx.cryptomonitor.asset.application.service;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.application.port.out.IpoCalendarPort;
+import com.mx.cryptomonitor.asset.application.port.out.IpoCalendarPort.IpoEntry;
 import com.mx.cryptomonitor.asset.application.port.out.LogoResolverPort;
+import com.mx.cryptomonitor.asset.application.port.out.StockProfilePort;
+import com.mx.cryptomonitor.asset.application.port.out.StockProfilePort.StockProfile;
 import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
 import com.mx.cryptomonitor.asset.domain.model.AssetCatalogEntity;
 import com.mx.cryptomonitor.asset.domain.repository.AssetCatalogRepository;
@@ -25,6 +32,10 @@ import lombok.RequiredArgsConstructor;
 public class CatalogSyncService {
 
   private static final Logger log = LoggerFactory.getLogger(CatalogSyncService.class);
+
+  // IPOs con valor total de acciones por debajo de este umbral (USD) se ignoran para evitar
+  // meter micro-listados al catalogo.
+  private static final long IPO_MIN_TOTAL_SHARES_VALUE = 1_000_000_000L;
 
   private static final List<AssetCatalogDto> STATIC_CRYPTOS =
       List.of(
@@ -80,6 +91,11 @@ public class CatalogSyncService {
   private final CatalogStorePort redisService;
   private final AssetCatalogRepository catalogRepository;
   private final LogoResolverPort logoResolver;
+  private final StockProfilePort stockProfilePort;
+  private final IpoCalendarPort ipoCalendarPort;
+
+  @Value("${finnhub.rate-limit.delay-ms:1100}")
+  private long finnhubRateLimitDelayMs;
 
   @Scheduled(cron = "0 0 0 * * MON")
   public void syncWeekly() {
@@ -91,23 +107,103 @@ public class CatalogSyncService {
     log.info("CatalogSync: sync semanal completado");
   }
 
+  /** Refresca el market cap real de cada STOCK del catalogo via Finnhub y reordena el ranking. */
   @Scheduled(cron = "0 0 6 * * *")
   public void syncDailyRanking() {
-    log.info("CatalogSync: actualizando ranking diario top 10");
-    List<AssetCatalogDto> stocks;
-    try {
-      stocks = fmpAdapter.fetchTopStocks(10);
-    } catch (CatalogFetchException e) {
-      log.error(
-          "Ranking diario abortado por error FMP, ranking previo conservado: {}", e.getMessage());
+    log.info("CatalogSync: actualizando ranking diario con market cap real de Finnhub");
+    List<AssetCatalogEntity> stocks = catalogRepository.findByAssetType("STOCK");
+    if (stocks.isEmpty()) {
+      log.warn("CatalogSync: catalogo STOCK vacio, ranking diario omitido");
       return;
     }
-    stocks.forEach(
-        dto ->
-            redisService.addToRanking(
-                "catalog:top10:stock",
-                dto.symbol(),
-                dto.marketCap() != null ? dto.marketCap() : 0));
+
+    int updated = 0;
+    for (AssetCatalogEntity stock : stocks) {
+      Long marketCap;
+      try {
+        marketCap =
+            fetchStockProfile(stock.getSymbol())
+                .map(StockProfile::marketCapMillions)
+                .orElse(stock.getMarketCap());
+      } catch (RuntimeException ex) {
+        log.warn(
+            "CatalogSync: fallo actualizando market cap de {}, se conserva el previo: {}",
+            stock.getSymbol(),
+            ex.getClass().getSimpleName());
+        marketCap = stock.getMarketCap();
+      }
+      if (marketCap == null) {
+        continue;
+      }
+      if (!marketCap.equals(stock.getMarketCap())) {
+        stock.setMarketCap(marketCap);
+        stock.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        catalogRepository.save(stock);
+      }
+      redisService.addToRanking("catalog:search:stock", stock.getSymbol(), marketCap);
+      redisService.addToRanking("catalog:top10:stock", stock.getSymbol(), marketCap);
+      updated++;
+    }
+    log.info(
+        "CatalogSync: ranking diario actualizado, {} de {} simbolos STOCK con market cap Finnhub",
+        updated,
+        stocks.size());
+  }
+
+  /** Detecta IPOs recientes ejecutados ("priced") en NASDAQ/NYSE y los agrega al catalogo. */
+  @Scheduled(cron = "0 0 7 * * MON")
+  public void discoverNewListings() {
+    log.info("CatalogSync: buscando nuevos listados (IPOs) via Finnhub");
+    LocalDate today = LocalDate.now(ZoneOffset.UTC);
+    List<IpoEntry> ipos;
+    try {
+      ipos = ipoCalendarPort.getRecentIpos(today.minusDays(30), today);
+    } catch (RuntimeException ex) {
+      log.error(
+          "CatalogSync: fallo consultando calendario de IPOs, se omite el descubrimiento: {}",
+          ex.getClass().getSimpleName());
+      return;
+    }
+
+    List<IpoEntry> qualifying = ipos.stream().filter(this::qualifiesForCatalog).toList();
+
+    int added = 0;
+    for (IpoEntry ipo : qualifying) {
+      if (catalogRepository.existsById(ipo.symbol())) {
+        continue;
+      }
+      AssetCatalogDto dto = toDto(ipo);
+      catalogRepository.save(toEntity(dto));
+      redisService.saveEntry(dto);
+      double score = dto.marketCap() != null ? dto.marketCap() : 0;
+      redisService.addToRanking("catalog:search:stock", dto.symbol(), score);
+      added++;
+      log.info("CatalogSync: {} agregado al catalogo (IPO nuevo)", dto.symbol());
+    }
+    log.info("CatalogSync: descubrimiento de IPOs completado, {} nuevos listados agregados", added);
+  }
+
+  private boolean qualifiesForCatalog(IpoEntry ipo) {
+    if (!"priced".equalsIgnoreCase(ipo.status())) {
+      return false;
+    }
+    String exchange = ipo.exchange() == null ? "" : ipo.exchange().toUpperCase(Locale.ROOT);
+    if (!exchange.contains("NASDAQ") && !exchange.contains("NYSE")) {
+      return false;
+    }
+    return ipo.totalSharesValue() != null && ipo.totalSharesValue() > IPO_MIN_TOTAL_SHARES_VALUE;
+  }
+
+  private AssetCatalogDto toDto(IpoEntry ipo) {
+    Optional<StockProfile> profile = fetchStockProfile(ipo.symbol());
+    return new AssetCatalogDto(
+        ipo.symbol(),
+        profile.map(StockProfile::name).orElse(ipo.name()),
+        "STOCK",
+        profile.map(StockProfile::logoUrl).orElse(null),
+        profile.map(StockProfile::exchange).orElse(ipo.exchange()),
+        "USD",
+        profile.map(StockProfile::marketCapMillions).orElse(null));
   }
 
   public void forceFullSync() {
@@ -129,8 +225,12 @@ public class CatalogSyncService {
     }
     String searchKey = "catalog:search:" + type.toLowerCase(Locale.ROOT);
     String top10Key = "catalog:top10:" + type.toLowerCase(Locale.ROOT);
+    int resolvedFromFinnhub = 0;
     for (int i = 0; i < data.size(); i++) {
-      AssetCatalogDto dto = withResolvedLogo(data.get(i));
+      AssetCatalogDto dto = enrichDto(data.get(i));
+      if ("STOCK".equals(dto.assetType()) && dto.logoUrl() != null) {
+        resolvedFromFinnhub++;
+      }
       catalogRepository.save(toEntity(dto));
       redisService.saveEntry(dto);
       double score = dto.marketCap() != null ? dto.marketCap() : (limit - i);
@@ -139,9 +239,18 @@ public class CatalogSyncService {
         redisService.addToRanking(top10Key, dto.symbol(), score);
       }
     }
+    if ("stock".equalsIgnoreCase(type)) {
+      log.info(
+          "CatalogSync: {} de {} simbolos STOCK con logo/market cap resueltos via Finnhub",
+          resolvedFromFinnhub,
+          data.size());
+    }
   }
 
-  private AssetCatalogDto withResolvedLogo(AssetCatalogDto dto) {
+  private AssetCatalogDto enrichDto(AssetCatalogDto dto) {
+    if ("STOCK".equals(dto.assetType())) {
+      return enrichStock(dto);
+    }
     String logoUrl = resolveLogoUrl(dto.symbol(), dto.assetType(), dto.currency());
     if (logoUrl == null || logoUrl.equals(dto.logoUrl())) {
       return dto;
@@ -156,11 +265,44 @@ public class CatalogSyncService {
         dto.marketCap());
   }
 
+  /** STOCK: Finnhub /profile2 aporta logo real y market cap real (reemplaza FMP para esto). */
+  private AssetCatalogDto enrichStock(AssetCatalogDto dto) {
+    Optional<StockProfile> profile = fetchStockProfile(dto.symbol());
+    String logoUrl = profile.map(StockProfile::logoUrl).orElse(dto.logoUrl());
+    Long marketCap = profile.map(StockProfile::marketCapMillions).orElse(dto.marketCap());
+    return new AssetCatalogDto(
+        dto.symbol(),
+        dto.name(),
+        dto.assetType(),
+        logoUrl,
+        dto.exchange(),
+        dto.currency(),
+        marketCap);
+  }
+
+  private Optional<StockProfile> fetchStockProfile(String symbol) {
+    Optional<StockProfile> profile = stockProfilePort.getProfile(symbol);
+    throttleFinnhubCall();
+    return profile;
+  }
+
+  /** Finnhub free tier = 60 req/min; el catalogo tiene ~50-60 simbolos STOCK. */
+  private void throttleFinnhubCall() {
+    if (finnhubRateLimitDelayMs <= 0) {
+      return;
+    }
+    try {
+      Thread.sleep(finnhubRateLimitDelayMs);
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
   private String resolveLogoUrl(String symbol, String assetType, String currency) {
     return switch (assetType) {
-      case "STOCK", "ETF" -> logoResolver.buildLogoUrl(symbol);
+      case "ETF" -> logoResolver.buildLogoUrl(symbol);
       case "GOVERNMENT_BOND" -> "USD".equals(currency) ? logoResolver.buildLogoUrl(symbol) : null;
-      default -> null; // CRYPTO, INDEX, FOREX
+      default -> null; // STOCK se resuelve en enrichStock; CRYPTO/INDEX/bonos MX sin logo
     };
   }
 

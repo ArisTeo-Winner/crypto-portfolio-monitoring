@@ -143,6 +143,7 @@ public class SecurityConfig {
               authorizeRequests.requestMatchers("/api/v1/me/portfolio/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/transactions/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/sessions/**").hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/portfolio/cetes/**").hasRole("USER");
               authorizeRequests
                   .requestMatchers(
                       HttpMethod.DELETE,
