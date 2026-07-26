@@ -63,6 +63,11 @@ public class BanxicoCurveService {
     return GovBondRatePort.nearestRate(getCurve(), termDays);
   }
 
+  /** Fecha de la subasta a la que corresponde la curva actualmente cacheada. */
+  public Optional<LocalDate> getAuctionDate() {
+    return curveCache.readAuctionDate();
+  }
+
   @Scheduled(cron = "${banxico.curve.refresh.cron:0 0 12 * * WED}")
   @Transactional
   public void refreshCurve() {

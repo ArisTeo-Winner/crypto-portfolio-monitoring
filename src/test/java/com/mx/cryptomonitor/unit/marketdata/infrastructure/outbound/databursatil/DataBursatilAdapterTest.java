@@ -20,6 +20,7 @@ import com.mx.cryptomonitor.marketdata.domain.exception.DataBursatilRateLimitExc
 import com.mx.cryptomonitor.marketdata.domain.model.BmvFxQuote;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvHistoricalPoint;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvQuote;
+import com.mx.cryptomonitor.marketdata.domain.model.DataBursatilRate;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.DataBursatilProperties;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.databursatil.DataBursatilAdapter;
 
@@ -182,6 +183,62 @@ class DataBursatilAdapterTest {
 
     assertThatThrownBy(() -> adapter.getFxRate("USDMXN").block())
         .isInstanceOf(DataBursatilInvalidSymbolException.class);
+  }
+
+  // -------------------------------------------------------------------------
+  // C2f — getRates: parseo /v2/tasas (TIIE, CETES, tasa objetivo)
+  // -------------------------------------------------------------------------
+
+  @Test
+  void getRatesParsesCetesTiieAndTargetRateSeries() {
+    server.enqueue(
+        jsonOk(
+            """
+            {
+                "TIIE182": {"t": 6.8474, "f": "2026-07-27"},
+                "TIIEFB": {"t": 6.5, "f": "2026-07-24"},
+                "TIIE28": {"t": 6.7559, "f": "2026-07-27"},
+                "TIIE91": {"t": 6.7931, "f": "2026-07-27"},
+                "CETE28": {"t": 6.18, "f": "2026-07-23"},
+                "CETE 91": {"t": 6.49, "f": "2026-07-23"},
+                "CETE182": {"t": 6.75, "f": "2026-07-23"},
+                "CETE364": {"t": 6.93, "f": "2026-07-23"},
+                "Tasa_Objetivo": {"t": 6.5, "f": "2026-07-25"}
+            }
+            """));
+
+    Map<String, DataBursatilRate> result = adapter.getRates().block();
+
+    assertThat(result).hasSize(9);
+    assertThat(result.get("CETE28").rate()).isEqualByComparingTo("6.18");
+    assertThat(result.get("CETE28").asOf()).isEqualTo(LocalDate.of(2026, 7, 23));
+    assertThat(result.get("CETE 91").rate()).isEqualByComparingTo("6.49");
+    assertThat(result.get("Tasa_Objetivo").rate()).isEqualByComparingTo("6.5");
+  }
+
+  @Test
+  void getRatesSendsTokenAsQueryParam() throws Exception {
+    server.enqueue(jsonOk("{}"));
+
+    adapter.getRates().block();
+
+    RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getPath()).contains("/v2/tasas").contains("token=test-token");
+  }
+
+  @Test
+  void getRatesReturnsEmptyMapForEmptyResponse() {
+    server.enqueue(jsonOk("{}"));
+
+    assertThat(adapter.getRates().block()).isEmpty();
+  }
+
+  @Test
+  void mapsHttp500ToDataBursatilExceptionForGetRates() {
+    server.enqueue(new MockResponse().setResponseCode(500).setBody("Internal Server Error"));
+
+    assertThatThrownBy(() -> adapter.getRates().block()).isInstanceOf(DataBursatilException.class);
   }
 
   // -------------------------------------------------------------------------

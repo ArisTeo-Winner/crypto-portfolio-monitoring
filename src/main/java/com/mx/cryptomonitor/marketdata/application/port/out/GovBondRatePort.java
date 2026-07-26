@@ -15,6 +15,13 @@ public interface GovBondRatePort {
   Optional<BigDecimal> getCetesRate(int termDays);
 
   /**
+   * Tasa de referencia CETES 28 dias (serie SIE {@code SF60633}), valor mas reciente ("oportuno").
+   * Es una medida distinta de la curva de subasta primaria, por eso no forma parte de {@link
+   * #getCetesCurve()}. Ver ADR-0001.
+   */
+  Optional<BigDecimal> getReferenceRate();
+
+  /**
    * Resuelve la tasa del plazo mas cercano a {@code termDays} dentro de {@code curve}. En caso de
    * empate entre dos plazos equidistantes, prevalece el primero encontrado segun el orden de
    * iteracion del mapa.

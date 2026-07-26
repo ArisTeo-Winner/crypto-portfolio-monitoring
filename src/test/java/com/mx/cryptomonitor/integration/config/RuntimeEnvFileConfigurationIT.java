@@ -77,6 +77,96 @@ class RuntimeEnvFileConfigurationIT {
     assertThat(envExample).containsKeys("FINNHUB_API_KEY", "FINNHUB_BASE_URL");
   }
 
+  @Test
+  void localEnvFileShouldProvideBanxicoToken() throws IOException {
+    Map<String, String> env = readEnvFile(Path.of(".env"));
+
+    assertRequiredSecret(env, "BANXICO_TOKEN");
+  }
+
+  @Test
+  void localBanxicoTokenShouldBeAcceptedByBanxico() throws Exception {
+    Map<String, String> env = readEnvFile(Path.of(".env"));
+    String token = assertRequiredSecret(env, "BANXICO_TOKEN");
+    String baseUrl = env.getOrDefault("BANXICO_BASE_URL", "https://www.banxico.org.mx");
+
+    URI uri =
+        URI.create(
+            "%s/SieAPIRest/service/v1/series/SF60633/datos/oportuno"
+                .formatted(baseUrl.replaceAll("/+$", "")));
+
+    HttpRequest request =
+        HttpRequest.newBuilder(uri)
+            .header("Bmx-Token", token)
+            .timeout(Duration.ofSeconds(10))
+            .GET()
+            .build();
+    HttpResponse<String> response =
+        HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+    assertThat(response.statusCode())
+        .as(
+            "Banxico rejected BANXICO_TOKEN or the SIE quota is exhausted. Status=%s Body=%s",
+            response.statusCode(), summarize(response.body()))
+        .isBetween(200, 299);
+
+    String body = response.body() == null ? "" : response.body();
+    assertThat(body)
+        .as("Banxico response should contain the SF60633 series data. Body=%s", summarize(body))
+        .contains("\"idSerie\"", "SF60633", "\"dato\"");
+  }
+
+  @Test
+  void envExampleShouldDocumentBanxicoConfiguration() throws IOException {
+    Map<String, String> envExample = readEnvFile(Path.of(".env.example"));
+
+    assertThat(envExample).containsKeys("BANXICO_TOKEN", "BANXICO_BASE_URL");
+  }
+
+  @Test
+  void localEnvFileShouldProvideDataBursatilToken() throws IOException {
+    Map<String, String> env = readEnvFile(Path.of(".env"));
+
+    assertRequiredSecret(env, "DATABURSATIL_TOKEN");
+  }
+
+  @Test
+  void localDataBursatilTokenShouldBeAcceptedByDataBursatil() throws Exception {
+    Map<String, String> env = readEnvFile(Path.of(".env"));
+    String token = assertRequiredSecret(env, "DATABURSATIL_TOKEN");
+    String baseUrl = env.getOrDefault("DATABURSATIL_BASE_URL", "https://api.databursatil.com");
+
+    URI uri =
+        URI.create(
+            "%s/v2/tasas?token=%s"
+                .formatted(
+                    baseUrl.replaceAll("/+$", ""),
+                    URLEncoder.encode(token, StandardCharsets.UTF_8)));
+
+    HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build();
+    HttpResponse<String> response =
+        HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+    assertThat(response.statusCode())
+        .as(
+            "DataBursatil rejected DATABURSATIL_TOKEN or the plan/rate limit blocks tasas."
+                + " Status=%s Body=%s",
+            response.statusCode(), summarize(response.body()))
+        .isBetween(200, 299);
+
+    String body = response.body() == null ? "" : response.body();
+    assertThat(body)
+        .as("DataBursatil response should contain rate data. Body=%s", summarize(body))
+        .contains("\"t\":", "\"f\":");
+  }
+
+  @Test
+  void envExampleShouldDocumentDataBursatilConfiguration() throws IOException {
+    Map<String, String> envExample = readEnvFile(Path.of(".env.example"));
+
+    assertThat(envExample).containsKeys("DATABURSATIL_TOKEN", "DATABURSATIL_BASE_URL");
+  }
+
   private Map<String, String> readEnvFile(Path path) throws IOException {
     assertThat(path)
         .as("%s must exist to run backend runtime configuration checks", path)
@@ -101,7 +191,8 @@ class RuntimeEnvFileConfigurationIT {
     String value = env.get(name);
     assertThat(value)
         .as(
-            "%s must be configured in local .env; missing, blank or placeholder values disable Finnhub",
+            "%s must be configured in local .env; missing, blank or placeholder values disable"
+                + " this integration",
             name)
         .isNotNull()
         .isNotBlank()

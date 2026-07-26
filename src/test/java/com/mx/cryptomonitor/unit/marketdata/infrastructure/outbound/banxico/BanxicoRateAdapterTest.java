@@ -122,6 +122,49 @@ class BanxicoRateAdapterTest {
   }
 
   @Test
+  void getReferenceRateParsesTheLatestValueOfSeriesSf60633() {
+    server.enqueue(
+        jsonOk(
+            """
+            {"bmx":{"series":[
+              {"idSerie":"SF60633","datos":[
+                {"fecha":"13/06/2023","dato":"11.00"},
+                {"fecha":"27/06/2023","dato":"7.72"}
+              ]}
+            ]}}
+            """));
+
+    Optional<BigDecimal> rate = adapter.getReferenceRate();
+
+    assertThat(rate).isPresent();
+    assertThat(rate.get()).isEqualByComparingTo("7.72");
+  }
+
+  @Test
+  void getReferenceRateIsEmptyWhenSeriesAbsent() {
+    server.enqueue(jsonOk("{\"bmx\":{\"series\":[]}}"));
+
+    assertThat(adapter.getReferenceRate()).isEmpty();
+  }
+
+  @Test
+  void getReferenceRateRequestsSeriesSf60633() throws Exception {
+    server.enqueue(
+        jsonOk(
+            """
+            {"bmx":{"series":[
+              {"idSerie":"SF60633","datos":[{"fecha":"27/06/2023","dato":"7.72"}]}
+            ]}}
+            """));
+
+    adapter.getReferenceRate();
+
+    RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getPath()).contains("SF60633");
+  }
+
+  @Test
   void sendsTokenOnlyAsHeaderNeverAsQueryParam() throws Exception {
     server.enqueue(jsonOk(fullCurveResponse()));
 

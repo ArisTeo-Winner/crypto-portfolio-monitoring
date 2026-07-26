@@ -54,6 +54,9 @@ public class BanxicoRateAdapter implements GovBondRatePort {
 
   private static final String SERIES_IDS = String.join(",", SERIES_BY_TERM.values());
 
+  // Tasa de referencia CETES 28 dias (medida distinta de la curva primaria). Ver ADR-0001.
+  private static final String REFERENCE_SERIES = "SF60633";
+
   private static final ParameterizedTypeReference<BanxicoOportunoResponse> RESPONSE_TYPE =
       new ParameterizedTypeReference<>() {};
 
@@ -67,7 +70,7 @@ public class BanxicoRateAdapter implements GovBondRatePort {
   /** /SieAPIRest/service/v1/series/{ids}/datos/oportuno — curva completa en una sola peticion. */
   @Override
   public Map<Integer, BigDecimal> getCetesCurve() {
-    BanxicoOportunoResponse response = fetchOportuno();
+    BanxicoOportunoResponse response = fetchOportuno(SERIES_IDS);
     if (response == null || response.bmx() == null || response.bmx().series() == null) {
       return Map.of();
     }
@@ -88,6 +91,24 @@ public class BanxicoRateAdapter implements GovBondRatePort {
     return GovBondRatePort.nearestRate(getCetesCurve(), termDays);
   }
 
+  /** /SieAPIRest/service/v1/series/SF60633/datos/oportuno — tasa de referencia CETES 28 dias. */
+  @Override
+  public Optional<BigDecimal> getReferenceRate() {
+    return latestRateForSeries(fetchOportuno(REFERENCE_SERIES), REFERENCE_SERIES);
+  }
+
+  private Optional<BigDecimal> latestRateForSeries(
+      BanxicoOportunoResponse response, String seriesId) {
+    if (response == null || response.bmx() == null || response.bmx().series() == null) {
+      return Optional.empty();
+    }
+    return response.bmx().series().stream()
+        .filter(serie -> seriesId.equals(serie.idSerie()))
+        .findFirst()
+        .flatMap(serie -> latestDato(serie.datos()))
+        .map(dato -> new BigDecimal(dato.dato()));
+  }
+
   private Map<String, Integer> invertSeriesByTerm() {
     Map<String, Integer> result = new HashMap<>();
     SERIES_BY_TERM.forEach((term, series) -> result.put(series, term));
@@ -102,7 +123,7 @@ public class BanxicoRateAdapter implements GovBondRatePort {
         .max(Comparator.comparing(dato -> LocalDate.parse(dato.fecha(), BANXICO_DATE_FORMAT)));
   }
 
-  private BanxicoOportunoResponse fetchOportuno() {
+  private BanxicoOportunoResponse fetchOportuno(String seriesIds) {
     return mapErrors(
             webClient
                 .get()
@@ -110,7 +131,7 @@ public class BanxicoRateAdapter implements GovBondRatePort {
                     uriBuilder ->
                         uriBuilder
                             .path("/SieAPIRest/service/v1/series/{ids}/datos/oportuno")
-                            .build(SERIES_IDS))
+                            .build(seriesIds))
                 .retrieve())
         .block();
   }

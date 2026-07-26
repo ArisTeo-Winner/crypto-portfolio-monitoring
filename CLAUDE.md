@@ -74,6 +74,26 @@ Cada módulo sigue **arquitectura hexagonal**:
 
 ---
 
+## ⚠️ PROTOCOLO OBLIGATORIO DE INTEGRACIÓN DE APIS (MARKET DATA)
+
+### 1. Variables de Entorno y Configuración
+- Cada vez que se integre un nuevo proveedor de datos de mercado, las credenciales (tokens, secrets, llaves) DEBEN leerse mediante `@Value("${propiedad}")` desde el archivo `application.yml`.
+- Queda estrictamente PROHIBIDO escribir credenciales en texto plano (hardcoded) en el código.
+
+### 2. Estructura de Pruebas de Integración (*CredentialsIT)
+- Todo nuevo proveedor externo DEBE contar obligatoriamente con su clase de prueba de integración en el paquete: `com.mx.cryptomonitor.integration.marketdata`.
+- El archivo debe seguir la nomenclatura: `[NombreProveedor]CredentialsIT.java` (ej. `FinnhubCredentialsIT`, `BanxicoCredentialsIT`).
+- Propósito del test: Realizar una llamada real al endpoint básico o de salud del proveedor para validar en vivo:
+  - Token vigente, caducado o revocado.
+  - Licencia activa o vencida.
+  - Consistencia del contrato de respuesta JSON (Mapping check).
+
+### 3. Criterio de Aceptación (Definition of Done - DoD)
+- Antes de dar por terminada la integración de una API o sugerir un commit, se DEBE ejecutar en la terminal el comando específico de verificación:
+  `mvn test -Dtest=*CredentialsIT`
+- Si surge un fallo de compilación o un error de autenticación (401/403), el agente debe detenerse, ajustar el mapeador o reportar la credencial faltante en las variables de entorno.
+
+
 ## Reglas de sesiones — OBLIGATORIAS
 
 Estas reglas aplican cada vez que se programa cualquier flujo de login,

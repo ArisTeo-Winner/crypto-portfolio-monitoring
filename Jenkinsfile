@@ -106,7 +106,10 @@ pipeline {
 						'JWT_SECRET_BASE64',
 						'REFRESH_TOKEN_HASH_SECRET_BASE64',
 						'JWT_ACCESS_EXPIRATION',
-						'JWT_REFRESH_EXPIRATION'
+						'JWT_REFRESH_EXPIRATION',
+						'DATABURSATIL_TOKEN',
+						'BANXICO_TOKEN',
+						'FINNHUB_API_KEY'
 					]
 
 					def invalidKeys = requiredKeys.findAll { key ->

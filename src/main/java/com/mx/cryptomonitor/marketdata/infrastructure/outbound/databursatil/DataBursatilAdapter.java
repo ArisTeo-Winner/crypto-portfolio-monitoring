@@ -29,6 +29,7 @@ import com.mx.cryptomonitor.marketdata.domain.model.BmvFxQuote;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvHistoricalPoint;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvIntradayPoint;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvQuote;
+import com.mx.cryptomonitor.marketdata.domain.model.DataBursatilRate;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.DataBursatilProperties;
 
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +55,8 @@ public class DataBursatilAdapter implements BmvMarketDataPort {
   private static final ParameterizedTypeReference<Map<String, BigDecimal>> INTRADAY_TYPE =
       new ParameterizedTypeReference<>() {};
   private static final ParameterizedTypeReference<Map<String, Object>> FX_TYPE =
+      new ParameterizedTypeReference<>() {};
+  private static final ParameterizedTypeReference<Map<String, TasaPayload>> RATES_TYPE =
       new ParameterizedTypeReference<>() {};
 
   private final WebClient webClient;
@@ -158,6 +161,36 @@ public class DataBursatilAdapter implements BmvMarketDataPort {
             FX_TYPE,
             "divisas " + ticker)
         .map(root -> mapFxQuote(root, ticker));
+  }
+
+  /** /v2/tasas — TIIE, CETES y tasa objetivo Banxico en una sola peticion. */
+  @Override
+  public Mono<Map<String, DataBursatilRate>> getRates() {
+    return mapErrors(
+            webClient
+                .get()
+                .uri(uriBuilder -> uriBuilder.path("/v2/tasas").queryParam("token", token).build())
+                .retrieve(),
+            RATES_TYPE,
+            "tasas")
+        .map(this::mapRates);
+  }
+
+  private Map<String, DataBursatilRate> mapRates(Map<String, TasaPayload> raw) {
+    if (raw == null) {
+      return Map.of();
+    }
+    Map<String, DataBursatilRate> result = new LinkedHashMap<>();
+    raw.forEach(
+        (series, payload) -> {
+          if (payload == null || payload.t() == null || payload.f() == null) {
+            return;
+          }
+          result.put(
+              series,
+              new DataBursatilRate(BigDecimal.valueOf(payload.t()), LocalDate.parse(payload.f())));
+        });
+    return result;
   }
 
   private Map<String, BmvQuote> extractQuotes(
@@ -283,4 +316,6 @@ public class DataBursatilAdapter implements BmvMarketDataPort {
         || unwrapped instanceof ExternalProviderInvalidSymbolException
         || unwrapped instanceof ExternalProviderUpstreamException;
   }
+
+  private record TasaPayload(Double t, String f) {}
 }
