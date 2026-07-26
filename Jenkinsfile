@@ -169,6 +169,53 @@ exit /b 1'''
 			}
 		}
 
+		stage('Credential & Contract Validation') {
+			when {
+				expression {
+					return env.PIPELINE_GIT_BRANCH in ['dev', 'main']
+				}
+			}
+			steps {
+				script {
+					// Gate del protocolo *CredentialsIT (CLAUDE.md): valida en vivo, contra las APIs
+					// reales, que ningun token este caducado/revocado y que el contrato JSON no haya
+					// cambiado. Complementa el chequeo de env vars de 'Prepare Runtime Config', que
+					// solo ve token ausente o placeholder, no un token presente pero invalido.
+					// Gateado a dev/main para no consumir cuota de los proveedores en cada feature build.
+					// Los IT leen System.getenv(...) y se omiten (assumeTrue) si falta la credencial,
+					// asi que solo fallan ante token invalido o cambio de contrato.
+					def runtimeEnv = parseDotEnv(env.WORKSPACE_RUNTIME_ENV)
+					List credentialKeys = [
+						'BANXICO_TOKEN', 'BANXICO_BASE_URL',
+						'DATABURSATIL_TOKEN', 'DATABURSATIL_BASE_URL',
+						'FINNHUB_API_KEY', 'FINNHUB_BASE_URL',
+						'COINMARKETCAP_API_KEY', 'API_COINMARKETCAP_BASE_URL',
+						'COINGECKO_API_KEY', 'API_COINGECKO_BASE_URL',
+						'ALPHAVANTAGE_API_KEY', 'API_ALPHAVANTAGE_BASE_URL',
+						'MASSIVE_API_KEY', 'API_MASSIVE_BASE_URL',
+						'TWELVEDATA_API_KEY', 'API_TWELVEDATA_BASE_URL',
+						'POLYGON_API_KEY', 'POLYGON_BASE_URL'
+					]
+					List injected = credentialKeys
+						.findAll { key -> runtimeEnv[key]?.trim() }
+						.collect { key -> "${key}=${runtimeEnv[key]}" }
+					injected += [
+						'SPRING_DATASOURCE_URL=',
+						'SPRING_DATASOURCE_USERNAME=',
+						'SPRING_DATASOURCE_PASSWORD='
+					]
+					withEnv(injected) {
+						bat 'mvn -B test -Dtest=*CredentialsIT -DfailIfNoTests=false -Dspring.profiles.active=test'
+					}
+				}
+			}
+			post {
+				always {
+					junit 'target/surefire-reports/*.xml'
+				}
+			}
+		}
+
 		stage('Test') {
 			when {
 				expression {
