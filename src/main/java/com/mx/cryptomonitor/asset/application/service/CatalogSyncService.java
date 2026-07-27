@@ -37,14 +37,28 @@ public class CatalogSyncService {
   // meter micro-listados al catalogo.
   private static final long IPO_MIN_TOTAL_SHARES_VALUE = 1_000_000_000L;
 
+  // spothq/cryptocurrency-icons via jsDelivr: set determinista, sin API key, indexado por symbol.
+  private static final String CRYPTO_ICON_BASE =
+      "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/";
+
   private static final List<AssetCatalogDto> STATIC_CRYPTOS =
       List.of(
-          new AssetCatalogDto("BTC", "Bitcoin", "CRYPTO", null, null, "USD", 1_900_000L),
-          new AssetCatalogDto("ETH", "Ethereum", "CRYPTO", null, null, "USD", 460_000L),
-          new AssetCatalogDto("USDT", "Tether", "CRYPTO", null, null, "USD", 130_000L),
-          new AssetCatalogDto("BNB", "BNB", "CRYPTO", null, null, "USD", 88_000L),
-          new AssetCatalogDto("XRP", "XRP", "CRYPTO", null, null, "USD", 140_000L),
-          new AssetCatalogDto("USDC", "USD Coin", "CRYPTO", null, null, "USD", 61_000L));
+          new AssetCatalogDto(
+              "BTC", "Bitcoin", "CRYPTO", cryptoIconUrl("BTC"), null, "USD", 1_900_000L),
+          new AssetCatalogDto(
+              "ETH", "Ethereum", "CRYPTO", cryptoIconUrl("ETH"), null, "USD", 460_000L),
+          new AssetCatalogDto(
+              "USDT", "Tether", "CRYPTO", cryptoIconUrl("USDT"), null, "USD", 130_000L),
+          new AssetCatalogDto(
+              "BNB", "BNB", "CRYPTO", cryptoIconUrl("BNB"), null, "USD", 88_000L),
+          new AssetCatalogDto(
+              "XRP", "XRP", "CRYPTO", cryptoIconUrl("XRP"), null, "USD", 140_000L),
+          new AssetCatalogDto(
+              "USDC", "USD Coin", "CRYPTO", cryptoIconUrl("USDC"), null, "USD", 61_000L));
+
+  private static String cryptoIconUrl(String symbol) {
+    return CRYPTO_ICON_BASE + symbol.toLowerCase(Locale.ROOT) + ".png";
+  }
 
   private static final List<AssetCatalogDto> STATIC_GOV_BONDS =
       List.of(
@@ -302,7 +316,8 @@ public class CatalogSyncService {
     return switch (assetType) {
       case "ETF" -> logoResolver.buildLogoUrl(symbol);
       case "GOVERNMENT_BOND" -> "USD".equals(currency) ? logoResolver.buildLogoUrl(symbol) : null;
-      default -> null; // STOCK se resuelve en enrichStock; CRYPTO/INDEX/bonos MX sin logo
+      default -> null; // STOCK se resuelve en enrichStock; CRYPTO trae su logo ya fijo en
+      // STATIC_CRYPTOS; INDEX/bonos MX sin logo
     };
   }
 
