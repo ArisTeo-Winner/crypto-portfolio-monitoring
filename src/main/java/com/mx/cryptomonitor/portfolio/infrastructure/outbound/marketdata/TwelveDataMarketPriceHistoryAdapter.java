@@ -55,7 +55,9 @@ import lombok.extern.slf4j.Slf4j;
  * <pre>
  *   stepSeconds ≤ 3600  (24h range)  → 1h
  *   stepSeconds = 86400 (7d…all)     → 1day
- *   ChartResolution.providerIntervalCode presente → se usa directamente
+ *   ChartResolution.interval (duracion) → se traduce siempre al formato propio de Twelve
+ *   Data ("5min", "15min", "1day", ...); nunca se reutiliza ChartResolution.providerIntervalCode(),
+ *   que usa el formato Binance-style ("5m", "15m", "1d") compartido entre proveedores.
  * </pre>
  *
  * <p>Plan gratuito de Twelve Data: 800 req/día, 8 req/min.
@@ -136,11 +138,10 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
   @Override
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, ChartResolution chartResolution) {
-    String interval =
-        (chartResolution.providerIntervalCode() != null
-                && !chartResolution.providerIntervalCode().isBlank())
-            ? chartResolution.providerIntervalCode()
-            : resolveIntervalFromDuration(chartResolution.interval());
+    // chartResolution.providerIntervalCode() usa el formato Binance-style ("5m", "15m", "1d")
+    // compartido entre todos los proveedores; Twelve Data requiere su propio formato
+    // ("5min", "15min", "1day"), por lo que siempre se deriva localmente desde la duracion.
+    String interval = resolveIntervalFromDuration(chartResolution.interval());
 
     long days = Duration.between(chartResolution.start(), chartResolution.end()).toDays();
     int outputSize = Math.min((int) Math.max(days * pointsPerDay(interval), 1), MAX_OUTPUT_SIZE);
@@ -473,7 +474,7 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
   }
 
   private String resolveIntervalFromDuration(Duration interval) {
-    if (interval == null) return "1day";
+    if (interval == null || interval.toDays() >= 1) return "1day";
     return resolveIntradayInterval(interval.getSeconds());
   }
 

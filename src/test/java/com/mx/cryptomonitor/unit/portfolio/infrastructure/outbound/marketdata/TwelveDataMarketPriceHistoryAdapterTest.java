@@ -222,7 +222,7 @@ class TwelveDataMarketPriceHistoryAdapterTest {
   }
 
   @Test
-  void shouldUseProviderIntervalCodeFromChartResolution() throws Exception {
+  void shouldDeriveIntervalFromDurationRegardlessOfProviderIntervalCode() throws Exception {
     server.enqueue(jsonOk("""
         {"meta": {}, "values": [], "status": "ok"}
         """));
@@ -259,6 +259,57 @@ class TwelveDataMarketPriceHistoryAdapterTest {
 
     RecordedRequest req = server.takeRequest(1, TimeUnit.SECONDS);
     assertThat(req.getPath()).contains("interval=30min");
+  }
+
+  /**
+   * Regresion del incidente: para rangos cortos (24h/7d), {@link
+   * com.mx.cryptomonitor.portfolio.domain.model.ChartResolutionStrategy} genera codigos
+   * Binance-style ("5m", "15m") en {@code providerIntervalCode}. Twelve Data solo acepta "5min",
+   * "15min", etc., y respondia HTTP 400 ("Invalid interval provided: 5m") cuando este adaptador
+   * reenviaba ese codigo tal cual, lo que el controlador convertia en un 502 que dejaba la
+   * grafica de portfolio en blanco para 24h/7d.
+   */
+  @Test
+  void shouldTranslateBinanceStyleProviderIntervalCodeToTwelveDataFormat() throws Exception {
+    server.enqueue(jsonOk("""
+        {"meta": {}, "values": [], "status": "ok"}
+        """));
+
+    ChartResolution chart =
+        new ChartResolution(
+            Instant.now().minus(Duration.ofHours(24)),
+            Instant.now(),
+            Duration.ofMinutes(5),
+            "5m", // codigo Binance-style, invalido para Twelve Data
+            288);
+
+    adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", chart);
+
+    RecordedRequest req = server.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(req.getPath())
+        .as("debe traducir '5m' (Binance) a '5min' (Twelve Data), nunca reenviar '5m'")
+        .contains("interval=5min&")
+        .doesNotContain("interval=5m&");
+  }
+
+  @Test
+  void shouldTranslateDayOrLongerChartResolutionIntervalTo1day() throws Exception {
+    server.enqueue(jsonOk("""
+        {"meta": {}, "values": [], "status": "ok"}
+        """));
+
+    ChartResolution chart =
+        new ChartResolution(
+            Instant.parse("2024-01-01T00:00:00Z"),
+            Instant.parse("2026-05-22T00:00:00Z"),
+            Duration.ofDays(1),
+            "1d", // codigo Binance-style, invalido para Twelve Data
+            900);
+
+    adapter.fetchPriceHistory(AssetType.STOCK, "AAPL", chart);
+
+    RecordedRequest req = server.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(req.getPath()).contains("interval=1day&").doesNotContain("interval=1d&");
   }
 
   // -------------------------------------------------------------------------
