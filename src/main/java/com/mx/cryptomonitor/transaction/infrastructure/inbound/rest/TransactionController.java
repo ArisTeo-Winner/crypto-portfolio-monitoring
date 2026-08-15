@@ -173,7 +173,7 @@ public class TransactionController {
                             value =
                                 """
                                 {
-                                  "assetSymbol": "BTC",
+                                  "assetSymbol": 33,
                                   "assetType": "CRYPTO",
                                   "transactionType": "SELL",
                                   "quantity": 0.10,

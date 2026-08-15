@@ -1,0 +1,425 @@
+{
+  "info": {
+    "_postman_id": "c0ffee00-0000-4a00-8000-statementimp01",
+    "name": "CryptoPortfolio - Import de Estados de Cuenta (GBM/DriveWealth)",
+    "description": "Colección para probar el módulo statementimport: carga async de estado de cuenta GBM (Smart Cash / Trading México) y de confirmaciones DriveWealth (Trading Global/USA) usando los PDFs reales de src/test/resources/statementimport/. Ejecutar primero '0 - Auth' para poblar {{access_token}}. Los uploads devuelven 202 con jobId de inmediato; el resultado real se ve reintentando el GET de polling cada pocos segundos (el worker procesa cada statementimport.worker.poll-interval-ms, 2000ms por defecto).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 - Auth (setup)",
+      "item": [
+        {
+          "name": "0.1 Register",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var email = 'test+' + Date.now() + '@example.com';",
+                  "pm.environment.set('user_email', email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser_{{$timestamp}}\",\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "register"]
+            }
+          }
+        },
+        {
+          "name": "0.2 Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has accessToken', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('accessToken');",
+                  "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json && json.accessToken) {",
+                  "  pm.environment.set('access_token', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 - GBM Estado de Cuenta (Smart Cash / Trading Mexico)",
+      "item": [
+        {
+          "name": "1.1 Upload estado de cuenta GBM (PDF real)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 202 Accepted', function () { pm.response.to.have.status(202); });",
+                  "pm.test('jobType == GBM_STATEMENT y status == QUEUED', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.jobType).to.eql('GBM_STATEMENT');",
+                  "  pm.expect(json.status).to.eql('QUEUED');",
+                  "  pm.expect(json.jobId).to.be.a('string').and.not.empty;",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json && json.jobId) {",
+                  "  pm.environment.set('gbm_job_id', json.jobId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "C:\\Users\\Ortiz\\OneDrive\\Documentos\\eclipse-workspace\\crypto-portfolio-monitoring\\src\\test\\resources\\statementimport\\gbm-statement-sample.pdf"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/statements",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "statements"]
+            }
+          }
+        },
+        {
+          "name": "1.2 Poll estado del job GBM (reenviar hasta COMPLETED/DEAD_LETTER)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "console.log('job status = ' + json.status);",
+                  "pm.test('status es uno de QUEUED/PROCESSING/COMPLETED/DEAD_LETTER', function () {",
+                  "  pm.expect(['QUEUED', 'PROCESSING', 'COMPLETED', 'DEAD_LETTER']).to.include(json.status);",
+                  "});",
+                  "if (json.status === 'COMPLETED') {",
+                  "  pm.test('result trae accepted/duplicate/skipped/rejected', function () {",
+                  "    pm.expect(json.result).to.have.property('accepted');",
+                  "    pm.expect(json.result).to.have.property('rejected');",
+                  "  });",
+                  "} else if (json.status === 'DEAD_LETTER') {",
+                  "  console.log('errorMessage = ' + json.errorMessage);",
+                  "} else {",
+                  "  console.log('todavia procesando, reenvia esta request en unos segundos');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/import-jobs/{{gbm_job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "import-jobs", "{{gbm_job_id}}"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Verificar transacciones creadas (GET /transactions)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('hay transacciones con broker GBM y notes import:gbm-statement:*', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array');",
+                  "  var imported = json.filter(function (tx) {",
+                  "    return tx.broker === 'GBM' && typeof tx.notes === 'string' && tx.notes.indexOf('import:gbm-statement:') === 0;",
+                  "  });",
+                  "  console.log('transacciones importadas de GBM encontradas: ' + imported.length);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - DriveWealth Confirmaciones (Trading Global/USA)",
+      "item": [
+        {
+          "name": "2.1 Upload confirmaciones DriveWealth (PDF real, seleccion multiple)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 202 Accepted', function () { pm.response.to.have.status(202); });",
+                  "pm.test('respuesta es un arreglo con 1 job por archivo', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json[0].jobType).to.eql('DRIVEWEALTH_CONFIRMATION');",
+                  "  pm.expect(json[0].status).to.eql('QUEUED');",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json && json[0] && json[0].jobId) {",
+                  "  pm.environment.set('dw_job_id', json[0].jobId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "C:\\Users\\Ortiz\\OneDrive\\Documentos\\eclipse-workspace\\crypto-portfolio-monitoring\\src\\test\\resources\\statementimport\\drivewealth-confirmation-sample.pdf"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/drivewealth-confirmations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "drivewealth-confirmations"]
+            },
+            "description": "Para probar la seleccion multiple real: click '+' junto al campo 'files' en Postman y agrega mas entradas type=file con el mismo key 'files', una por cada PDF de confirmacion."
+          }
+        },
+        {
+          "name": "2.2 Poll estado del job DriveWealth (reenviar hasta COMPLETED/DEAD_LETTER)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "console.log('job status = ' + json.status);",
+                  "if (json.status === 'COMPLETED') {",
+                  "  pm.test('accepted == 1 (una operacion por archivo)', function () {",
+                  "    pm.expect(json.result.accepted + json.result.duplicate).to.eql(1);",
+                  "  });",
+                  "} else if (json.status === 'DEAD_LETTER') {",
+                  "  console.log('errorMessage = ' + json.errorMessage);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/import-jobs/{{dw_job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "import-jobs", "{{dw_job_id}}"]
+            }
+          }
+        },
+        {
+          "name": "2.3 Listar ultimos 20 jobs del usuario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('lista ordenada mas reciente primero, max 20', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array');",
+                  "  pm.expect(json.length).to.be.at.most(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/import-jobs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "import-jobs"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Archivo equivocado / DEAD_LETTER / Retry",
+      "item": [
+        {
+          "name": "3.1 Subir confirmacion DriveWealth al endpoint de estado GBM (archivo equivocado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 202 Accepted (la validacion de contenido ocurre async en el worker)', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json && json.jobId) {",
+                  "  pm.environment.set('mismatched_job_id', json.jobId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "C:\\Users\\Ortiz\\OneDrive\\Documentos\\eclipse-workspace\\crypto-portfolio-monitoring\\src\\test\\resources\\statementimport\\drivewealth-confirmation-sample.pdf"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/statements",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "statements"]
+            },
+            "description": "Reproduce el caso donde el usuario confunde los dos botones de carga. El PDF es una confirmacion DriveWealth pero se sube al endpoint de estado de cuenta GBM."
+          }
+        },
+        {
+          "name": "3.2 Poll -> debe terminar en DEAD_LETTER con errorMessage explicito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "console.log('job status = ' + json.status + ' | errorMessage = ' + json.errorMessage);",
+                  "if (json.status === 'DEAD_LETTER') {",
+                  "  pm.test('errorMessage menciona que el documento no fue reconocido', function () {",
+                  "    pm.expect(json.errorMessage).to.include('no corresponde');",
+                  "  });",
+                  "  pm.test('attemptCount == 0 (error permanente, no reintenta solo)', function () {",
+                  "    pm.expect(json.attemptCount).to.eql(0);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/import-jobs/{{mismatched_job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "import-jobs", "{{mismatched_job_id}}"]
+            }
+          }
+        },
+        {
+          "name": "3.3 Retry manual del job DEAD_LETTER (mismo archivo, va a fallar igual)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 202 Accepted (vuelve a QUEUED)', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "});",
+                  "pm.test('status == QUEUED tras el retry', function () {",
+                  "  pm.expect(pm.response.json().status).to.eql('QUEUED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/broker/gbm/import-jobs/{{mismatched_job_id}}/retry",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "broker", "gbm", "import-jobs", "{{mismatched_job_id}}", "retry"]
+            },
+            "description": "Solo funciona si el job en 3.2 ya esta en DEAD_LETTER (409 en cualquier otro estado). No re-sube el PDF; usa el que ya quedo guardado en el job."
+          }
+        }
+      ]
+    }
+  ]
+}

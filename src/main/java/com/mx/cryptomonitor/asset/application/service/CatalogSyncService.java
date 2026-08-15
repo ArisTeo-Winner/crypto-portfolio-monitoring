@@ -49,10 +49,8 @@ public class CatalogSyncService {
               "ETH", "Ethereum", "CRYPTO", cryptoIconUrl("ETH"), null, "USD", 460_000L),
           new AssetCatalogDto(
               "USDT", "Tether", "CRYPTO", cryptoIconUrl("USDT"), null, "USD", 130_000L),
-          new AssetCatalogDto(
-              "BNB", "BNB", "CRYPTO", cryptoIconUrl("BNB"), null, "USD", 88_000L),
-          new AssetCatalogDto(
-              "XRP", "XRP", "CRYPTO", cryptoIconUrl("XRP"), null, "USD", 140_000L),
+          new AssetCatalogDto("BNB", "BNB", "CRYPTO", cryptoIconUrl("BNB"), null, "USD", 88_000L),
+          new AssetCatalogDto("XRP", "XRP", "CRYPTO", cryptoIconUrl("XRP"), null, "USD", 140_000L),
           new AssetCatalogDto(
               "USDC", "USD Coin", "CRYPTO", cryptoIconUrl("USDC"), null, "USD", 61_000L));
 
@@ -317,7 +315,7 @@ public class CatalogSyncService {
       case "ETF" -> logoResolver.buildLogoUrl(symbol);
       case "GOVERNMENT_BOND" -> "USD".equals(currency) ? logoResolver.buildLogoUrl(symbol) : null;
       default -> null; // STOCK se resuelve en enrichStock; CRYPTO trae su logo ya fijo en
-      // STATIC_CRYPTOS; INDEX/bonos MX sin logo
+        // STATIC_CRYPTOS; INDEX/bonos MX sin logo
     };
   }
 

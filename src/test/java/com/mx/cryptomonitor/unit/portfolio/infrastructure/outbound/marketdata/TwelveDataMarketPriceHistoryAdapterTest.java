@@ -266,8 +266,8 @@ class TwelveDataMarketPriceHistoryAdapterTest {
    * com.mx.cryptomonitor.portfolio.domain.model.ChartResolutionStrategy} genera codigos
    * Binance-style ("5m", "15m") en {@code providerIntervalCode}. Twelve Data solo acepta "5min",
    * "15min", etc., y respondia HTTP 400 ("Invalid interval provided: 5m") cuando este adaptador
-   * reenviaba ese codigo tal cual, lo que el controlador convertia en un 502 que dejaba la
-   * grafica de portfolio en blanco para 24h/7d.
+   * reenviaba ese codigo tal cual, lo que el controlador convertia en un 502 que dejaba la grafica
+   * de portfolio en blanco para 24h/7d.
    */
   @Test
   void shouldTranslateBinanceStyleProviderIntervalCodeToTwelveDataFormat() throws Exception {

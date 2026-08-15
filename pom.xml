@@ -197,6 +197,13 @@
 			<version>20230227</version>
 		</dependency>
 
+		<!-- PDFBox — parseo de estados de cuenta / confirmaciones de broker (statementimport) -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>3.0.3</version>
+		</dependency>
+
 
 		<!-- MapStruct -->
 		<dependency>
