@@ -45,7 +45,7 @@ class MarketDataServiceTest {
     void setUp() {
         // 🔥 Configurar manualmente las propiedades
         ReflectionTestUtils.setField(marketDataService, "alphaVantageBaseUrl", "https://www.alphavantage.co");
-        ReflectionTestUtils.setField(marketDataService, "alphaVantageApiKey", "2B9V32C85SDUIX5Y");
+        ReflectionTestUtils.setField(marketDataService, "alphaVantageApiKey", "YOUR_ALPHAVANTAGE_API_KEY");
          
     }
  
