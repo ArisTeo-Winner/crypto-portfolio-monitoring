@@ -80,7 +80,11 @@ public class StatementImportJobLifecycleService {
         .ifPresent(
             job -> {
               job.setErrorMessage(errorMessage);
-              if (permanent || job.getAttemptCount() + 1 >= maxAttempts) {
+              if (permanent) {
+                job.setStatus(StatementImportJobStatus.DEAD_LETTER);
+                job.setCompletedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                job.setNextAttemptAt(null);
+              } else if (job.getAttemptCount() + 1 >= maxAttempts) {
                 job.setAttemptCount(job.getAttemptCount() + 1);
                 job.setStatus(StatementImportJobStatus.DEAD_LETTER);
                 job.setCompletedAt(OffsetDateTime.now(ZoneOffset.UTC));

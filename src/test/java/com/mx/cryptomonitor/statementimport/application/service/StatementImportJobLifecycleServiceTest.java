@@ -51,7 +51,7 @@ class StatementImportJobLifecycleServiceTest {
 
     StatementImportJob updated = captureSaved();
     assertThat(updated.getStatus()).isEqualTo(StatementImportJobStatus.DEAD_LETTER);
-    assertThat(updated.getAttemptCount()).isEqualTo(1);
+    assertThat(updated.getAttemptCount()).isEqualTo(0);
     assertThat(updated.getErrorMessage()).isEqualTo("PDF no reconocido");
     assertThat(updated.getCompletedAt()).isNotNull();
     assertThat(updated.getNextAttemptAt()).isNull();
