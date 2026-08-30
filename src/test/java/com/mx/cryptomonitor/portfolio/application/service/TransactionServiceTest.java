@@ -34,6 +34,7 @@ import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.TransactionOrigin;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.UpdateTransactionRequest;
@@ -47,7 +48,11 @@ import com.mx.cryptomonitor.transaction.application.service.TransactionIdempoten
 import com.mx.cryptomonitor.transaction.application.service.TransactionRealizedPnlService;
 import com.mx.cryptomonitor.transaction.application.service.TransactionService;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionSide;
+import com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
+import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
@@ -90,7 +95,8 @@ class TransactionServiceTest {
             transactionRealizedPnlService,
             assetProfileProvider,
             dividendDetailRepository,
-            assetCatalogQueryPort);
+            assetCatalogQueryPort,
+            new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator());
     lenient()
         .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
         .thenReturn(Optional.empty());
@@ -281,6 +287,91 @@ class TransactionServiceTest {
     assertThat(result.grossAmount()).isEqualByComparingTo("47500.00");
     assertThat(result.netAmount()).isEqualByComparingTo("47510.00");
     assertThat(result.transferType()).isNull();
+    assertThat(result.source()).isEqualTo("MANUAL");
+
+    assertThat(result.frictionBreakdown()).isNotNull();
+    assertThat(result.frictionBreakdown().grossAmount()).isEqualByComparingTo("47500.00");
+    assertThat(result.frictionBreakdown().totalFrictionCost()).isEqualByComparingTo("10.00");
+    assertThat(result.frictionBreakdown().finalNetCost()).isEqualByComparingTo("47510.00");
+    assertThat(result.frictionBreakdown().adjustedUnitPrice()).isEqualByComparingTo("95020.00");
+    assertThat(result.frictionBreakdown().brokerCommission()).isNull();
+    assertThat(result.frictionBreakdown().reviewStatus()).isNull();
+  }
+
+  @Test
+  @DisplayName("getTransactionDetails: exposes broker friction breakdown when present")
+  void getTransactionDetailsExposesFrictionBreakdown() {
+    FrictionBreakdown breakdown =
+        new GbmFrictionCalculator()
+            .driveWealth(
+                FrictionSide.BUY,
+                new BigDecimal("0.95368698"),
+                new BigDecimal("103.76"),
+                new BigDecimal("0.25"),
+                new BigDecimal("0.00"),
+                new BigDecimal("0.00"),
+                new BigDecimal("104.01"));
+    UUID txId = UUID.randomUUID();
+    Transaction tx =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("0.95368698"))
+            .pricePerUnit(new BigDecimal("108.7988"))
+            .totalValue(new BigDecimal("103.76"))
+            .build();
+    tx.applyFriction(breakdown);
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(tx));
+
+    TransactionDetailsResponse result = transactionService.getTransactionDetails(userId, txId);
+
+    assertThat(result.frictionBreakdown().brokerCommission()).isEqualByComparingTo("0.25");
+    assertThat(result.frictionBreakdown().brokerIva()).isEqualByComparingTo("0.00");
+    assertThat(result.frictionBreakdown().otherFees()).isEqualByComparingTo("0.00");
+    assertThat(result.frictionBreakdown().totalFrictionCost()).isEqualByComparingTo("0.25");
+    assertThat(result.frictionBreakdown().finalNetCost()).isEqualByComparingTo("104.01");
+    assertThat(result.frictionBreakdown().reviewStatus())
+        .isEqualTo(com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK);
+  }
+
+  @Test
+  @DisplayName("getTransactionDetails: returns real import source instead of hardcoded MANUAL")
+  void getTransactionDetailsReturnsRealImportSource() {
+    UUID txId = UUID.randomUUID();
+    Transaction tx =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("1"))
+            .pricePerUnit(new BigDecimal("100"))
+            .totalValue(new BigDecimal("100"))
+            .importSource(ImportSource.DRIVEWEALTH)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(tx));
+
+    TransactionDetailsResponse result = transactionService.getTransactionDetails(userId, txId);
+
+    assertThat(result.source()).isEqualTo("DRIVEWEALTH");
+  }
+
+  @Test
+  @DisplayName("tagImportSource: sets provenance on an existing transaction")
+  void tagImportSourceSetsProvenance() {
+    UUID txId = UUID.randomUUID();
+    Transaction tx = Transaction.builder().transactionId(txId).build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(tx));
+
+    transactionService.tagImportSource(userId, txId, TransactionOrigin.GBM_STATEMENT);
+
+    assertThat(tx.getImportSource()).isEqualTo(ImportSource.GBM_STATEMENT);
+    verify(transactionRepository).save(tx);
   }
 
   @Test
@@ -355,6 +446,8 @@ class TransactionServiceTest {
     transactionService.deleteTransactionById(userId, txId, IDEMPOTENCY_KEY);
 
     verify(transactionRepository).deleteById(transaction.getTransactionId());
+    verify(transactionIdempotencyService)
+        .forgetByResultTransactionId(transaction.getTransactionId());
     verify(portfolioProjectionSyncPort).reconcileUserPortfolio(userId);
   }
 

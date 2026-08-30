@@ -8,6 +8,8 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
+import com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus;
 import com.mx.cryptomonitor.user.domain.model.User;
 
 import jakarta.persistence.Column;
@@ -73,6 +75,24 @@ public class Transaction {
   @Column(name = "fee", precision = 18, scale = 8)
   private BigDecimal fee = BigDecimal.ZERO;
 
+  @Column(name = "broker_commission", precision = 18, scale = 8)
+  private BigDecimal brokerCommission;
+
+  @Column(name = "broker_iva", precision = 18, scale = 8)
+  private BigDecimal brokerIva;
+
+  @Column(name = "other_fees", precision = 18, scale = 8)
+  private BigDecimal otherFees;
+
+  @Column(name = "review_status", length = 20)
+  @Enumerated(EnumType.STRING)
+  private ReviewStatus reviewStatus;
+
+  @Builder.Default
+  @Column(name = "import_source", length = 20, nullable = false)
+  @Enumerated(EnumType.STRING)
+  private ImportSource importSource = ImportSource.MANUAL;
+
   @Builder.Default
   @Column(name = "realized_pnl", precision = 18, scale = 8)
   private BigDecimal realizedPnl = BigDecimal.ZERO;
@@ -114,5 +134,13 @@ public class Transaction {
   public Transaction(@JsonProperty("transactionDate") OffsetDateTime transactionDate) {
     this.transactionDate =
         (transactionDate != null) ? transactionDate : OffsetDateTime.now(ZoneOffset.UTC);
+  }
+
+  public void applyFriction(FrictionBreakdown breakdown) {
+    this.fee = breakdown.totalFrictionCost();
+    this.brokerCommission = breakdown.brokerCommission();
+    this.brokerIva = breakdown.brokerIva();
+    this.otherFees = breakdown.otherFees();
+    this.reviewStatus = breakdown.reviewStatus();
   }
 }

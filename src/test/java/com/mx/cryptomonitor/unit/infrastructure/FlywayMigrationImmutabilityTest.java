@@ -62,7 +62,9 @@ class FlywayMigrationImmutabilityTest {
           Map.entry("V2026_07_24_01__reset_stock_logos_for_finnhub.sql", 1707031515L),
           Map.entry("V2026_07_26_01__populate_stock_and_crypto_logos.sql", 764997726L),
           Map.entry("V2026_08_12_01__create_statement_import_job.sql", 833575301L),
-          Map.entry("V2026_08_12_02__add_statement_import_job_retry.sql", 1263541663L));
+          Map.entry("V2026_08_12_02__add_statement_import_job_retry.sql", 1263541663L),
+          Map.entry("V2026_08_18_01__add_transaction_friction_breakdown.sql", 1396543531L),
+          Map.entry("V2026_08_24_01__add_transaction_import_source.sql", 3313832344L));
 
   @Test
   void no_versioned_migration_file_must_be_modified_after_registration() throws IOException {

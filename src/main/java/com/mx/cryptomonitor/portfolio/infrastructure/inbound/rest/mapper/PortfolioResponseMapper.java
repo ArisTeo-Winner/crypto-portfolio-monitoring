@@ -36,7 +36,9 @@ public final class PortfolioResponseMapper {
             result.to(),
             "USD",
             series.size(),
-            toReturnMetrics(result.returnMetrics()));
+            toReturnMetrics(result.returnMetrics()),
+            result.partial(),
+            result.unavailableSymbols());
     return new PortfolioHistoryResponse(meta, series);
   }
 

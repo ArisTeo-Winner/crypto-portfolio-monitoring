@@ -12,6 +12,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -51,5 +54,52 @@ class OpenApiTransactionDocumentationIT {
     assertThat(openApi).contains("Payload invalido");
     assertThat(openApi).contains("Usuario no autenticado");
     assertThat(openApi).contains("Usuario no autorizado");
+  }
+
+  @Test
+  void openApiShouldExposeFrictionBreakdownAndBrokerImportEndpoints() throws Exception {
+    String openApi =
+        mockMvc
+            .perform(get("/v3/api-docs"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    // Desglose de friccion expuesto en el detalle (consumido por el frontend)
+    assertThat(openApi).contains("\"FrictionBreakdownView\"");
+    assertThat(openApi).contains("frictionBreakdown");
+    assertThat(openApi).contains("adjustedUnitPrice");
+    // reviewStatus como enum tipado, no string libre
+    assertThat(openApi).contains("REQUIERE_REVISION");
+
+    // Endpoints de import (incluye auto-routing) y su respuesta de job
+    assertThat(openApi).contains("/api/v1/me/broker/gbm/import");
+    assertThat(openApi).contains("/api/v1/me/broker/gbm/import-jobs/{jobId}");
+    assertThat(openApi).contains("\"StatementImportJobResponse\"");
+
+    // Seguridad JWT documentada para que el cliente generado sepa autenticarse
+    assertThat(openApi).contains("bearerAuth");
+  }
+
+  @Test
+  void openApiMarksSecuredEndpointsAndLeavesPublicOnesOpen() throws Exception {
+    String openApi =
+        mockMvc
+            .perform(get("/v3/api-docs"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    JsonNode api = new ObjectMapper().readTree(openApi);
+
+    // Endpoint admin (protegido, fuera de /me/**) ahora SI declara bearerAuth
+    JsonNode rolesSecurity = api.at("/paths/~1api~1v1~1roles/get/security");
+    assertThat(rolesSecurity.isMissingNode()).isFalse();
+    assertThat(rolesSecurity.toString()).contains("bearerAuth");
+
+    // Endpoint publico (login) NO declara seguridad
+    JsonNode loginSecurity = api.at("/paths/~1api~1v1~1auth~1login/post/security");
+    assertThat(loginSecurity.isMissingNode()).isTrue();
   }
 }

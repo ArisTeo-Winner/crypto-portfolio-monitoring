@@ -62,7 +62,7 @@ public class PortfolioAssetHistoryController {
   @PreAuthorize("hasRole('USER')")
   public List<PortfolioHistoryPointResponse> getAssetHoldingsHistory(
       @PathVariable String symbol,
-      @RequestParam(defaultValue = "180d") String range,
+      @RequestParam(defaultValue = "6M") String range,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);
@@ -98,7 +98,7 @@ public class PortfolioAssetHistoryController {
   @PreAuthorize("hasRole('USER')")
   public List<PortfolioMarkerResponse> getAssetMarkers(
       @PathVariable String symbol,
-      @RequestParam(defaultValue = "180d") String range,
+      @RequestParam(defaultValue = "6M") String range,
       Authentication authentication,
       HttpServletRequest request) {
     portfolioHistoryRateLimiter.validate(request);

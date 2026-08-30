@@ -45,10 +45,35 @@ class PortfolioAllRangeTest {
   void allRangeIsParsedWithDailyResolution() {
     HoldingsHistoryRange range = HoldingsHistoryRange.parse("all");
 
-    assertThat(range.value()).isEqualTo("all");
+    assertThat(range.value()).isEqualTo("ALL");
     assertThat(range.resolution()).isEqualTo(Resolution.DAILY);
     assertThat(range.isAll()).isTrue();
     assertThat(range.stepSeconds()).isEqualTo(SECONDS_PER_DAY);
+  }
+
+  @Test
+  void monthRangesUseCalendarAwareStartNotFixedDays() {
+    HoldingsHistoryRange oneMonth = HoldingsHistoryRange.parse("1M");
+    Instant end = Instant.parse("2026-03-31T00:00:00Z");
+    // Un mes calendario antes del 31-mar es 28-feb; 30 días fijos darían 01-mar.
+    assertThat(oneMonth.startFrom(end)).isEqualTo(Instant.parse("2026-02-28T00:00:00Z"));
+  }
+
+  @Test
+  void legacyTokensAreAcceptedAsAliasesOfCanonicalTokens() {
+    assertThat(HoldingsHistoryRange.parse("24h").value()).isEqualTo("1D");
+    assertThat(HoldingsHistoryRange.parse("7d").value()).isEqualTo("1S");
+    assertThat(HoldingsHistoryRange.parse("30d").value()).isEqualTo("1M");
+    assertThat(HoldingsHistoryRange.parse("90d").value()).isEqualTo("3M");
+    assertThat(HoldingsHistoryRange.parse("180d").value()).isEqualTo("6M");
+    assertThat(HoldingsHistoryRange.parse("1y").value()).isEqualTo("1Y");
+    assertThat(HoldingsHistoryRange.parse("all").value()).isEqualTo("ALL");
+  }
+
+  @Test
+  void startFromOnAllRangeIsRejected() {
+    assertThatThrownBy(() -> HoldingsHistoryRange.parse("ALL").startFrom(Instant.now()))
+        .isInstanceOf(IllegalStateException.class);
   }
 
   @Test
@@ -58,7 +83,7 @@ class PortfolioAllRangeTest {
 
   @Test
   void invalidRangeStillThrows() {
-    assertThatThrownBy(() -> HoldingsHistoryRange.parse("6m"))
+    assertThatThrownBy(() -> HoldingsHistoryRange.parse("13m"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 

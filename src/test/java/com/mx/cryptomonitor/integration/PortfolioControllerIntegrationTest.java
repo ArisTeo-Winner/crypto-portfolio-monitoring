@@ -417,7 +417,7 @@ class PortfolioControllerIntegrationTest {
             marketPriceHistoryPort.getPriceHistory(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq("SOL"),
-                org.mockito.ArgumentMatchers.eq("180d")))
+                org.mockito.ArgumentMatchers.eq("6M")))
         .thenReturn(
             java.util.List.of(
                 new PricePoint(
@@ -559,7 +559,7 @@ class PortfolioControllerIntegrationTest {
                 .param("assetTypes", "CRYPTO")
                 .with(authentication(userAuthentication())))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.meta.range").value("30d"))
+        .andExpect(jsonPath("$.meta.range").value("1M"))
         .andExpect(jsonPath("$.meta.resolution").value("INTRADAY"))
         .andExpect(jsonPath("$.meta.currency").value("USD"))
         .andExpect(jsonPath("$.meta.points").value(3))

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort;
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
@@ -73,10 +75,12 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
     }
   }
 
-  // Tries providers in @Order sequence; falls back to next on UnknownAssetSymbolException.
+  // Tries providers in @Order sequence; falls back to the next on any recoverable provider error
+  // (unknown symbol, rate limit, upstream/server error), so a symbol missing or failing on the
+  // primary provider (e.g. Binance) is still served by the secondary (e.g. CoinGecko).
   private List<PricePoint> fetchWithFallback(
       AssetType assetType, String symbol, ChartResolution chartResolution) {
-    UnknownAssetSymbolException lastSymbolError = null;
+    RuntimeException lastError = null;
     for (MarketPriceHistoryProvider provider : providers) {
       if (!provider.supports(assetType)) {
         continue;
@@ -85,39 +89,49 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
         return provider.fetchPriceHistory(assetType, symbol, chartResolution).stream()
             .sorted(Comparator.comparing(PricePoint::time))
             .toList();
-      } catch (UnknownAssetSymbolException e) {
-        log.debug(
-            "Provider {} unknown symbol {}, trying next",
-            provider.getClass().getSimpleName(),
-            symbol);
-        lastSymbolError = e;
+      } catch (UnknownAssetSymbolException
+          | MarketDataRateLimitException
+          | MarketDataServerException e) {
+        lastError = logAndCarry(provider, symbol, e);
       }
     }
-    if (lastSymbolError != null) {
-      throw lastSymbolError;
-    }
-    throw new IllegalStateException("No market price history provider configured for " + assetType);
+    return failAfterFallback(assetType, lastError);
   }
 
   private List<PricePoint> fetchWithFallback(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
-    UnknownAssetSymbolException last = null;
-
+    RuntimeException lastError = null;
     for (MarketPriceHistoryProvider provider : providers) {
-      if (!provider.supports(assetType)) continue;
+      if (!provider.supports(assetType)) {
+        continue;
+      }
       try {
         return provider.fetchPriceHistory(assetType, symbol, range).stream()
             .sorted(Comparator.comparing(PricePoint::time))
             .toList();
-      } catch (UnknownAssetSymbolException e) {
-        log.debug(
-            "Provider {} unknown symbol {}, trying next",
-            provider.getClass().getSimpleName(),
-            symbol);
-        last = e;
+      } catch (UnknownAssetSymbolException
+          | MarketDataRateLimitException
+          | MarketDataServerException e) {
+        lastError = logAndCarry(provider, symbol, e);
       }
     }
-    if (last != null) throw last;
+    return failAfterFallback(assetType, lastError);
+  }
+
+  private RuntimeException logAndCarry(
+      MarketPriceHistoryProvider provider, String symbol, RuntimeException error) {
+    log.debug(
+        "Provider {} failed for {} ({}), trying next",
+        provider.getClass().getSimpleName(),
+        symbol,
+        error.getClass().getSimpleName());
+    return error;
+  }
+
+  private List<PricePoint> failAfterFallback(AssetType assetType, RuntimeException lastError) {
+    if (lastError != null) {
+      throw lastError;
+    }
     throw new IllegalStateException("No market price history provider configured for " + assetType);
   }
 

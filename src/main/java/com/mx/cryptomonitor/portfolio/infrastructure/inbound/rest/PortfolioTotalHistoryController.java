@@ -55,7 +55,7 @@ public class PortfolioTotalHistoryController {
   @GetMapping("/history")
   @PreAuthorize("hasRole('USER')")
   public ResponseEntity<Object> getTotalHistory(
-      @RequestParam(defaultValue = "30d") String range,
+      @RequestParam(defaultValue = "1M") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
       @Parameter(description = "Alias of assetTypes (singular form accepted for compatibility)")
           @RequestParam(required = false)

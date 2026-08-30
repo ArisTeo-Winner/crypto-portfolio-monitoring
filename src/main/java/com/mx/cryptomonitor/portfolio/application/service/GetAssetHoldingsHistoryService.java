@@ -2,7 +2,6 @@ package com.mx.cryptomonitor.portfolio.application.service;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -93,7 +92,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   private Instant determineStart(
       HoldingsHistoryRange range, List<PortfolioTransactionSnapshot> snapshots, Instant end) {
     if (!range.isAll()) {
-      return end.minus(Duration.ofDays(range.days()));
+      return range.startFrom(end);
     }
     long firstTxEpoch =
         snapshots.stream()

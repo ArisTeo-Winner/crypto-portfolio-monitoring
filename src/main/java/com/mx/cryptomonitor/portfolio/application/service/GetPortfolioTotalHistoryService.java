@@ -24,6 +24,9 @@ import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPor
 import com.mx.cryptomonitor.portfolio.domain.engine.MwrEngine;
 import com.mx.cryptomonitor.portfolio.domain.engine.PortfolioHoldingsAggregationEngine;
 import com.mx.cryptomonitor.portfolio.domain.engine.TwrEngine;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
+import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolutionStrategy;
@@ -104,9 +107,13 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     Instant start = determineStart(parsedRange, snapshots, end);
     ChartResolution chartResolution = chartResolutionStrategy.resolve(start, end);
 
+    List<String> unavailableSymbols = new ArrayList<>();
     List<PortfolioAssetHistoryInput> assets =
         snapshotsByAsset.entrySet().stream()
-            .map(entry -> toAssetInput(entry.getKey(), entry.getValue(), chartResolution))
+            .map(
+                entry ->
+                    toAssetInput(
+                        entry.getKey(), entry.getValue(), chartResolution, unavailableSymbols))
             .filter(input -> !input.priceSeries().points().isEmpty())
             .sorted(Comparator.comparing(PortfolioAssetHistoryInput::symbol))
             .toList();
@@ -140,7 +147,8 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
         from,
         to,
         series,
-        returnMetrics);
+        returnMetrics,
+        unavailableSymbols);
   }
 
   private ReturnMetrics computeReturnMetrics(
@@ -189,7 +197,7 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   private Instant determineStart(
       HoldingsHistoryRange range, List<PortfolioTransactionSnapshot> snapshots, Instant end) {
     if (!range.isAll()) {
-      return end.minus(Duration.ofDays(range.days()));
+      return range.startFrom(end);
     }
     if (snapshots.isEmpty()) {
       return end.minus(Duration.ofDays(365));
@@ -224,10 +232,26 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   private PortfolioAssetHistoryInput toAssetInput(
       AssetIdentity identity,
       List<PortfolioTransactionSnapshot> snapshots,
-      ChartResolution chartResolution) {
-    List<PricePoint> prices =
-        marketPriceHistoryPort.getPriceHistory(
-            identity.assetType(), identity.symbol(), chartResolution);
+      ChartResolution chartResolution,
+      List<String> unavailableSymbols) {
+    List<PricePoint> prices;
+    try {
+      prices =
+          marketPriceHistoryPort.getPriceHistory(
+              identity.assetType(), identity.symbol(), chartResolution);
+    } catch (UnknownAssetSymbolException
+        | MarketDataRateLimitException
+        | MarketDataServerException e) {
+      // Un activo cuyo proveedor falla no debe tumbar toda la gráfica: se omite y se
+      // reporta como no disponible (respuesta parcial) en lugar de propagar un 502.
+      log.warn(
+          "portfolio.history.asset_unavailable symbol={} type={} reason={}",
+          identity.symbol(),
+          identity.assetType(),
+          e.getMessage());
+      unavailableSymbols.add(identity.symbol());
+      prices = List.of();
+    }
     return new PortfolioAssetHistoryInput(
         identity.assetType(),
         identity.symbol(),

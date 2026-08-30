@@ -164,7 +164,16 @@ class TransactionControllerCreateTransactionIT {
                 "Compra manual",
                 "MANUAL",
                 null,
-                "COMPLETED"));
+                "COMPLETED",
+                new com.mx.cryptomonitor.transaction.application.dto.response.FrictionBreakdownView(
+                    new BigDecimal("22302.04"),
+                    new BigDecimal("0.40"),
+                    new BigDecimal("0.06"),
+                    new BigDecimal("0.04"),
+                    new BigDecimal("0.50"),
+                    new BigDecimal("22302.54"),
+                    new BigDecimal("89210.16"),
+                    com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK)));
 
     mockMvc
         .perform(
@@ -173,7 +182,10 @@ class TransactionControllerCreateTransactionIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(transactionId.toString()))
         .andExpect(jsonPath("$.amountLabel").value("Total Spent"))
-        .andExpect(jsonPath("$.netAmount").value(22302.54));
+        .andExpect(jsonPath("$.netAmount").value(22302.54))
+        .andExpect(jsonPath("$.frictionBreakdown.brokerCommission").value(0.40))
+        .andExpect(jsonPath("$.frictionBreakdown.finalNetCost").value(22302.54))
+        .andExpect(jsonPath("$.frictionBreakdown.reviewStatus").value("OK"));
   }
 
   @Test

@@ -39,7 +39,7 @@ class CachedMarketPriceHistoryAdapterTest {
   @Test
   void cacheHitReturnsSharedRedisSeriesWithoutCallingProvider() {
     Instant time = Instant.parse("2026-01-01T00:00:00Z");
-    when(cache.getPriceHistory(AssetType.CRYPTO, "SOL", "180d"))
+    when(cache.getPriceHistory(AssetType.CRYPTO, "SOL", "6M"))
         .thenReturn(
             List.of(new PriceHistoryCachePort.PriceHistoryPoint(time, new BigDecimal("101.25"))));
 
@@ -53,8 +53,8 @@ class CachedMarketPriceHistoryAdapterTest {
   void cacheMissFetchesProviderAndStoresSharedSeriesWithRangeTtl() {
     Instant time = Instant.parse("2026-01-01T00:00:00Z");
     PricePoint point = new PricePoint(time, new BigDecimal("98.50"));
-    when(cache.getPriceHistory(AssetType.CRYPTO, "SOL", "180d")).thenReturn(List.of());
-    when(cache.acquireLoadLock(eq(AssetType.CRYPTO), eq("SOL"), eq("180d"), any(Duration.class)))
+    when(cache.getPriceHistory(AssetType.CRYPTO, "SOL", "6M")).thenReturn(List.of());
+    when(cache.acquireLoadLock(eq(AssetType.CRYPTO), eq("SOL"), eq("6M"), any(Duration.class)))
         .thenReturn(true);
     when(provider.supports(AssetType.CRYPTO)).thenReturn(true);
     when(provider.fetchPriceHistory(
@@ -68,10 +68,10 @@ class CachedMarketPriceHistoryAdapterTest {
         .storePriceHistory(
             eq(AssetType.CRYPTO),
             eq("SOL"),
-            eq("180d"),
+            eq("6M"),
             eq(List.of(new PriceHistoryCachePort.PriceHistoryPoint(time, new BigDecimal("98.50")))),
             eq(Duration.ofHours(6)));
-    verify(cache).releaseLoadLock(AssetType.CRYPTO, "SOL", "180d");
+    verify(cache).releaseLoadLock(AssetType.CRYPTO, "SOL", "6M");
   }
 
   @Test

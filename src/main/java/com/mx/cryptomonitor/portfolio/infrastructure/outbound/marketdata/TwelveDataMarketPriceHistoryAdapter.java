@@ -117,7 +117,7 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
     int outputSize = resolveOutputSize(range, interval);
 
     LocalDate to = LocalDate.now(ZoneOffset.UTC);
-    LocalDate from = range.isAll() ? LocalDate.of(2000, 1, 1) : to.minusDays(range.days());
+    LocalDate from = range.isAll() ? LocalDate.of(2000, 1, 1) : to.minus(range.period());
 
     log.debug(
         "TwelveData time_series: symbol={} interval={} outputsize={} from={} to={}",

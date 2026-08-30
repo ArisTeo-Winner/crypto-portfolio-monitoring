@@ -15,8 +15,8 @@ import com.mx.cryptomonitor.statementimport.domain.exception.InvalidStatementDoc
 import com.mx.cryptomonitor.statementimport.domain.exception.UnrecognizedBrokerDocumentException;
 import com.mx.cryptomonitor.statementimport.domain.model.ParsedConfirmationRow;
 import com.mx.cryptomonitor.statementimport.domain.model.UploadedDocument;
-import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
-import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.ImportedBrokerKind;
+import com.mx.cryptomonitor.transaction.application.dto.request.ImportedStockTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.port.in.TransactionCommandUseCase;
 
@@ -65,48 +65,27 @@ public class DriveWealthImportService implements ImportDriveWealthConfirmationsU
     String assetSymbol = row.symbol().toUpperCase(Locale.ROOT);
 
     try {
-      TransactionResponse response;
-      if (isBuy) {
-        BuyTransactionRequest request =
-            new BuyTransactionRequest(
-                assetSymbol,
-                "STOCK",
-                row.quantity(),
-                row.price(),
-                row.commission(),
-                transactionDate,
-                "import:drivewealth:" + row.symbol(),
-                row.securityName(),
-                EXCHANGE_GLOBAL,
-                BROKER,
-                CURRENCY_USD,
-                null,
-                null,
-                null,
-                Boolean.FALSE);
-        response =
-            transactionCommandUseCase.registerBuyTransaction(userId, request, idempotencyKey);
-      } else {
-        SellTransactionRequest request =
-            new SellTransactionRequest(
-                assetSymbol,
-                "STOCK",
-                row.quantity(),
-                row.price(),
-                row.commission(),
-                transactionDate,
-                "import:drivewealth:" + row.symbol(),
-                row.securityName(),
-                EXCHANGE_GLOBAL,
-                BROKER,
-                CURRENCY_USD,
-                null,
-                null,
-                null,
-                Boolean.FALSE);
-        response =
-            transactionCommandUseCase.registerSellTransaction(userId, request, idempotencyKey);
-      }
+      ImportedStockTransactionRequest request =
+          new ImportedStockTransactionRequest(
+              assetSymbol,
+              row.securityName(),
+              isBuy,
+              row.quantity(),
+              row.price(),
+              transactionDate,
+              null,
+              EXCHANGE_GLOBAL,
+              BROKER,
+              CURRENCY_USD,
+              row.principalAmount(),
+              row.commission(),
+              row.transactionFee(),
+              row.otherFees(),
+              row.netAmount(),
+              ImportedBrokerKind.DRIVEWEALTH);
+      TransactionResponse response =
+          transactionCommandUseCase.registerImportedStockTransaction(
+              userId, request, idempotencyKey);
 
       boolean isNew = !response.createdAt().isBefore(before.minusSeconds(2));
       return isNew

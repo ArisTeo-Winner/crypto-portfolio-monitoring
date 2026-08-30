@@ -75,7 +75,7 @@ public class AlphaVantageMarketPriceHistoryAdapter implements MarketPriceHistory
     }
 
     LocalDate cutoff =
-        range.isAll() ? EPOCH_DATE : LocalDate.now(ZoneOffset.UTC).minusDays(range.days());
+        range.isAll() ? EPOCH_DATE : LocalDate.now(ZoneOffset.UTC).minus(range.period());
     return series.entrySet().stream()
         .filter(entry -> entry.getKey() != null && entry.getValue() instanceof Map<?, ?>)
         .map(entry -> toPoint(String.valueOf(entry.getKey()), (Map<?, ?>) entry.getValue()))

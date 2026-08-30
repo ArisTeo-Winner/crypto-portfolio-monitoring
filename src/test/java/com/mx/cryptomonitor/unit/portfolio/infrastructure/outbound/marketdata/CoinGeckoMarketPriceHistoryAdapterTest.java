@@ -95,11 +95,13 @@ class CoinGeckoMarketPriceHistoryAdapterTest {
     assertThat(chartRequest.getRequestUrl().queryParameter("vs_currency")).isEqualTo("usd");
     long from = Long.parseLong(chartRequest.getRequestUrl().queryParameter("from"));
     long to = Long.parseLong(chartRequest.getRequestUrl().queryParameter("to"));
-    // With Clock.fixed at 2026-01-31T00:00:00Z and range=30d:
-    //   end   = 2026-01-31T00:00:00Z → epoch 1738281600
-    //   start = 2026-01-01T00:00:00Z → epoch 1735689600
+    // With Clock.fixed at 2026-01-31T00:00:00Z and range=30d (alias de 1M, mes calendario):
+    //   end   = 2026-01-31T00:00:00Z
+    //   start = 2025-12-31T00:00:00Z (un mes calendario antes, no 30 días fijos)
     assertThat(to).isEqualTo(FIXED_NOW.getEpochSecond());
-    assertThat(from).isEqualTo(FIXED_NOW.minus(Duration.ofDays(30)).getEpochSecond());
+    assertThat(from)
+        .isEqualTo(
+            FIXED_NOW.atZone(java.time.ZoneOffset.UTC).minusMonths(1).toInstant().getEpochSecond());
   }
 
   private MockResponse json(String body) {

@@ -12,4 +12,6 @@ public interface TransactionIdempotencyRecordRepository
 
   Optional<TransactionIdempotencyRecord> findByUserIdAndOperationScopeAndIdempotencyKey(
       UUID userId, String operationScope, String idempotencyKey);
+
+  void deleteByResultTransactionId(UUID resultTransactionId);
 }

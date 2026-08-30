@@ -67,9 +67,8 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
     String assetId = resolveAssetId(symbol);
-    int days = range.isAll() ? 365 * 5 : range.days();
     Instant end = Instant.now(clock);
-    Instant start = end.minus(Duration.ofDays(days));
+    Instant start = range.isAll() ? end.minus(Duration.ofDays(365 * 5)) : range.startFrom(end);
     return fetchRangeOrChunked(assetId, start, end);
   }
 

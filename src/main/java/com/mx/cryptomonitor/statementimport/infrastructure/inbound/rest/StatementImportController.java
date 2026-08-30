@@ -81,6 +81,27 @@ public class StatementImportController {
   }
 
   @Operation(
+      summary = "Cargar documentos con deteccion automatica de broker (PDF, carga multiple)",
+      description =
+          "Encola uno o mas documentos sin declarar el broker: el worker detecta el tipo "
+              + "(estado GBM, comprobante GBM renta variable, o confirmacion DriveWealth) "
+              + "inspeccionando el contenido y enruta al parser correcto. Un documento no "
+              + "reconocido termina en DEAD_LETTER. Devuelve un jobId por archivo.")
+  @PostMapping(value = "/import", consumes = "multipart/form-data")
+  @PreAuthorize("hasRole('USER')")
+  public ResponseEntity<List<StatementImportJobResponse>> uploadAutoDetected(
+      @RequestParam("files") List<MultipartFile> files,
+      Authentication authentication,
+      HttpServletRequest request) {
+    statementImportRateLimiter.validate(request);
+    UUID userId = currentUserPort.resolveUserId(authentication);
+    List<UploadedDocument> documents = files.stream().map(this::toUploadedDocument).toList();
+    List<StatementImportJobResponse> jobs =
+        enqueueStatementImportUseCase.enqueueAutoDetected(userId, documents);
+    return ResponseEntity.status(HttpStatus.ACCEPTED).body(jobs);
+  }
+
+  @Operation(
       summary = "Consultar estado de un job de importacion",
       description =
           "QUEUED -> PROCESSING -> COMPLETED (con result) o DEAD_LETTER (con errorMessage; "

@@ -118,7 +118,7 @@ class PortfolioAllRangeEndpointIT {
                 .with(authentication(userAuth())))
         .andDo(print())
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.meta.range").value("all"))
+        .andExpect(jsonPath("$.meta.range").value("ALL"))
         .andExpect(jsonPath("$.meta.resolution").value("DAILY"))
         .andExpect(jsonPath("$.meta.currency").value("USD"))
         .andExpect(jsonPath("$.meta.points").isNumber())
@@ -151,7 +151,7 @@ class PortfolioAllRangeEndpointIT {
                 .with(authentication(userAuth())))
         .andDo(print())
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.meta.range").value("all"))
+        .andExpect(jsonPath("$.meta.range").value("ALL"))
         .andExpect(jsonPath("$.meta.points").value(3))
         .andExpect(
             jsonPath("$.series[0].time")

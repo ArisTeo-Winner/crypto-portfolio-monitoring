@@ -23,4 +23,5 @@ public record TransactionDetailsResponse(
     String notes,
     String source,
     String exchange,
-    String status) {}
+    String status,
+    FrictionBreakdownView frictionBreakdown) {}

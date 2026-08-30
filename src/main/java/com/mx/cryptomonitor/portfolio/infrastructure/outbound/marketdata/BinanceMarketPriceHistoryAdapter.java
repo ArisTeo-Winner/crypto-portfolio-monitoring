@@ -76,10 +76,7 @@ public class BinanceMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
     Instant end = Instant.now(clock);
-    Instant start =
-        range.isAll()
-            ? end.minus(Duration.ofDays(365 * 5))
-            : end.minus(Duration.ofDays(range.days()));
+    Instant start = range.isAll() ? end.minus(Duration.ofDays(365 * 5)) : range.startFrom(end);
     return fetchPriceHistory(assetType, symbol, resolutionStrategy.resolve(start, end));
   }
 

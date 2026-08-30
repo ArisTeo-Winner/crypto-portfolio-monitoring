@@ -57,7 +57,7 @@ public class PortfolioMarkersController {
   @GetMapping("/markers")
   @PreAuthorize("hasRole('USER')")
   public List<PortfolioMarkerResponse> getMarkers(
-      @RequestParam(defaultValue = "30d") String range,
+      @RequestParam(defaultValue = "1M") String range,
       @Parameter(example = "CRYPTO,STOCK") @RequestParam(required = false) String assetTypes,
       Authentication authentication,
       HttpServletRequest request) {

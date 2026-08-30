@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
@@ -74,11 +73,12 @@ class BinanceMarketPriceHistoryAdapterTest {
     long startTime = Long.parseLong(request.getRequestUrl().queryParameter("startTime"));
     long endTime = Long.parseLong(request.getRequestUrl().queryParameter("endTime"));
 
-    // With Clock.fixed at 2026-01-31T00:00:00Z and range=30d:
-    //   end   = 2026-01-31T00:00:00Z → epoch ms 1738281600000
-    //   start = 2026-01-01T00:00:00Z → epoch ms 1735689600000
+    // With Clock.fixed at 2026-01-31T00:00:00Z and range=30d (alias de 1M, mes calendario):
+    //   end   = 2026-01-31T00:00:00Z
+    //   start = 2025-12-31T00:00:00Z (un mes calendario antes, no 30 días fijos)
     assertThat(endTime).isEqualTo(FIXED_NOW.toEpochMilli());
-    assertThat(startTime).isEqualTo(FIXED_NOW.minus(Duration.ofDays(30)).toEpochMilli());
+    assertThat(startTime)
+        .isEqualTo(FIXED_NOW.atZone(ZoneOffset.UTC).minusMonths(1).toInstant().toEpochMilli());
   }
 
   private MockResponse json(String body) {

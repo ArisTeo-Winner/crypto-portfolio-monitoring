@@ -12,4 +12,8 @@ public interface EnqueueStatementImportUseCase {
 
   List<StatementImportJobResponse> enqueueDriveWealthConfirmations(
       UUID userId, List<UploadedDocument> documents);
+
+  /** Encola documentos cuyo broker/tipo se detecta al procesarlos (routing automatico). */
+  List<StatementImportJobResponse> enqueueAutoDetected(
+      UUID userId, List<UploadedDocument> documents);
 }

@@ -31,8 +31,14 @@ public class DriveWealthConfirmationParser implements DriveWealthConfirmationPar
               + "(\\d+(?:\\.\\d+)?)\\s+(\\d+(?:\\.\\d+)?)\\s+(\\d{1,2}/\\d{1,2}/\\d{4})\\s+"
               + "\\d{1,2}/\\d{1,2}/\\d{4}\\s+\\S+\\s*$",
           Pattern.MULTILINE);
+  private static final Pattern PRINCIPAL_PATTERN =
+      Pattern.compile("Principal Amount\\s+\\$(-?[\\d,]+\\.\\d+)");
   private static final Pattern COMMISSION_PATTERN =
       Pattern.compile("Commission\\s+\\$(-?[\\d,]+\\.\\d+)");
+  private static final Pattern TRANSACTION_FEE_PATTERN =
+      Pattern.compile("Transaction Fee\\s+\\$(-?[\\d,]+\\.\\d+)");
+  private static final Pattern OTHER_FEES_PATTERN =
+      Pattern.compile("Other Fees\\s*/\\s*Credits\\s+\\$(-?[\\d,]+\\.\\d+)");
   private static final Pattern NET_AMOUNT_PATTERN =
       Pattern.compile("Net Amount\\s+\\$(-?[\\d,]+\\.\\d+)");
   private static final DateTimeFormatter TRADE_DATE_FORMAT =
@@ -43,8 +49,10 @@ public class DriveWealthConfirmationParser implements DriveWealthConfirmationPar
   @Override
   public ParsedConfirmationRow parse(byte[] pdfContent) {
     List<String> pages = textExtractor.extractPagesText(pdfContent);
-    String fullText = String.join("\n", pages).replace("\r", "");
+    return parseText(String.join("\n", pages).replace("\r", ""));
+  }
 
+  ParsedConfirmationRow parseText(String fullText) {
     validateEntity(fullText);
 
     Matcher rowMatcher = DATA_ROW_PATTERN.matcher(fullText);
@@ -61,15 +69,30 @@ public class DriveWealthConfirmationParser implements DriveWealthConfirmationPar
     LocalDate tradeDate = LocalDate.parse(rowMatcher.group(7), TRADE_DATE_FORMAT);
 
     BigDecimal commission = findAmount(fullText, COMMISSION_PATTERN).orElse(BigDecimal.ZERO);
+    BigDecimal transactionFee =
+        findAmount(fullText, TRANSACTION_FEE_PATTERN).orElse(BigDecimal.ZERO);
+    BigDecimal otherFees = findAmount(fullText, OTHER_FEES_PATTERN).orElse(BigDecimal.ZERO);
     BigDecimal netAmount =
         findAmount(fullText, NET_AMOUNT_PATTERN)
             .orElseThrow(
                 () ->
                     new InvalidStatementDocumentException(
                         "No se encontro el Net Amount en la confirmacion DriveWealth"));
+    BigDecimal principalAmount =
+        findAmount(fullText, PRINCIPAL_PATTERN).orElseGet(() -> quantity.multiply(price));
 
     return new ParsedConfirmationRow(
-        symbol, securityName, action, quantity, price, tradeDate, commission, netAmount);
+        symbol,
+        securityName,
+        action,
+        quantity,
+        price,
+        tradeDate,
+        principalAmount,
+        commission,
+        transactionFee,
+        otherFees,
+        netAmount);
   }
 
   private void validateEntity(String fullText) {

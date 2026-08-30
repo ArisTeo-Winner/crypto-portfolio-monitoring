@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class RuntimeEnvFileConfigurationIT {
@@ -46,8 +47,7 @@ class RuntimeEnvFileConfigurationIT {
                     URLEncoder.encode(apiKey, StandardCharsets.UTF_8)));
 
     HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build();
-    HttpResponse<String> response =
-        HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = sendOrSkipWhenUnreachable(request);
 
     assertThat(response.statusCode())
         .as(
@@ -101,8 +101,7 @@ class RuntimeEnvFileConfigurationIT {
             .timeout(Duration.ofSeconds(10))
             .GET()
             .build();
-    HttpResponse<String> response =
-        HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = sendOrSkipWhenUnreachable(request);
 
     assertThat(response.statusCode())
         .as(
@@ -144,8 +143,7 @@ class RuntimeEnvFileConfigurationIT {
                     URLEncoder.encode(token, StandardCharsets.UTF_8)));
 
     HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build();
-    HttpResponse<String> response =
-        HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = sendOrSkipWhenUnreachable(request);
 
     assertThat(response.statusCode())
         .as(
@@ -165,6 +163,29 @@ class RuntimeEnvFileConfigurationIT {
     Map<String, String> envExample = readEnvFile(Path.of(".env.example"));
 
     assertThat(envExample).containsKeys("DATABURSATIL_TOKEN", "DATABURSATIL_BASE_URL");
+  }
+
+  /**
+   * Ejecuta una llamada en vivo al proveedor externo. La conexion se cierra siempre (HttpClient es
+   * AutoCloseable en Java 21) para no dejar hilos que retrasen el apagado del fork de Failsafe. Un
+   * fallo de transporte (timeout de conexion, TLS colgado, host inalcanzable, reset) OMITE la
+   * prueba en vez de romperla: es una condicion de entorno, no un token invalido. Una respuesta
+   * HTTP real —incluido un 4xx de credencial rechazada— fluye a las aserciones y si falla, falla de
+   * verdad.
+   */
+  private HttpResponse<String> sendOrSkipWhenUnreachable(HttpRequest request) {
+    try (HttpClient client =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()) {
+      return client.send(request, HttpResponse.BodyHandlers.ofString());
+    } catch (IOException ex) {
+      return Assumptions.abort(
+          "Proveedor externo inalcanzable (%s: %s); se omite la validacion en vivo del contrato"
+              .formatted(ex.getClass().getSimpleName(), ex.getMessage()));
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+      return Assumptions.abort(
+          "Peticion en vivo interrumpida; se omite la validacion del contrato");
+    }
   }
 
   private Map<String, String> readEnvFile(Path path) throws IOException {

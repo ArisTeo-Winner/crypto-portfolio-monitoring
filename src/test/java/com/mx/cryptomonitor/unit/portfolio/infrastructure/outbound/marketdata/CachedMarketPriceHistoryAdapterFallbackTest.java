@@ -21,6 +21,8 @@ import org.mockito.InOrder;
 import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort.PriceHistoryPoint;
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
@@ -143,6 +145,46 @@ class CachedMarketPriceHistoryAdapterFallbackTest {
     order.verify(provider1).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
     order.verify(provider2).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
     verify(cache).releaseLoadLock(CRYPTO, SYMBOL, dynamicKey);
+  }
+
+  @Test
+  void shouldFallbackToProvider2WhenProvider1ThrowsServerError() {
+    // Binance-like primario falla por límite/upstream (no por símbolo desconocido): p. ej. el
+    // escenario del 502 de CoinGecko error_code 10012. El fallback ampliado debe cubrirlo.
+    when(provider1.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(PARSED_RANGE)))
+        .thenThrow(new MarketDataServerException("provider error_code 10012: past 365 days"));
+
+    List<PricePoint> result = adapter.getPriceHistory(CRYPTO, SYMBOL, RANGE);
+
+    assertThat(result).containsExactlyInAnyOrderElementsOf(PROVIDER2_POINTS);
+    InOrder order = inOrder(provider1, provider2);
+    order.verify(provider1).fetchPriceHistory(CRYPTO, SYMBOL, PARSED_RANGE);
+    order.verify(provider2).fetchPriceHistory(CRYPTO, SYMBOL, PARSED_RANGE);
+  }
+
+  @Test
+  void shouldFallbackToProvider2WhenChartResolutionProvider1ThrowsRateLimit() {
+    ChartResolution chartResolution =
+        new ChartResolution(
+            Instant.parse("2026-05-17T00:00:00Z"),
+            Instant.parse("2026-05-20T12:00:00Z"),
+            Duration.ofHours(1),
+            "1h",
+            84);
+    String dynamicKey = dynamicKey(chartResolution);
+    when(cache.getPriceHistory(CRYPTO, SYMBOL, dynamicKey)).thenReturn(List.of());
+    when(cache.acquireLoadLock(eq(CRYPTO), eq(SYMBOL), eq(dynamicKey), any())).thenReturn(true);
+    when(provider1.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(chartResolution)))
+        .thenThrow(new MarketDataRateLimitException("Binance 429"));
+    when(provider2.fetchPriceHistory(eq(CRYPTO), eq(SYMBOL), eq(chartResolution)))
+        .thenReturn(PROVIDER2_POINTS);
+
+    List<PricePoint> result = adapter.getPriceHistory(CRYPTO, SYMBOL, chartResolution);
+
+    assertThat(result).containsExactlyInAnyOrderElementsOf(PROVIDER2_POINTS);
+    InOrder order = inOrder(provider1, provider2);
+    order.verify(provider1).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
+    order.verify(provider2).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
   }
 
   private String dynamicKey(ChartResolution chartResolution) {

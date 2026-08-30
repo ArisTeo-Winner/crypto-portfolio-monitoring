@@ -8,11 +8,14 @@ import org.springframework.stereotype.Component;
 
 import com.mx.cryptomonitor.statementimport.application.dto.response.StatementImportResult;
 import com.mx.cryptomonitor.statementimport.application.port.in.ImportDriveWealthConfirmationsUseCase;
+import com.mx.cryptomonitor.statementimport.application.port.in.ImportGbmEquityConfirmationsUseCase;
 import com.mx.cryptomonitor.statementimport.application.port.in.ImportGbmStatementUseCase;
+import com.mx.cryptomonitor.statementimport.application.port.out.BrokerDocumentDetectorPort;
 import com.mx.cryptomonitor.statementimport.application.service.StatementImportJobLifecycleService;
 import com.mx.cryptomonitor.statementimport.domain.exception.InvalidStatementDocumentException;
 import com.mx.cryptomonitor.statementimport.domain.exception.UnrecognizedBrokerDocumentException;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJob;
+import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJobType;
 import com.mx.cryptomonitor.statementimport.domain.model.UploadedDocument;
 
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,8 @@ public class StatementImportJobWorker {
   private final StatementImportJobLifecycleService lifecycleService;
   private final ImportGbmStatementUseCase importGbmStatementUseCase;
   private final ImportDriveWealthConfirmationsUseCase importDriveWealthConfirmationsUseCase;
+  private final ImportGbmEquityConfirmationsUseCase importGbmEquityConfirmationsUseCase;
+  private final BrokerDocumentDetectorPort brokerDocumentDetector;
 
   @Value("${statementimport.worker.batch-size:5}")
   private int batchSize;
@@ -44,13 +49,22 @@ public class StatementImportJobWorker {
   private void processJob(StatementImportJob job) {
     UploadedDocument document = new UploadedDocument(job.getFileName(), job.getFileContent());
     try {
+      StatementImportJobType effectiveType =
+          job.getJobType() == StatementImportJobType.AUTO_DETECT
+              ? brokerDocumentDetector.detect(job.getFileContent())
+              : job.getJobType();
       StatementImportResult result =
-          switch (job.getJobType()) {
+          switch (effectiveType) {
             case GBM_STATEMENT -> importGbmStatementUseCase.importStatement(
                 job.getUserId(), document);
             case DRIVEWEALTH_CONFIRMATION -> importDriveWealthConfirmationsUseCase
                 .importConfirmations(job.getUserId(), List.of(document))
                 .get(0);
+            case GBM_EQUITY_CONFIRMATION -> importGbmEquityConfirmationsUseCase
+                .importConfirmations(job.getUserId(), List.of(document))
+                .get(0);
+            case AUTO_DETECT -> throw new IllegalStateException(
+                "AUTO_DETECT ya deberia estar resuelto");
           };
       lifecycleService.markCompleted(job.getId(), result);
     } catch (RuntimeException ex) {

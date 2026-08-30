@@ -47,7 +47,7 @@ class GetAssetHoldingsHistoryServiceTest {
                 snapshot("BUY", "1.0", "100.00", "2026-01-01T00:00:00"),
                 snapshot("BUY", "0.5", "110.00", "2026-01-02T00:00:00"),
                 snapshot("SELL", "0.75", "120.00", "2026-01-03T00:00:00")));
-    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d"))
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "1M"))
         .thenReturn(
             List.of(
                 new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("100.00")),
@@ -65,7 +65,7 @@ class GetAssetHoldingsHistoryServiceTest {
             new TimeValuePoint(1767484800L, new BigDecimal("97.50")));
     assertThat(response.markers()).hasSize(3);
     assertThat(response.markers().getFirst().type()).isEqualTo("BUY");
-    verify(marketPriceHistoryPort).getPriceHistory(AssetType.CRYPTO, "BTC", "30d");
+    verify(marketPriceHistoryPort).getPriceHistory(AssetType.CRYPTO, "BTC", "1M");
   }
 
   @Test
@@ -93,7 +93,7 @@ class GetAssetHoldingsHistoryServiceTest {
             new PricePoint(Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("12.00")));
     when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
         .thenReturn(snapshots);
-    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d")).thenReturn(prices);
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "1M")).thenReturn(prices);
 
     assertThat(service.getAssetHoldingsHistory(userId, "BTC", "30d"))
         .isEqualTo(service.getAssetHoldingsHistory(userId, "BTC", "30d"));
@@ -113,7 +113,7 @@ class GetAssetHoldingsHistoryServiceTest {
         List.of(new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("100.00")));
     when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
         .thenReturn(snapshots);
-    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "30d")).thenReturn(prices);
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "1M")).thenReturn(prices);
 
     AssetHoldingsHistoryResponse first =
         serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");

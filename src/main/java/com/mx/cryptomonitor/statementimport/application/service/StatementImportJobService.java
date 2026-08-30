@@ -56,6 +56,15 @@ public class StatementImportJobService
   }
 
   @Override
+  public List<StatementImportJobResponse> enqueueAutoDetected(
+      UUID userId, List<UploadedDocument> documents) {
+    return documents.stream()
+        .map(document -> enqueue(userId, StatementImportJobType.AUTO_DETECT, document))
+        .map(this::toResponse)
+        .toList();
+  }
+
+  @Override
   public StatementImportJobResponse getJob(UUID userId, UUID jobId) {
     StatementImportJob job =
         jobRepository

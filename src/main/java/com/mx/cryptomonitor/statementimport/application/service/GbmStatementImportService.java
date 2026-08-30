@@ -17,6 +17,7 @@ import com.mx.cryptomonitor.statementimport.domain.model.ParsedStatementRow;
 import com.mx.cryptomonitor.statementimport.domain.model.UploadedDocument;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.TransactionOrigin;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.port.in.TransactionCommandUseCase;
 
@@ -90,7 +91,7 @@ public class GbmStatementImportService implements ImportGbmStatementUseCase {
             row.pricePerUnit(),
             BigDecimal.ZERO,
             toTransactionDate(row.operationDate()),
-            "import:gbm-statement:reporto:" + row.emisora(),
+            null,
             "GBM Reporto " + row.emisora(),
             EXCHANGE_LOCAL,
             BROKER,
@@ -117,7 +118,7 @@ public class GbmStatementImportService implements ImportGbmStatementUseCase {
               row.pricePerUnit(),
               row.commission(),
               toTransactionDate(row.operationDate()),
-              "import:gbm-statement:folio:" + row.folio(),
+              null,
               "Dolar estadounidense",
               null,
               BROKER,
@@ -164,7 +165,7 @@ public class GbmStatementImportService implements ImportGbmStatementUseCase {
               row.pricePerUnit(),
               row.commission(),
               toTransactionDate(row.operationDate()),
-              "import:gbm-statement:folio:" + row.folio(),
+              null,
               null,
               EXCHANGE_LOCAL,
               BROKER,
@@ -202,6 +203,8 @@ public class GbmStatementImportService implements ImportGbmStatementUseCase {
     try {
       TransactionResponse response =
           transactionCommandUseCase.registerBuyTransaction(userId, request, idempotencyKey);
+      transactionCommandUseCase.tagImportSource(
+          userId, response.transactionId(), TransactionOrigin.GBM_STATEMENT);
       return classifyOutcome(response, before, assetSymbol);
     } catch (RuntimeException ex) {
       log.warn("Fallo al registrar transaccion de estado de cuenta GBM asset={}", assetSymbol, ex);
@@ -216,6 +219,8 @@ public class GbmStatementImportService implements ImportGbmStatementUseCase {
     try {
       TransactionResponse response =
           transactionCommandUseCase.registerSellTransaction(userId, request, idempotencyKey);
+      transactionCommandUseCase.tagImportSource(
+          userId, response.transactionId(), TransactionOrigin.GBM_STATEMENT);
       return classifyOutcome(response, before, assetSymbol);
     } catch (RuntimeException ex) {
       log.warn("Fallo al registrar transaccion de estado de cuenta GBM asset={}", assetSymbol, ex);

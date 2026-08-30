@@ -46,7 +46,7 @@ public class PolygonMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
   public List<PricePoint> fetchPriceHistory(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
     LocalDate to = LocalDate.now(ZoneOffset.UTC);
-    LocalDate from = to.minusDays(range.days());
+    LocalDate from = range.isAll() ? LocalDate.of(2000, 1, 1) : to.minus(range.period());
     Map<String, Object> json =
         webClient
             .get()

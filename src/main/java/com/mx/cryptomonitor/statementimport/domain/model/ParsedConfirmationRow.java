@@ -10,5 +10,8 @@ public record ParsedConfirmationRow(
     BigDecimal quantity,
     BigDecimal price,
     LocalDate tradeDate,
+    BigDecimal principalAmount,
     BigDecimal commission,
+    BigDecimal transactionFee,
+    BigDecimal otherFees,
     BigDecimal netAmount) {}

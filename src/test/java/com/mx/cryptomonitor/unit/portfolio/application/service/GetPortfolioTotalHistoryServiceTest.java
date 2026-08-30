@@ -17,6 +17,7 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUnivers
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort.PortfolioAssetReference;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.service.GetPortfolioTotalHistoryService;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
@@ -71,5 +72,40 @@ class GetPortfolioTotalHistoryServiceTest {
         .thenReturn(List.of());
 
     assertThat(service.getTotalHistory(userId, "30d", "CRYPTO").series()).isEmpty();
+  }
+
+  @Test
+  void skipsAssetWhoseProviderFailsAndMarksResponsePartial() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of());
+    when(portfolioAssetUniversePort.getAssetsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioAssetReference(AssetType.CRYPTO, "HYPE"),
+                new PortfolioAssetReference(AssetType.STOCK, "CRCL")));
+
+    // HYPE (cripto): el proveedor falla -> no debe tumbar toda la gráfica.
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("HYPE"), any(ChartResolution.class)))
+        .thenThrow(new MarketDataServerException("{\"status\":404,\"error\":\"Not Found\"}"));
+    // CRCL (stock): responde con datos.
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.STOCK), eq("CRCL"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long startSec = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
+              return List.of(
+                  new PricePoint(Instant.ofEpochSecond(startSec), new BigDecimal("100.00")),
+                  new PricePoint(
+                      Instant.ofEpochSecond(startSec + 86400), new BigDecimal("110.00")));
+            });
+
+    PortfolioHistoryResult result = service.getTotalHistory(userId, "1M", "CRYPTO,STOCK");
+
+    // Sin 502: se omite HYPE, se conserva CRCL y se marca la respuesta como parcial.
+    assertThat(result.partial()).isTrue();
+    assertThat(result.unavailableSymbols()).containsExactly("HYPE");
+    assertThat(result.series()).isNotEmpty();
   }
 }

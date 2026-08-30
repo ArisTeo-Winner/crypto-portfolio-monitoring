@@ -81,6 +81,16 @@ public class TransactionIdempotencyService {
     idempotencyRecordRepository.save(record);
   }
 
+  /**
+   * Olvida el registro de idempotencia que produjo una transacción, para que al eliminarla se pueda
+   * volver a importar/registrar el mismo documento (misma clave) sin chocar con el registro
+   * huérfano.
+   */
+  @Transactional
+  public void forgetByResultTransactionId(UUID transactionId) {
+    idempotencyRecordRepository.deleteByResultTransactionId(transactionId);
+  }
+
   private TransactionIdempotencyRecord claimRecord(
       UUID userId,
       String operationScope,

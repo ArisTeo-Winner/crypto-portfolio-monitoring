@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -15,10 +16,13 @@ import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.ImportedStockTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.TransactionOrigin;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.UpdateTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.response.FrictionBreakdownView;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionDetailsResponse;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
@@ -29,9 +33,13 @@ import com.mx.cryptomonitor.transaction.application.port.out.TransactionAuditPor
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistrationPort;
 import com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionSide;
+import com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
 import com.mx.cryptomonitor.transaction.domain.model.DividendType;
+import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
@@ -61,6 +69,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final AssetProfileProvider assetProfileProvider;
   private final DividendDetailRepository dividendDetailRepository;
   private final AssetCatalogQueryPort assetCatalogQueryPort;
+  private final GbmFrictionCalculator frictionCalculator;
 
   @Override
   public TransactionResponse registerTransaction(
@@ -89,6 +98,93 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         toLegacyRequest(request),
         idempotencyKey,
         "Create sell transaction");
+  }
+
+  @Override
+  public TransactionResponse registerImportedStockTransaction(
+      UUID userId, ImportedStockTransactionRequest request, String idempotencyKey) {
+    FrictionSide side = request.buy() ? FrictionSide.BUY : FrictionSide.SELL;
+    FrictionBreakdown breakdown =
+        switch (request.brokerKind()) {
+          case GBM_MX_EQUITY -> frictionCalculator.mexicanEquity(
+              side, request.quantity(), request.pricePerUnit(), request.netAmount());
+          case DRIVEWEALTH -> frictionCalculator.driveWealth(
+              side,
+              request.quantity(),
+              request.principalAmount(),
+              request.commission(),
+              request.transactionFee(),
+              request.otherFees(),
+              request.netAmount());
+        };
+
+    String assetName =
+        (request.assetName() == null || request.assetName().isBlank())
+            ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+            : request.assetName();
+
+    TransactionRequest legacy =
+        new TransactionRequest(
+            request.assetSymbol().toUpperCase(Locale.ROOT),
+            AssetType.STOCK,
+            request.buy() ? "BUY" : "SELL",
+            request.quantity(),
+            request.pricePerUnit(),
+            calculateGrossAmount(request.quantity(), request.pricePerUnit()),
+            request.transactionDate(),
+            breakdown.fee(),
+            request.notes(),
+            null,
+            assetName,
+            request.exchange(),
+            request.broker(),
+            request.currency(),
+            null,
+            null,
+            null,
+            Boolean.FALSE);
+
+    String scope = request.buy() ? CREATE_BUY_SCOPE : CREATE_SELL_SCOPE;
+    TransactionResponse response =
+        registerWithIdempotency(
+            userId, scope, legacy, idempotencyKey, "Create imported stock transaction");
+
+    ImportSource source =
+        switch (request.brokerKind()) {
+          case DRIVEWEALTH -> ImportSource.DRIVEWEALTH;
+          case GBM_MX_EQUITY -> ImportSource.GBM_EQUITY;
+        };
+    transactionRepository
+        .findByTransactionIdAndUserId(response.transactionId(), userId)
+        .ifPresent(
+            transaction -> {
+              transaction.applyFriction(breakdown);
+              transaction.setImportSource(source);
+              transactionRepository.save(transaction);
+            });
+
+    return response;
+  }
+
+  @Override
+  public void tagImportSource(UUID userId, UUID transactionId, TransactionOrigin origin) {
+    ImportSource source = toImportSource(origin);
+    transactionRepository
+        .findByTransactionIdAndUserId(transactionId, userId)
+        .ifPresent(
+            transaction -> {
+              transaction.setImportSource(source);
+              transactionRepository.save(transaction);
+            });
+  }
+
+  private ImportSource toImportSource(TransactionOrigin origin) {
+    return switch (origin) {
+      case MANUAL -> ImportSource.MANUAL;
+      case DRIVEWEALTH -> ImportSource.DRIVEWEALTH;
+      case GBM_STATEMENT -> ImportSource.GBM_STATEMENT;
+      case GBM_EQUITY -> ImportSource.GBM_EQUITY;
+    };
   }
 
   @Override
@@ -283,9 +379,28 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         netAmount,
         amountLabel,
         transaction.getNotes(),
-        "MANUAL",
+        transaction.getImportSource() != null ? transaction.getImportSource().name() : "MANUAL",
         null,
-        "COMPLETED");
+        "COMPLETED",
+        buildFrictionBreakdown(transaction, grossAmount, fee, netAmount));
+  }
+
+  private FrictionBreakdownView buildFrictionBreakdown(
+      Transaction transaction, BigDecimal grossAmount, BigDecimal fee, BigDecimal netAmount) {
+    BigDecimal quantity = transaction.getQuantity();
+    BigDecimal adjustedUnitPrice =
+        (netAmount != null && quantity != null && quantity.compareTo(BigDecimal.ZERO) > 0)
+            ? netAmount.divide(quantity, 8, RoundingMode.HALF_UP)
+            : null;
+    return new FrictionBreakdownView(
+        grossAmount,
+        transaction.getBrokerCommission(),
+        transaction.getBrokerIva(),
+        transaction.getOtherFees(),
+        fee,
+        netAmount,
+        adjustedUnitPrice,
+        transaction.getReviewStatus());
   }
 
   public List<TransactionResponse> getTransactionsByUser(UUID userId) {
@@ -398,6 +513,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                         () -> new TransactionNotFoundException("Transaction no encontrada"));
 
             transactionRepository.deleteById(transaction.getTransactionId());
+            transactionIdempotencyService.forgetByResultTransactionId(
+                transaction.getTransactionId());
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
             transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
             portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
