@@ -1,0 +1,67 @@
+name: Security · Fast (por commit)
+
+# Carril rapido del modelo de dos velocidades: corre en CADA push/PR.
+# Barato y sin infra externa -> Build + SBOM (CycloneDX) + Docker + gate Trivy.
+# El SCA pesado (OWASP Dependency-Check + Dependency-Track) vive en security-deep.yml.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write   # subir SARIF de Trivy a Code Scanning (best-effort)
+
+concurrency:
+  group: sec-fast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-scan:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: crypto-portfolio-monitoring:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build + SBOM (CycloneDX)
+        run: mvn -B clean package -DskipTests   # el plugin cyclonedx genera target/bom.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: target/bom.json
+          if-no-files-found: warn
+
+      - name: Build Docker image (hardened)
+        run: docker build -f Dockerfile.secure -t "$IMAGE_REF" .
+
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Trivy scan → SARIF (reporte, no bloquea)
+        run: |
+          trivy image --scanners vuln,secret,misconfig --no-progress \
+            --format sarif --output trivy-results.sarif --exit-code 0 \
+            "$IMAGE_REF"
+
+      - name: Upload Trivy SARIF a Code Scanning (best-effort)
+        if: always()
+        continue-on-error: true   # repos privados sin GitHub Advanced Security no aceptan SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy gate (rompe ante HIGH/CRITICAL con fix)
+        run: |
+          trivy image --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
+            --ignore-unfixed --no-progress --exit-code 1 \
+            "$IMAGE_REF"

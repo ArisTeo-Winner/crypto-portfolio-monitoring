@@ -1,0 +1,36 @@
+# Reduce el contexto de build y evita filtrar secretos/artefactos a la imagen.
+# NO excluir: pom.xml, mvnw, .mvn/, src/  (los necesita el build).
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Secretos y config local — nunca deben entrar al contexto de build.
+.env
+.env.*
+docker_env.txt
+src/main/resources/application.properties
+
+# Control de versiones e IDE.
+.git/
+.gitignore
+.idea/
+.settings/
+.project
+.classpath
+*.iml
+
+# Reportes y salidas locales.
+*.log
+logs/
+logsTest/
+.scannerwork/
+pacts/
+dependency-check-report.*
+bom.json
+
+# Docker / CI (no aportan al artefacto).
+docker-compose*.yml
+Dockerfile*
+dockerfile
+Jenkinsfile*
+README*.md

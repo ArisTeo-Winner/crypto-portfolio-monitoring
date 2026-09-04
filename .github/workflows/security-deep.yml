@@ -1,0 +1,81 @@
+name: Security · Deep (nocturno / on-demand)
+
+# Carril profundo del modelo de dos velocidades: NO corre en cada push.
+# Se dispara por schedule nocturno o manualmente (workflow_dispatch).
+# Aloja lo lento/pesado: OWASP Dependency-Check (NVD) + subida del SBOM a
+# Dependency-Track (best-effort: si DT no es alcanzable, no bloquea).
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # ~03:00 UTC diario
+  workflow_dispatch: {}    # boton "Run workflow" en la pestana Actions
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-deep
+  cancel-in-progress: false
+
+jobs:
+  deep-sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Cache "rodante" de la base NVD: restaura la mas reciente y guarda una nueva
+      # cada corrida (updates incrementales), en vez de re-descargar el feed completo.
+      - name: Cache NVD data
+        uses: actions/cache@v4
+        with:
+          path: ~/.owasp/dependency-check-data
+          key: nvd-data-${{ github.run_id }}
+          restore-keys: |
+            nvd-data-
+
+      - name: OWASP Dependency-Check (gate CVSS >= 7)
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          mvn -B verify -DskipTests \
+            -Ddependency-check.skip=false \
+            -Dnvd.api.key="$NVD_API_KEY" \
+            -Dsca.failBuildOnCVSS=7
+
+      - name: Upload Dependency-Check reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: target/dependency-check-report.*
+          if-no-files-found: warn
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: target/bom.json
+          if-no-files-found: warn
+
+      - name: Upload SBOM → Dependency-Track (best-effort)
+        if: always()
+        env:
+          DTRACK_URL: ${{ secrets.DTRACK_URL }}
+          DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
+        run: |
+          if [ -z "${DTRACK_URL}" ] || [ -z "${DTRACK_API_KEY}" ]; then
+            echo "::notice::Dependency-Track no configurado (faltan secrets DTRACK_URL/DTRACK_API_KEY); se omite la subida."
+            exit 0
+          fi
+          chmod +x scripts/upload-sbom.sh
+          if ! ./scripts/upload-sbom.sh; then
+            echo "::warning::Subida de SBOM a Dependency-Track fallo (best-effort); no bloquea el pipeline."
+          fi

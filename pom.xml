@@ -44,6 +44,22 @@
 		<sonar.java.binaries>${project.build.outputDirectory}</sonar.java.binaries>
 		<sonar.junit.reportPaths>${project.build.directory}/surefire-reports,${project.build.directory}/failsafe-reports</sonar.junit.reportPaths>
 		<sonar.coverage.jacoco.xmlReportPaths>${project.reporting.outputDirectory}/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+
+		<!-- ===== DevSecOps / SCA ===== -->
+		<!-- OWASP Dependency-Check: usar 12.1.0 o superior (comprobar la ultima en
+		     https://github.com/dependency-check/DependencyCheck/releases). -->
+		<dependency-check-maven.version>12.1.0</dependency-check-maven.version>
+		<!-- CycloneDX Maven plugin (generacion de SBOM). Rama 2.9.x. -->
+		<cyclonedx-maven-plugin.version>2.9.1</cyclonedx-maven-plugin.version>
+		<!-- Umbral de fallo del build: CVSS >= 7 rompe el build en `mvn verify`. -->
+		<sca.failBuildOnCVSS>7</sca.failBuildOnCVSS>
+		<!-- Interruptor de emergencia: `mvn verify -Ddependency-check.skip=true`. -->
+		<dependency-check.skip>false</dependency-check.skip>
+		<!-- Cache compartida de la base NVD entre builds (evita re-descargas). -->
+		<odc.data.directory>${user.home}/.owasp/dependency-check-data</odc.data.directory>
+		<!-- Clave de API NVD (recomendada; evita rate-limit). Pasar por
+		     -Dnvd.api.key=... o variable de entorno. Vacia por defecto. -->
+		<nvd.api.key></nvd.api.key>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -201,7 +217,7 @@
 		<dependency>
 			<groupId>org.apache.pdfbox</groupId>
 			<artifactId>pdfbox</artifactId>
-			<version>3.0.3</version>
+			<version>3.0.8</version>
 		</dependency>
 
 
@@ -532,7 +548,81 @@
 					</execution>
 				</executions>
 			</plugin>
-			
+
+			<!-- ===== SCA Capa 1: OWASP Dependency-Check =====
+			     Escanea dependencias contra la base NVD. Ligado a `verify`, por lo
+			     que NO se ejecuta en `mvn test` ni en `mvn package`; solo cuando se
+			     invoca `mvn verify` (o el goal directo `dependency-check:check`).
+			     Rompe el build si algun CVE tiene CVSS >= ${sca.failBuildOnCVSS}. -->
+			<plugin>
+				<groupId>org.owasp</groupId>
+				<artifactId>dependency-check-maven</artifactId>
+				<version>${dependency-check-maven.version}</version>
+				<configuration>
+					<skip>${dependency-check.skip}</skip>
+					<failBuildOnCVSS>${sca.failBuildOnCVSS}</failBuildOnCVSS>
+					<formats>
+						<format>HTML</format>
+						<format>XML</format>
+						<format>JSON</format>
+					</formats>
+					<suppressionFiles>
+						<suppressionFile>${project.basedir}/dependency-check-suppressions.xml</suppressionFile>
+					</suppressionFiles>
+					<!-- Cache compartida de la base NVD entre builds. -->
+					<dataDirectory>${odc.data.directory}</dataDirectory>
+					<nvdApiKey>${nvd.api.key}</nvdApiKey>
+					<!-- Espera entre llamadas a la API NVD (ms) para no exceder cuota. -->
+					<nvdApiDelay>4000</nvdApiDelay>
+					<!-- No abortar por fallos transitorios de descarga/analizadores;
+					     el gate real es failBuildOnCVSS. -->
+					<failOnError>false</failOnError>
+					<!-- Las dependencias de test no viajan al artefacto de runtime. -->
+					<skipTestScope>true</skipTestScope>
+					<skipProvidedScope>false</skipProvidedScope>
+				</configuration>
+				<executions>
+					<execution>
+						<id>sca-dependency-check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- ===== SBOM: CycloneDX =====
+			     Genera target/bom.json (CycloneDX JSON) en la fase `package`, para
+			     subirlo a Dependency-Track (Capa 3). -->
+			<plugin>
+				<groupId>org.cyclonedx</groupId>
+				<artifactId>cyclonedx-maven-plugin</artifactId>
+				<version>${cyclonedx-maven-plugin.version}</version>
+				<configuration>
+					<projectType>application</projectType>
+					<schemaVersion>1.5</schemaVersion>
+					<outputFormat>json</outputFormat>
+					<outputName>bom</outputName>
+					<outputDirectory>${project.build.directory}</outputDirectory>
+					<includeBomSerialNumber>true</includeBomSerialNumber>
+					<includeCompileScope>true</includeCompileScope>
+					<includeRuntimeScope>true</includeRuntimeScope>
+					<includeProvidedScope>true</includeProvidedScope>
+					<includeSystemScope>true</includeSystemScope>
+					<includeTestScope>false</includeTestScope>
+				</configuration>
+				<executions>
+					<execution>
+						<id>sbom-cyclonedx</id>
+						<phase>package</phase>
+						<goals>
+							<goal>makeAggregateBom</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 	</build>
 

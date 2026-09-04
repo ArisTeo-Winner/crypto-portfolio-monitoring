@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check — archivo de supresiones (falsos positivos / riesgo aceptado).
+
+  REGLAS DE ORO:
+  1. Toda supresion DEBE llevar una <notes> explicando: quien la aprobo, por que,
+     y (si aplica) fecha de revision o issue de seguimiento.
+  2. Preferir <packageUrl> con regex acotada sobre <cve> global. Nunca suprimir un
+     CVE "para todo" sin acotar el artefacto afectado.
+  3. Una supresion es deuda: revisar este archivo en cada release. Si el CVE ya no
+     aplica (dependencia actualizada), ELIMINAR la entrada.
+  4. Suprimir NO es arreglar. Solo se suprime un falso positivo real o un riesgo
+     formalmente aceptado por el owner de seguridad; la remediacion (actualizar la
+     dependencia) siempre es preferible.
+
+  Doc del formato: https://dependency-check.github.io/DependencyCheck/general/suppression.html
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <!-- ================================================================
+         EJEMPLO 1 — Falso positivo por colision de nombre (CPE erroneo)
+         ----------------------------------------------------------------
+         Dependency-Check a veces asocia un CVE del proyecto Apache "json"
+         (C) a la libreria Java org.json por el nombre. Si tras verificar el
+         CVE concreto se confirma que NO aplica a org.json, se suprime SOLO
+         ese CPE mal mapeado (no el CVE, que si podria aplicar de verdad).
+         Notes: Revisado por equipo-seguridad. FP de mapeo CPE.
+         ================================================================ -->
+    <suppress>
+        <notes><![CDATA[
+            Ejemplo de FALSO POSITIVO: CPE mal atribuido (cpe:/a:json:json) a la
+            libreria Java org.json. Verificar el CVE antes de habilitar esta regla.
+            Aprobado por: equipo-seguridad — Revisar en: 2026-12-01.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/org\.json/json@.*$</packageUrl>
+        <cpe>cpe:/a:json:json</cpe>
+    </suppress>
+
+    <!-- ================================================================
+         EJEMPLO 2 — Riesgo aceptado temporalmente por un CVE puntual
+         ----------------------------------------------------------------
+         Se acepta un CVE concreto con fecha de caducidad y issue de
+         seguimiento. La entrada DEBE borrarse al actualizar la dependencia.
+         (Plantilla comentada: descomentar y ajustar el CVE real.)
+         ================================================================ -->
+    <!--
+    <suppress until="2026-06-30Z">
+        <notes><![CDATA[
+            Riesgo ACEPTADO temporalmente: <CVE> no explotable en nuestro contexto
+            porque <razon tecnica concreta>. Seguimiento: JIRA SEC-123.
+            Aprobado por: <owner-seguridad> el 2026-01-15.
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/com\.ejemplo/artefacto@.*$</packageUrl>
+        <cve>CVE-2025-00000</cve>
+    </suppress>
+    -->
+
+    <!-- ================================================================
+         EJEMPLO 3 — Supresion por hash de archivo (maxima precision)
+         ----------------------------------------------------------------
+         Cuando se quiere suprimir exactamente un JAR concreto por su sha1.
+         (Plantilla comentada.)
+         ================================================================ -->
+    <!--
+    <suppress>
+        <notes><![CDATA[
+            FP confirmado sobre un JAR sombreado (shaded) especifico.
+            Aprobado por: equipo-seguridad.
+        ]]></notes>
+        <sha1>0000000000000000000000000000000000000000</sha1>
+        <cve>CVE-2025-00001</cve>
+    </suppress>
+    -->
+
+</suppressions>

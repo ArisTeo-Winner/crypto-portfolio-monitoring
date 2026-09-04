@@ -1,0 +1,239 @@
+// =============================================================================
+// Jenkinsfile.devsecops — pipeline SCA en dos velocidades
+// -----------------------------------------------------------------------------
+// Independiente del `Jenkinsfile` principal (Windows/bat + compose). Este esta
+// pensado para un agente LINUX con Docker (Trivy-via-docker + OWASP DC).
+//
+// DOS VELOCIDADES:
+//   * Por commit (gate ligero, siempre): Build+SBOM -> Docker -> Trivy (rompe
+//     el build ante HIGH/CRITICAL). Rapido, sin infra externa.
+//   * Deep SCA (nocturno o on-demand): OWASP Dependency-Check (NVD, lento) +
+//     subida del SBOM a Dependency-Track. Corre solo cuando lo dispara el cron
+//     nocturno o el parametro RUN_DEEP_SCA. La subida a DT es best-effort: si el
+//     servidor no esta arriba, marca el build UNSTABLE en vez de fallarlo.
+//
+// Plugins Jenkins requeridos:
+//   - OWASP Dependency-Check (dependencyCheckPublisher)  [solo deep]
+//   - HTTP Request           (httpRequest)               [solo deep, subida SBOM]
+//   - (opcional) SonarQube Scanner                        [placeholder]
+//
+// Credentials Jenkins usadas (crear en "Manage Credentials"):
+//   - nvd-api-key            (Secret text)  clave de API de la NVD          [deep]
+//   - dtrack-api-key         (Secret text)  API key de Dependency-Track     [deep]
+//   - dockerhub-creds        (Username/pwd) push al registry (placeholder)
+// =============================================================================
+
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk-21'
+        maven 'Maven 3.9.9'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    parameters {
+        booleanParam(
+            name: 'RUN_DEEP_SCA',
+            defaultValue: false,
+            description: 'Fuerza el SCA profundo (OWASP Dependency-Check + subida a Dependency-Track) fuera del schedule nocturno.')
+    }
+
+    triggers {
+        // Deep SCA nocturno (~3am, hora del agente). Los builds por commit no lo disparan.
+        cron('H 3 * * *')
+    }
+
+    environment {
+        IMAGE_NAME    = 'crypto-portfolio-monitoring'
+        IMAGE_TAG     = "${env.BUILD_NUMBER}"
+        IMAGE_REF     = "${IMAGE_NAME}:${IMAGE_TAG}"
+        DTRACK_URL    = 'http://localhost:8081'
+        // Umbral del gate de dependencias (coincide con failBuildOnCVSS del pom).
+        SCA_CVSS_GATE = '7'
+    }
+
+    stages {
+
+        stage('1 · Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // GATE LIGERO — corre en cada commit
+        // ---------------------------------------------------------------------
+
+        stage('2 · Build & SBOM') {
+            steps {
+                // El plugin cyclonedx (fase package) genera target/bom.json.
+                sh 'mvn -B clean package -DskipTests'
+            }
+            post {
+                success {
+                    archiveArtifacts artifacts: 'target/bom.json', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('3 · Docker Build') {
+            steps {
+                sh 'docker build -f Dockerfile.secure -t $IMAGE_REF .'
+            }
+        }
+
+        stage('4 · Trivy Image Scan (gate)') {
+            steps {
+                // Paso A: reporte HTML legible (no rompe el build).
+                sh '''
+                    docker run --rm \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v "$WORKSPACE":/workspace \
+                      -v trivy-cache:/root/.cache/ \
+                      aquasec/trivy:latest image \
+                        --scanners vuln,secret,config \
+                        --no-progress \
+                        --format template --template "@/contrib/html.tpl" \
+                        --output /workspace/trivy-report.html \
+                        --exit-code 0 \
+                        "$IMAGE_REF"
+                '''
+                // Paso B: gate — rompe el build ante HIGH/CRITICAL con fix disponible.
+                sh '''
+                    docker run --rm \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      -v trivy-cache:/root/.cache/ \
+                      aquasec/trivy:latest image \
+                        --scanners vuln,secret,config \
+                        --severity HIGH,CRITICAL \
+                        --ignore-unfixed \
+                        --no-progress \
+                        --exit-code 1 \
+                        "$IMAGE_REF"
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-report.html', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // DEEP SCA — solo nocturno (TimerTrigger) o manual (RUN_DEEP_SCA)
+        // ---------------------------------------------------------------------
+
+        stage('5 · OWASP Dependency-Check (deep)') {
+            when {
+                anyOf {
+                    triggeredBy 'TimerTrigger'
+                    expression { return params.RUN_DEEP_SCA }
+                }
+            }
+            steps {
+                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                    // Gate real: falla si CVSS >= SCA_CVSS_GATE (config del pom).
+                    sh '''
+                        mvn -B verify -DskipTests \
+                          -Ddependency-check.skip=false \
+                          -Dnvd.api.key=$NVD_API_KEY \
+                          -Dsca.failBuildOnCVSS=$SCA_CVSS_GATE
+                    '''
+                }
+            }
+            post {
+                always {
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    archiveArtifacts artifacts: 'target/dependency-check-report.*',
+                                     allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('6 · Upload SBOM → Dependency-Track (deep, best-effort)') {
+            when {
+                anyOf {
+                    triggeredBy 'TimerTrigger'
+                    expression { return params.RUN_DEEP_SCA }
+                }
+            }
+            steps {
+                script {
+                    if (!fileExists('target/bom.json')) {
+                        echo 'No hay target/bom.json; se omite la subida a Dependency-Track.'
+                        return
+                    }
+                    // Best-effort: si DT no esta arriba o falta la credencial, no se
+                    // rompe el build — se marca UNSTABLE y se continua.
+                    try {
+                        withCredentials([string(credentialsId: 'dtrack-api-key', variable: 'DTRACK_API_KEY')]) {
+                            def bom = readFile(file: 'target/bom.json').bytes.encodeBase64().toString()
+                            def payload = groovy.json.JsonOutput.toJson([
+                                projectName   : env.IMAGE_NAME,
+                                projectVersion: env.GIT_COMMIT ?: env.BUILD_NUMBER,
+                                autoCreate    : true,
+                                bom           : bom
+                            ])
+                            httpRequest(
+                                url: "${env.DTRACK_URL}/api/v1/bom",
+                                httpMode: 'PUT',
+                                contentType: 'APPLICATION_JSON',
+                                customHeaders: [[name: 'X-Api-Key', value: DTRACK_API_KEY, maskValue: true]],
+                                requestBody: payload,
+                                validResponseCodes: '200:299',
+                                timeout: 20
+                            )
+                            echo "SBOM subido a Dependency-Track (${env.DTRACK_URL})."
+                        }
+                    } catch (err) {
+                        echo "Dependency-Track no disponible o credencial ausente; se continua sin bloquear. Detalle: ${err.message}"
+                        unstable('Subida de SBOM a Dependency-Track fallo (best-effort).')
+                    }
+                }
+            }
+        }
+
+        stage('7 · SonarQube Analysis') {
+            // Placeholder listo para activar cuando exista el servidor Sonar.
+            when { expression { return false } }
+            steps {
+                echo 'SonarQube deshabilitado (placeholder).'
+                // withSonarQubeEnv('sonarqube') {
+                //     sh 'mvn -B sonar:sonar -Dsonar.projectKey=crypto-portfolio-monitoring'
+                // }
+            }
+        }
+
+        stage('8 · Push Docker Image') {
+            // Placeholder: activar cuando exista el registry destino.
+            when { expression { return false } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
+                    sh '''
+                        echo "$REG_PASS" | docker login -u "$REG_USER" --password-stdin
+                        docker tag  "$IMAGE_REF" "$REG_USER/$IMAGE_REF"
+                        docker push "$REG_USER/$IMAGE_REF"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'target/*.jar, target/bom.json, target/dependency-check-report.*, trivy-report.html',
+                             allowEmptyArchive: true
+            cleanWs()
+        }
+        success { echo 'DevSecOps pipeline OK.' }
+        unstable { echo 'DevSecOps pipeline UNSTABLE — revisar la subida a Dependency-Track.' }
+        failure { echo 'DevSecOps pipeline FALLO — revisar reportes SCA/Trivy.' }
+    }
+}

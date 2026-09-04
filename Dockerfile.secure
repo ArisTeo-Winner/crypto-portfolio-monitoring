@@ -1,0 +1,65 @@
+# =============================================================================
+# Dockerfile.secure — imagen endurecida (hardened) para crypto-portfolio-monitoring
+# -----------------------------------------------------------------------------
+# Variante endurecida y drop-in del `dockerfile` actual. NO lo reemplaza:
+# para usarla, apuntar el servicio java_app de docker-compose a este archivo:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile.secure
+#
+# Buenas practicas aplicadas:
+#   - Multi-stage build (JDK solo en build; runtime minimo con JRE).
+#   - Imagen base minima (alpine) para reducir superficie de ataque.
+#   - Usuario NO-root (appuser, UID/GID 1001).
+#   - Healthcheck contra el actuator.
+#   - Solo expone el puerto 8080.
+#   - Cache de dependencias Maven en capa separada.
+# =============================================================================
+
+# ---------- Stage 1: build (Maven wrapper + JDK) ----------
+FROM eclipse-temurin:21-jdk-alpine AS build
+WORKDIR /app
+
+# Copiar primero el wrapper y el pom para cachear la resolucion de dependencias.
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
+
+# Copiar el codigo y empaquetar (los tests corren en el pipeline, no aqui).
+COPY src/ src/
+RUN ./mvnw -B clean package -DskipTests \
+    && cp target/*.jar /app/app.jar
+
+# ---------- Stage 2: runtime (solo JRE, sin herramientas de build) ----------
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+# Metadatos de la imagen (OCI labels).
+LABEL org.opencontainers.image.title="crypto-portfolio-monitoring" \
+      org.opencontainers.image.description="Backend Spring Boot de monitoreo de portafolio cripto/stock" \
+      org.opencontainers.image.vendor="com.mx" \
+      org.opencontainers.image.licenses="Proprietary" \
+      org.opencontainers.image.source="https://github.com/ArisTeo-Winner/crypto-portfolio-monitoring" \
+      security.hardening="non-root,minimal-base,healthcheck"
+
+WORKDIR /app
+
+# Usuario/grupo no-root fijo (UID/GID 1001).
+RUN addgroup -S -g 1001 appuser \
+    && adduser -S -u 1001 -G appuser -h /app appuser
+
+# Copiar el artefacto con propiedad del usuario no-root.
+COPY --from=build --chown=appuser:appuser /app/app.jar /app/app.jar
+
+USER appuser
+
+# Zona horaria y opciones de JVM sensibles a contenedores.
+ENV JAVA_TOOL_OPTIONS="-Duser.timezone=UTC" \
+    JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -XX:+UseContainerSupport"
+
+EXPOSE 8080
+
+# Healthcheck contra el actuator (busybox wget viene en la base alpine).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD wget -q -O - "http://127.0.0.1:8080/actuator/health" | grep -q '"status":"UP"' || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar --server.port=${PORT:-8080}"]
