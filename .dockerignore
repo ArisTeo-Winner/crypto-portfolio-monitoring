@@ -5,10 +5,11 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 
 # Secretos y config local — nunca deben entrar al contexto de build.
+# OJO: application.properties NO se excluye — es la config base (solo ${ENV},
+# sin secretos) y debe viajar en la imagen. Los secretos reales van por env vars.
 .env
 .env.*
 docker_env.txt
-src/main/resources/application.properties
 
 # Control de versiones e IDE.
 .git/

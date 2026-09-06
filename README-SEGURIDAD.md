@@ -6,14 +6,44 @@ Software Composition Analysis (SCA) en 3 capas complementarias para
 | Capa | Herramienta | Qué escanea | Cuándo | Gate |
 |---|---|---|---|---|
 | 0 | **GitHub Dependabot** | Dependencias Maven, imágenes Docker, GitHub Actions | Continuo (en el repo) | PRs de actualización + alertas |
-| 1 | **OWASP Dependency-Check** (Maven) | Dependencias (CVEs vía NVD) | `mvn verify` / pipeline | Falla si **CVSS ≥ 7** |
+| 1 | **OWASP Dependency-Check** (Maven) | Dependencias (CVEs vía NVD) | nightly / manual | **Report-only** (visibilidad, no bloquea) |
 | 2 | **Trivy** | Imagen Docker: OS Alpine, libs, secretos, misconfig | Post-build en el pipeline | Falla si **HIGH/CRITICAL** |
 | 3 | **OWASP Dependency-Track** | Monitoreo continuo del SBOM (CycloneDX) | Continuo (dashboard) | Alertas de nuevos CVEs |
 
 **Cómo encajan las capas:** Dependabot **previene** (mantiene las versiones al día
-antes de que el CVE llegue al build); Dependency-Check **bloquea** en el build;
-Trivy cubre la **capa del contenedor** (que Dependabot y Dependency-Check no ven);
-Dependency-Track da **visibilidad continua** del SBOM ya desplegado.
+antes de que el CVE llegue al build) y **abre los PRs de fix**; **Trivy** es el
+**gate real de merge** (capa del contenedor, que Dependabot y DC no ven);
+Dependency-Check **reporta** (visibilidad — ya **no bloquea**, ver *Calibración
+del gate*); Dependency-Track da **visibilidad continua** del SBOM ya desplegado.
+
+---
+
+## Calibración del gate (por qué Dependency-Check es report-only)
+
+Correr Dependency-Check con **"fallar en CVSS ≥ 7" (y luego ≥ 9) sobre todo el
+árbol transitivo** resultó **insostenible** para un proyecto solo / pre-launch:
+la NVD asigna a diario decenas de CVEs 2026 a transitivas **core del framework**
+(`spring-core`, `spring-web`, `spring-security`, `tomcat-embed-core`, `netty`)
+que la **última** Spring Boot ya incluye y que **aún no tienen fix publicado**.
+No se pueden remediar bumpeando (ya estás en la última), y varios son falsos
+positivos de CPE amplio (`vmware`/`springsource`/`pivotal_software`).
+
+**Decisión (2026-09-05):** el gate de merge **no** lo pone Dependency-Check.
+
+| Herramienta | Rol | ¿Bloquea el merge? |
+|---|---|---|
+| **Trivy** (imagen, cada PR) | Gate real | ✅ Sí (HIGH/CRITICAL, `--ignore-unfixed`) |
+| **Dependabot** | Sube el fix cuando el upstream lo publica | — (abre PRs) |
+| **Dependency-Check** | Reporte nightly + SBOM | ❌ Report-only (`sca.failBuildOnCVSS=11`) |
+
+**Lo que SÍ remediamos a mano** (deps directas / de primera línea que controlamos):
+Polygon SDK (removido — traía kotlin/ktor 9.8), HttpComponents (5.6.4 / 5.4.3),
+jackson (2.21.4), postgresql (42.7.x) y org.json (20240303), Spring Boot (3.5.14).
+Los CVEs **transitivos del framework** se resuelven vía **Dependabot** cuando
+Spring Boot publique el patch.
+
+**Para re-endurecer el gate** (cuando haya usuarios reales guardando API secrets):
+subir `sca.failBuildOnCVSS` de `11` a `9` o `7` en el `pom.xml`.
 
 ---
 
@@ -245,6 +275,49 @@ Los runners de GitHub son **efímeros en la nube** y **no alcanzan un
 no defines `DTRACK_URL`/`DTRACK_API_KEY`, **se omite** y el SBOM queda archivado
 como artefacto del workflow. Para usar DT de verdad desde Actions, **hostéalo
 público** (p. ej. en Render, coherente con tu stack) o usa un self-hosted runner.
+
+> **Decisión actual: Dependency-Track corre local, on-demand.** El apiserver pide
+> ≥4 GB de RAM → no hay tier gratis que lo aguante, y hostearlo always-on no se
+> justifica en pre-launch (Dependabot ya cubre el monitoreo continuo). Se levanta
+> localmente cuando se quiere el dashboard y se sube el SBOM a mano (ver Capa 3).
+> El carril profundo lo deja opcional a propósito: reevaluar al ir a producción.
+
+---
+
+## Flujo de branching oficial
+
+`master` es la rama **protegida y siempre desplegable** (Render despliega desde
+ahí). **Ningún cambio entra por push directo**: todo pasa por **Pull Request** con
+el gate de seguridad en verde. Así el pipeline DevSecOps *bloquea de verdad* — un
+push directo correría Trivy *después* del merge, demasiado tarde.
+
+### Reglas (`Settings → Rules → Rulesets`, target `master`)
+- **Block force pushes** + **Restrict deletions** — no se reescribe ni se borra la historia.
+- **Require a pull request** con **0 approvals** — todo entra por PR, sin bloquear al autor único.
+- **Require status checks to pass** → `security-fast` — Trivy en rojo = no merge.
+
+### El flujo
+
+```
+feature/*  ──push directo libre──►  (iteras rápido, sin fricción)
+    │
+    └─ Pull Request → master
+         ├─ security-fast (Trivy + SBOM) corre y DEBE pasar   ← gate de merge
+         ├─ 0 approvals (autor único no se bloquea a sí mismo)
+         └─ merge cuando verde → master limpio → Render despliega código vetado
+```
+
+### Por qué así
+- **El gate solo gatea en el PR.** Require PR es lo único que vuelve real el gate;
+  con push directo, el escaneo llega tarde.
+- **Feature branches sin restricción.** El Ruleset protege solo `master`; en
+  `feature/*` haces `git push` directo cuanto quieras. La disciplina aplica solo en
+  el merge final. Cero fricción diaria.
+- **El carril profundo (Dependency-Check + Dependency-Track) NO gatea PRs** — corre
+  nightly. No quieres esperar la descarga de la NVD en cada merge.
+- **Seguridad real, no decorativa.** Dado que el sistema guardará API secrets de
+  exchanges, que a `master` (y por ende a Render) solo llegue código que pasó el
+  gate no es cosmético: es parte de la postura de seguridad.
 
 ---
 

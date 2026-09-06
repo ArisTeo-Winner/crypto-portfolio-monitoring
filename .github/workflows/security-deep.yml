@@ -40,14 +40,17 @@ jobs:
           restore-keys: |
             nvd-data-
 
-      - name: OWASP Dependency-Check (gate CVSS >= 7)
+      # DC en report-only: hereda sca.failBuildOnCVSS=11 del pom (no rompe el build).
+      # -Djacoco.skip evita el gate de cobertura (que fallaria con -DskipTests); el
+      # SBOM se genera en la fase package (plugin cyclonedx). El gate REAL vive en el
+      # carril rapido (Trivy) y en Dependabot.
+      - name: OWASP Dependency-Check + SBOM (report-only)
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
-          mvn -B verify -DskipTests \
+          mvn -B verify -DskipTests -Djacoco.skip=true \
             -Ddependency-check.skip=false \
-            -Dnvd.api.key="$NVD_API_KEY" \
-            -Dsca.failBuildOnCVSS=7
+            -Dnvd.api.key="$NVD_API_KEY"
 
       - name: Upload Dependency-Check reports
         if: always()

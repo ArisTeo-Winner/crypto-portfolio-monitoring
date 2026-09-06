@@ -47,8 +47,9 @@ backup_*.sql
 logsTest/
 Query/
 
-# Evita subir credenciales
-src/main/resources/application.properties
+# NOTA: application.properties NO se ignora: es la config BASE (sin secretos,
+# solo placeholders ${ENV}) que Spring carga siempre. Los secretos reales van
+# en .env (ignorado abajo) e ingresan como variables de entorno en runtime.
 
 /Description_of_Directories_and_Files.txt
 #### Variables de Entorno ### 
