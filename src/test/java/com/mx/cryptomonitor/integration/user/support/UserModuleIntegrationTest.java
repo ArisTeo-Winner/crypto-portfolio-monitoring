@@ -29,7 +29,9 @@ import com.mx.cryptomonitor.CryptoPortfolioMonitoringApplication;
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
 import com.mx.cryptomonitor.user.application.dto.request.UserRegistrationRequest;
 import com.mx.cryptomonitor.user.domain.model.Role;
+import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.RoleRepository;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 import com.redis.testcontainers.RedisContainer;
 
 /**
@@ -107,6 +109,8 @@ public abstract class UserModuleIntegrationTest {
 
   @Autowired private RoleRepository roleRepository;
 
+  @Autowired private UserRepository userRepository;
+
   // -------------------------------------------------------------------------
   // Lifecycle
   // -------------------------------------------------------------------------
@@ -180,6 +184,74 @@ public abstract class UserModuleIntegrationTest {
             : "";
 
     return new Tokens(accessToken, refreshToken);
+  }
+
+  /**
+   * Registers a fresh user, promotes it to {@code ROLE_ADMIN} in the database, and logs in. The
+   * authorities are reloaded from the DB on every request, so the returned token carries ADMIN.
+   *
+   * @return the access token of an admin user (refresh token is not needed here)
+   */
+  protected Tokens registerAndLoginAsAdmin() throws Exception {
+    Role adminRole =
+        roleRepository
+            .findByName("ROLE_ADMIN")
+            .orElseGet(
+                () ->
+                    roleRepository.save(
+                        Role.builder()
+                            .name("ROLE_ADMIN")
+                            .description("Administrator role")
+                            .build()));
+
+    String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+    String email = "admin_" + suffix + "@test.local";
+    String password = "StrongP@ssw0rd!2026";
+
+    UserRegistrationRequest registration =
+        new UserRegistrationRequest(
+            "admin_" + suffix,
+            email,
+            password,
+            "Admin",
+            "User",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registration)))
+        .andExpect(status().isCreated());
+
+    User user =
+        userRepository
+            .findByEmailIgnoreCase(email)
+            .orElseThrow(() -> new AssertionError("Admin user not persisted"));
+    user.addRole(adminRole);
+    userRepository.save(user);
+
+    MvcResult loginResult =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").isNotEmpty())
+            .andReturn();
+
+    String accessToken =
+        JsonPath.read(loginResult.getResponse().getContentAsString(), "$.accessToken");
+    return new Tokens(accessToken, "");
   }
 
   /** Access and refresh tokens returned by the login endpoint. */

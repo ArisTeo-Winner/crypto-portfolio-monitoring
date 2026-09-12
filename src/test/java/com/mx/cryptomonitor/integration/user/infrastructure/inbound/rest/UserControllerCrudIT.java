@@ -994,13 +994,13 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
   class GetByEmail {
 
     @Test
-    @DisplayName("200 — devuelve datos del usuario sin exponer password")
+    @DisplayName("200 — ADMIN obtiene datos del usuario sin exponer password")
     void getByEmail_found_returns200() throws Exception {
-      Tokens tokens = registerAndLogin();
-      String email = JsonPath.read(getMe(tokens), "$.email");
+      Tokens admin = registerAndLoginAsAdmin();
+      String email = JsonPath.read(getMe(admin), "$.email");
 
       mockMvc
-          .perform(get(BASE + "/{email}", email).header("Authorization", bearer(tokens)))
+          .perform(get(BASE + "/{email}", email).header("Authorization", bearer(admin)))
           .andExpect(status().isOk())
           .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
           .andExpect(jsonPath("$.email").value(email))
@@ -1011,15 +1011,26 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     }
 
     @Test
-    @DisplayName("404 — email que no existe")
+    @DisplayName("404 — ADMIN con email que no existe")
     void getByEmail_notFound_returns404() throws Exception {
-      Tokens tokens = registerAndLogin();
+      Tokens admin = registerAndLoginAsAdmin();
 
       mockMvc
           .perform(
               get(BASE + "/{email}", "nobody_" + UUID.randomUUID() + "@test.local")
-                  .header("Authorization", bearer(tokens)))
+                  .header("Authorization", bearer(admin)))
           .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("403 — ROLE_USER no puede consultar a otros por email (BOLA)")
+    void getByEmail_roleUser_returns403() throws Exception {
+      Tokens user = registerAndLogin();
+      String email = JsonPath.read(getMe(user), "$.email");
+
+      mockMvc
+          .perform(get(BASE + "/{email}", email).header("Authorization", bearer(user)))
+          .andExpect(status().isForbidden());
     }
 
     @Test
@@ -1031,14 +1042,14 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
     }
 
     @Test
-    @DisplayName("búsqueda case-insensitive por email")
+    @DisplayName("ADMIN — búsqueda case-insensitive por email")
     void getByEmail_caseInsensitive_found() throws Exception {
-      Tokens tokens = registerAndLogin();
-      String email = JsonPath.read(getMe(tokens), "$.email");
+      Tokens admin = registerAndLoginAsAdmin();
+      String email = JsonPath.read(getMe(admin), "$.email");
       String upperEmail = email.toUpperCase();
 
       mockMvc
-          .perform(get(BASE + "/{email}", upperEmail).header("Authorization", bearer(tokens)))
+          .perform(get(BASE + "/{email}", upperEmail).header("Authorization", bearer(admin)))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.email").isNotEmpty());
     }
@@ -1053,31 +1064,51 @@ class UserControllerCrudIT extends UserModuleIntegrationTest {
   class DeleteById {
 
     @Test
-    @DisplayName("200 — elimina el usuario existente de la base de datos")
+    @DisplayName("200 — ADMIN elimina a otro usuario existente de la base de datos")
     void deleteById_existingUser_removes() throws Exception {
-      Tokens tokens = registerAndLogin();
-      String email = JsonPath.read(getMe(tokens), "$.email");
-      User user =
+      Tokens admin = registerAndLoginAsAdmin();
+      Tokens victim = registerAndLogin();
+      String victimEmail = JsonPath.read(getMe(victim), "$.email");
+      User victimUser =
           userRepository
-              .findByEmailIgnoreCase(email)
+              .findByEmailIgnoreCase(victimEmail)
               .orElseThrow(() -> new AssertionError("Usuario no encontrado"));
 
       mockMvc
-          .perform(delete(BASE + "/{id}", user.getId()).header("Authorization", bearer(tokens)))
+          .perform(
+              delete(BASE + "/{id}", victimUser.getId()).header("Authorization", bearer(admin)))
           .andExpect(status().isOk());
 
-      assertThat(userRepository.findById(user.getId())).isEmpty();
+      assertThat(userRepository.findById(victimUser.getId())).isEmpty();
     }
 
     @Test
-    @DisplayName("404 — UUID que no existe en la base de datos")
+    @DisplayName("404 — ADMIN con UUID que no existe en la base de datos")
     void deleteById_notFound_returns404() throws Exception {
-      Tokens tokens = registerAndLogin();
+      Tokens admin = registerAndLoginAsAdmin();
+
+      mockMvc
+          .perform(delete(BASE + "/{id}", UUID.randomUUID()).header("Authorization", bearer(admin)))
+          .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("403 — ROLE_USER no puede borrar cuentas por id (BOLA/función admin)")
+    void deleteById_roleUser_returns403() throws Exception {
+      Tokens attacker = registerAndLogin();
+      Tokens victim = registerAndLogin();
+      String victimEmail = JsonPath.read(getMe(victim), "$.email");
+      User victimUser =
+          userRepository
+              .findByEmailIgnoreCase(victimEmail)
+              .orElseThrow(() -> new AssertionError("Usuario no encontrado"));
 
       mockMvc
           .perform(
-              delete(BASE + "/{id}", UUID.randomUUID()).header("Authorization", bearer(tokens)))
-          .andExpect(status().isNotFound());
+              delete(BASE + "/{id}", victimUser.getId()).header("Authorization", bearer(attacker)))
+          .andExpect(status().isForbidden());
+
+      assertThat(userRepository.findById(victimUser.getId())).isPresent();
     }
 
     @Test

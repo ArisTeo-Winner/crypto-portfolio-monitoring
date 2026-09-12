@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.integration.user.infrastructure.inbound.rest;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -8,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -165,5 +168,63 @@ class UserControllerAccessControlSecurityIT {
         .perform(get("/api/v1/users").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].email").value("admin@test.com"));
+  }
+
+  // --- Regresión IDOR / clase Saberes MX: borrar y leer usuarios ajenos exige ADMIN ---
+
+  @Test
+  @WithMockUser(username = "user@test.com", roles = "USER")
+  void deleteUserWithUserRoleShouldReturn403() throws Exception {
+    mockMvc
+        .perform(delete("/api/v1/users/{id}", UUID.randomUUID()).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+  }
+
+  @Test
+  @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+  void deleteUserWithAdminRoleShouldReturn200() throws Exception {
+    mockMvc.perform(delete("/api/v1/users/{id}", UUID.randomUUID())).andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser(username = "user@test.com", roles = "USER")
+  void getUserByEmailWithUserRoleShouldReturn403() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/users/{email}", "victim@test.com").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+  }
+
+  @Test
+  @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+  void getUserByEmailWithAdminRoleShouldReturn200() throws Exception {
+    when(userService.findByEmail("target@test.com"))
+        .thenReturn(
+            Optional.of(
+                new UserResponse(
+                    "target_user",
+                    "target@test.com",
+                    "Target",
+                    "User",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    true,
+                    LocalDateTime.now(),
+                    null,
+                    null,
+                    null)));
+
+    mockMvc
+        .perform(get("/api/v1/users/{email}", "target@test.com").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value("target@test.com"));
   }
 }

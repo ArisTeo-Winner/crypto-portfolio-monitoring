@@ -11,6 +11,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -33,6 +34,9 @@ import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
+// Activa @PreAuthorize; sin esto todas las anotaciones de seguridad de metodo se ignoran en
+// silencio.
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
   // 'unsafe-inline' eliminado de script-src — un API REST no debe ejecutar scripts inline.
@@ -102,7 +106,6 @@ public class SecurityConfig {
               authorizeRequests
                   .requestMatchers(
                       "/api/v1/auth/login",
-                      "/api/v1/users/{id}/test",
                       "/api/v1/users/register",
                       "/api/v1/users/password/reset",
                       "/api/v1/users/email/verify",
@@ -110,8 +113,6 @@ public class SecurityConfig {
                       "/api/v1/marketdata/**",
                       "/api/v1/marketdata/stock/historical/{symbol}/{date}",
                       "/api/v1/auth/logout",
-                      "/api/v1/users/public/test-get",
-                      "/api/v1/users/public/test-post",
                       "/oauth/authorize/**",
                       "/oauth/callback/**",
                       "/api/v1/assets",
@@ -137,9 +138,6 @@ public class SecurityConfig {
               authorizeRequests.requestMatchers("/api/v1/roles/**").hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/users").hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/users/me").hasRole("USER");
-              authorizeRequests
-                  .requestMatchers("/api/v1/users/{id:\\d+}")
-                  .hasAuthority("USER:DELETE");
               authorizeRequests.requestMatchers("/api/v1/me/portfolio/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/transactions/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/sessions/**").hasRole("USER");

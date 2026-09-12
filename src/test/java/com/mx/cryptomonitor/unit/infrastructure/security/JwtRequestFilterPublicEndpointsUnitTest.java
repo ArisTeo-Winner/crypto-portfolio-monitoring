@@ -43,30 +43,6 @@ class JwtRequestFilterPublicEndpointsUnitTest {
   }
 
   @Test
-  void publicEndpointMustBypassJwtProcessing_usersPublicTestGet() throws Exception {
-    JwtRequestFilter filter = new JwtRequestFilter();
-
-    UserRepository userRepository = mock(UserRepository.class);
-    UserDetailsService userDetailsService = mock(UserDetailsService.class);
-    JwtTokenUtil jwtTokenUtil = mock(JwtTokenUtil.class);
-    SessionRepository sessionRepository = mock(SessionRepository.class);
-
-    ReflectionTestUtils.setField(filter, "userRepository", userRepository);
-    ReflectionTestUtils.setField(filter, "userDetailsService", userDetailsService);
-    ReflectionTestUtils.setField(filter, "jwtTokenUtil", jwtTokenUtil);
-    ReflectionTestUtils.setField(filter, "sessionRepository", sessionRepository);
-
-    MockHttpServletRequest request =
-        new MockHttpServletRequest("GET", "/api/v1/users/public/test-get");
-    MockHttpServletResponse response = new MockHttpServletResponse();
-    FilterChain chain = new MockFilterChain();
-
-    filter.doFilter(request, response, chain);
-
-    verifyNoInteractions(userRepository, userDetailsService, jwtTokenUtil, sessionRepository);
-  }
-
-  @Test
   void publicEndpointPatternMustBypassJwtProcessing_cryptoWildcard() throws Exception {
     JwtRequestFilter filter = new JwtRequestFilter();
 
