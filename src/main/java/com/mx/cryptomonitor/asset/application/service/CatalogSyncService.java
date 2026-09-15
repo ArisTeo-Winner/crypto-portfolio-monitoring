@@ -1,21 +1,27 @@
 package com.mx.cryptomonitor.asset.application.service;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.application.port.out.CryptoLogoPort;
 import com.mx.cryptomonitor.asset.application.port.out.IpoCalendarPort;
 import com.mx.cryptomonitor.asset.application.port.out.IpoCalendarPort.IpoEntry;
 import com.mx.cryptomonitor.asset.application.port.out.LogoResolverPort;
@@ -29,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class CatalogSyncService {
+public class CatalogSyncService implements AssetCatalogRefreshPort {
 
   private static final Logger log = LoggerFactory.getLogger(CatalogSyncService.class);
 
@@ -105,9 +111,17 @@ public class CatalogSyncService {
   private final LogoResolverPort logoResolver;
   private final StockProfilePort stockProfilePort;
   private final IpoCalendarPort ipoCalendarPort;
+  private final CryptoLogoPort cryptoLogoPort;
 
   @Value("${finnhub.rate-limit.delay-ms:1100}")
   private long finnhubRateLimitDelayMs;
+
+  // Ventana durante la cual un logo provisional (fallback determinista) no vuelve a preguntar al
+  // proveedor primario. Al vencer, el siguiente acceso reintenta y hace auto-upgrade si el
+  // proveedor
+  // ya responde. Evita golpear al proveedor en cada lectura para activos sin logo autoritativo.
+  @Value("${catalog.icon.fallback-retry-after:PT6H}")
+  private Duration fallbackRetryAfter;
 
   @Scheduled(cron = "0 0 0 * * MON")
   public void syncWeekly() {
@@ -238,8 +252,12 @@ public class CatalogSyncService {
     String searchKey = "catalog:search:" + type.toLowerCase(Locale.ROOT);
     String top10Key = "catalog:top10:" + type.toLowerCase(Locale.ROOT);
     int resolvedFromFinnhub = 0;
+    Map<String, String> cryptoLogos =
+        "crypto".equalsIgnoreCase(type)
+            ? cryptoLogoPort.fetchLogosBySymbol(data.stream().map(AssetCatalogDto::symbol).toList())
+            : Map.of();
     for (int i = 0; i < data.size(); i++) {
-      AssetCatalogDto dto = enrichDto(data.get(i));
+      AssetCatalogDto dto = enrichDto(data.get(i), cryptoLogos);
       if ("STOCK".equals(dto.assetType()) && dto.logoUrl() != null) {
         resolvedFromFinnhub++;
       }
@@ -259,9 +277,12 @@ public class CatalogSyncService {
     }
   }
 
-  private AssetCatalogDto enrichDto(AssetCatalogDto dto) {
+  private AssetCatalogDto enrichDto(AssetCatalogDto dto, Map<String, String> cryptoLogos) {
     if ("STOCK".equals(dto.assetType())) {
       return enrichStock(dto);
+    }
+    if ("CRYPTO".equals(dto.assetType())) {
+      return enrichCrypto(dto, cryptoLogos);
     }
     String logoUrl = resolveLogoUrl(dto.symbol(), dto.assetType(), dto.currency());
     if (logoUrl == null || logoUrl.equals(dto.logoUrl())) {
@@ -272,6 +293,25 @@ public class CatalogSyncService {
         dto.name(),
         dto.assetType(),
         logoUrl,
+        dto.exchange(),
+        dto.currency(),
+        dto.marketCap());
+  }
+
+  /**
+   * CRYPTO: logo real de CoinGecko ({@code /coins/markets}, campo {@code image}). Fallback al valor
+   * previo (jsDelivr de {@code STATIC_CRYPTOS}) cuando CoinGecko no devuelve imagen o falla.
+   */
+  private AssetCatalogDto enrichCrypto(AssetCatalogDto dto, Map<String, String> cryptoLogos) {
+    String coinGeckoLogo = cryptoLogos.get(dto.symbol().toUpperCase(Locale.ROOT));
+    if (coinGeckoLogo == null || coinGeckoLogo.isBlank() || coinGeckoLogo.equals(dto.logoUrl())) {
+      return dto;
+    }
+    return new AssetCatalogDto(
+        dto.symbol(),
+        dto.name(),
+        dto.assetType(),
+        coinGeckoLogo,
         dto.exchange(),
         dto.currency(),
         dto.marketCap());
@@ -310,12 +350,192 @@ public class CatalogSyncService {
     }
   }
 
+  /**
+   * Pull-once: cataloga el ícono de un símbolo aún no resuelto, en background. No-op si ya tiene
+   * logo o si está marcado {@code NONE} (cache de negativos). Resuelve por tipo (CRYPTO →
+   * CoinGecko; STOCK → Finnhub, con fallback determinista) y hace upsert en DB + Redis; si no hay
+   * logo posible, marca {@code NONE} para no reintentar. Best-effort: cualquier fallo se traga
+   * (DiscardPolicy).
+   */
+  @Async("assetIconExecutor")
+  @Override
+  public void ensureIconCatalogued(String symbol, String assetType) {
+    resolveAndCacheOne(symbol, assetType);
+  }
+
+  @Override
+  public Map<String, String> resolveMissingIcons(Map<String, String> symbolToType) {
+    if (symbolToType == null || symbolToType.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, String> resolved = new HashMap<>();
+    symbolToType.forEach(
+        (symbol, type) -> {
+          if (symbol == null || symbol.isBlank()) {
+            return;
+          }
+          String upper = symbol.trim().toUpperCase(Locale.ROOT);
+          if (resolved.containsKey(upper)) {
+            return;
+          }
+          String url = resolveAndCacheOne(upper, type);
+          if (url != null && !url.isBlank()) {
+            resolved.put(upper, url);
+          }
+        });
+    return resolved;
+  }
+
+  /**
+   * Núcleo pull-once para un símbolo: no-op si ya está resuelto o marcado NONE (cache de
+   * negativos); si no, resuelve por tipo (CRYPTO → CoinGecko → jsDelivr; STOCK → Finnhub →
+   * CompaniesLogo) y hace upsert (RESOLVED o NONE). Devuelve la URL del logo o {@code null} si no
+   * hay logo posible.
+   */
+  private String resolveAndCacheOne(String symbol, String assetType) {
+    if (symbol == null || symbol.isBlank() || assetType == null || assetType.isBlank()) {
+      return null;
+    }
+    String upper = symbol.trim().toUpperCase(Locale.ROOT);
+    String type = assetType.trim().toUpperCase(Locale.ROOT);
+
+    Optional<AssetCatalogEntity> existing = catalogRepository.findById(upper);
+    if (existing.isPresent()) {
+      AssetCatalogEntity entity = existing.get();
+      if ("NONE".equals(entity.getLogoStatus())) {
+        return null; // cache de negativos: no hay logo posible
+      }
+      boolean hasLogo = entity.getLogoUrl() != null && !entity.getLogoUrl().isBlank();
+      if (hasLogo && !isProvisional(entity, type)) {
+        return entity.getLogoUrl(); // logo autoritativo del proveedor: resuelto para siempre
+      }
+      // El throttle solo aplica a filas FALLBACK (el proveedor primario ya se intentó y falló hace
+      // poco), no a las provisionales-por-heurística (jsDelivr marcado RESOLVED por migración,
+      // nunca
+      // intentado por este path): esas se upgradean en el primer acceso, sin esperar la ventana.
+      if (hasLogo && "FALLBACK".equals(entity.getLogoStatus()) && !fallbackRetryDue(entity)) {
+        return entity
+            .getLogoUrl(); // ya intentado y fallido dentro de la ventana: aun no repreguntar
+      }
+      // provisional elegible para upgrade (o sin logo aun): se recae al proveedor primario abajo,
+      // para hacer auto-upgrade del fallback al logo autoritativo en cuanto el proveedor responda.
+    }
+
+    AssetCatalogDto base =
+        existing
+            .map(
+                e ->
+                    new AssetCatalogDto(
+                        e.getSymbol(),
+                        e.getName(),
+                        e.getAssetType(),
+                        e.getLogoUrl(),
+                        e.getExchange(),
+                        e.getCurrency(),
+                        e.getMarketCap()))
+            .orElseGet(() -> new AssetCatalogDto(upper, upper, type, null, null, null, null));
+
+    IconResolution resolution =
+        switch (type) {
+          case "CRYPTO" -> resolveCryptoLogoOnDemand(base, upper);
+          case "STOCK" -> resolveStockLogoOnDemand(base, upper);
+          default -> new IconResolution(
+              base, base.logoUrl() != null && !base.logoUrl().isBlank() ? "RESOLVED" : "NONE");
+        };
+
+    AssetCatalogDto resolved = resolution.dto();
+    if (resolved.logoUrl() == null || resolved.logoUrl().isBlank()) {
+      // Sin logo posible: marca NONE (cache de negativos) para no reintentar en cada request.
+      catalogRepository.save(toEntity(resolved, "NONE"));
+      return null;
+    }
+
+    catalogRepository.save(toEntity(resolved, resolution.status()));
+    redisService.saveEntry(resolved);
+    if ("RESOLVED".equals(resolution.status())) {
+      log.info("CatalogSync: icono resuelto on-demand para {} ({})", upper, type);
+    } else {
+      log.info(
+          "CatalogSync: icono provisional (fallback) para {} ({}); se reintentara el proveedor",
+          upper,
+          type);
+    }
+    return resolved.logoUrl();
+  }
+
+  /**
+   * CRYPTO on-demand: CoinGecko primario ({@code RESOLVED}) → jsDelivr determinista como fallback
+   * provisional ({@code FALLBACK}), que se auto-actualiza a CoinGecko en un acceso posterior.
+   */
+  private IconResolution resolveCryptoLogoOnDemand(AssetCatalogDto base, String symbol) {
+    String coinGecko = cryptoLogoPort.fetchLogosBySymbol(List.of(symbol)).get(symbol);
+    if (coinGecko != null && !coinGecko.isBlank()) {
+      return new IconResolution(withLogo(base, coinGecko), "RESOLVED");
+    }
+    return new IconResolution(withLogo(base, cryptoIconUrl(symbol)), "FALLBACK");
+  }
+
+  private IconResolution resolveStockLogoOnDemand(AssetCatalogDto base, String symbol) {
+    AssetCatalogDto enriched = enrichStock(base);
+    if (enriched.logoUrl() != null && !enriched.logoUrl().isBlank()) {
+      return new IconResolution(enriched, "RESOLVED");
+    }
+    // CompaniesLogo es determinista y estable para STOCK: se trata como autoritativo (sin reintento
+    // bloqueante contra Finnhub en el hot path por su rate limit de 60 req/min).
+    return new IconResolution(withLogo(enriched, logoResolver.buildLogoUrl(symbol)), "RESOLVED");
+  }
+
+  /**
+   * Un logo es provisional cuando NO proviene del proveedor autoritativo sino de un fallback
+   * determinista (jsDelivr para CRYPTO). Se marca {@code logo_status=FALLBACK}, pero también se
+   * detecta por la URL para filas escritas antes de introducir ese estado (auto-upgrade
+   * retroactivo).
+   */
+  private boolean isProvisional(AssetCatalogEntity entity, String type) {
+    if ("FALLBACK".equals(entity.getLogoStatus())) {
+      return true;
+    }
+    return "CRYPTO".equals(type)
+        && entity.getLogoUrl() != null
+        && entity.getLogoUrl().startsWith(CRYPTO_ICON_BASE);
+  }
+
+  /** ¿Toca reintentar el proveedor primario para un logo provisional? (throttle por ventana). */
+  private boolean fallbackRetryDue(AssetCatalogEntity entity) {
+    if (fallbackRetryAfter == null
+        || fallbackRetryAfter.isZero()
+        || fallbackRetryAfter.isNegative()) {
+      return true;
+    }
+    OffsetDateTime checkedAt = entity.getLogoCheckedAt();
+    if (checkedAt == null) {
+      return true;
+    }
+    return checkedAt.isBefore(OffsetDateTime.now(ZoneOffset.UTC).minus(fallbackRetryAfter));
+  }
+
+  private record IconResolution(AssetCatalogDto dto, String status) {}
+
+  private AssetCatalogDto withLogo(AssetCatalogDto dto, String logoUrl) {
+    if (logoUrl == null || logoUrl.isBlank()) {
+      return dto;
+    }
+    return new AssetCatalogDto(
+        dto.symbol(),
+        dto.name(),
+        dto.assetType(),
+        logoUrl,
+        dto.exchange(),
+        dto.currency(),
+        dto.marketCap());
+  }
+
   private String resolveLogoUrl(String symbol, String assetType, String currency) {
     return switch (assetType) {
       case "ETF" -> logoResolver.buildLogoUrl(symbol);
       case "GOVERNMENT_BOND" -> "USD".equals(currency) ? logoResolver.buildLogoUrl(symbol) : null;
-      default -> null; // STOCK se resuelve en enrichStock; CRYPTO trae su logo ya fijo en
-        // STATIC_CRYPTOS; INDEX/bonos MX sin logo
+      default -> null; // STOCK -> enrichStock (Finnhub); CRYPTO -> enrichCrypto (CoinGecko);
+        // INDEX/bonos MX sin logo
     };
   }
 
@@ -368,6 +588,12 @@ public class CatalogSyncService {
   }
 
   private AssetCatalogEntity toEntity(AssetCatalogDto dto) {
+    boolean hasLogo = dto.logoUrl() != null && !dto.logoUrl().isBlank();
+    return toEntity(dto, hasLogo ? "RESOLVED" : "NONE");
+  }
+
+  private AssetCatalogEntity toEntity(AssetCatalogDto dto, String logoStatus) {
+    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
     return AssetCatalogEntity.builder()
         .symbol(dto.symbol())
         .name(dto.name())
@@ -377,7 +603,9 @@ public class CatalogSyncService {
         .currency(dto.currency())
         .marketCap(dto.marketCap())
         .popular(false)
-        .updatedAt(OffsetDateTime.now(ZoneOffset.UTC))
+        .logoStatus(logoStatus)
+        .logoCheckedAt(now)
+        .updatedAt(now)
         .build();
   }
 }

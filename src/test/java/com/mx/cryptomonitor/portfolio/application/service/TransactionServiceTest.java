@@ -15,6 +15,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -31,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
-import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionOrigin;
@@ -70,9 +71,9 @@ class TransactionServiceTest {
   @Mock private TransactionIdempotencyService transactionIdempotencyService;
   @Mock private TransactionAuditPort transactionAuditPort;
   @Mock private TransactionRealizedPnlService transactionRealizedPnlService;
-  @Mock private AssetProfileProvider assetProfileProvider;
   @Mock private DividendDetailRepository dividendDetailRepository;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
+  @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
 
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
@@ -93,13 +94,14 @@ class TransactionServiceTest {
             transactionIdempotencyService,
             transactionAuditPort,
             transactionRealizedPnlService,
-            assetProfileProvider,
             dividendDetailRepository,
             assetCatalogQueryPort,
-            new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator());
+            new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator(),
+            assetCatalogRefreshPort);
     lenient()
         .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
         .thenReturn(Optional.empty());
+    lenient().when(assetCatalogQueryPort.findLogosBySymbols(any())).thenReturn(Map.of());
     lenient()
         .doAnswer(invocation -> invocation.<Supplier<TransactionResponse>>getArgument(4).get())
         .when(transactionIdempotencyService)

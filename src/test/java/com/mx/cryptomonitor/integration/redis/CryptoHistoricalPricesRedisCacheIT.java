@@ -45,11 +45,7 @@ class CryptoHistoricalPricesRedisCacheIT {
     redisConnectionFactory.afterPropertiesSet();
     cacheManager =
         new CacheConfig()
-            .cacheManager(
-                redisConnectionFactory,
-                Duration.ofHours(24),
-                Duration.ofHours(24),
-                Duration.ofMinutes(15));
+            .cacheManager(redisConnectionFactory, Duration.ofHours(24), Duration.ofMinutes(15));
   }
 
   @AfterAll

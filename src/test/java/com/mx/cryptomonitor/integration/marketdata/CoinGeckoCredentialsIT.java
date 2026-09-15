@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
@@ -82,5 +83,78 @@ class CoinGeckoCredentialsIT {
                 + " revisar si el contrato de la API cambio")
         .isNotNull()
         .containsKey("gecko_says");
+  }
+
+  /**
+   * Valida el contrato del endpoint del que depende el logo de CRYPTO: {@code
+   * /coins/markets?vs_currency=usd&symbols=btc} debe devolver el campo {@code image} (URL del
+   * logo). Plan Demo: header {@code x-cg-demo-api-key}. El endpoint es publico (la key es opcional,
+   * solo sube el limite de tasa), asi que valida el contrato con o sin key, y falla si la key es
+   * rechazada (401/403).
+   */
+  @Test
+  void coinsMarketsReturnsImageForBtcOnDemoPlan() {
+    String baseUrl = System.getenv("API_COINGECKO_BASE_URL");
+    if (!StringUtils.hasText(baseUrl)) {
+      baseUrl = "https://api.coingecko.com/api/v3";
+    }
+    String apiKey = System.getenv("COINGECKO_API_KEY");
+
+    WebClient.Builder builder = WebClient.builder().baseUrl(baseUrl);
+    if (StringUtils.hasText(apiKey)) {
+      builder = builder.defaultHeader("x-cg-demo-api-key", apiKey);
+    }
+    WebClient webClient = builder.build();
+
+    List<Map<String, Object>> body;
+    try {
+      body =
+          webClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/coins/markets")
+                          .queryParam("vs_currency", "usd")
+                          .queryParam("symbols", "btc")
+                          .build())
+              .retrieve()
+              .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+              .timeout(Duration.ofSeconds(10))
+              .block();
+    } catch (WebClientResponseException ex) {
+      HttpStatusCode status = ex.getStatusCode();
+      if (status.value() == 401 || status.value() == 403) {
+        fail(
+            "CoinGecko rechazo COINGECKO_API_KEY (plan Demo) con HTTP "
+                + status.value()
+                + ": key invalida/revocada o header incorrecto (se usa x-cg-demo-api-key).",
+            ex);
+      } else {
+        fail(
+            "CoinGecko /coins/markets respondio HTTP " + status.value() + ": " + ex.getMessage(),
+            ex);
+      }
+      return;
+    } catch (RuntimeException ex) {
+      fail(
+          "No se pudo contactar a CoinGecko /coins/markets (base="
+              + baseUrl
+              + "): "
+              + ex.getMessage(),
+          ex);
+      return;
+    }
+
+    assertThat(body)
+        .as("CoinGecko /coins/markets?symbols=btc debe devolver al menos un resultado")
+        .isNotNull()
+        .isNotEmpty();
+    assertThat(body.get(0).get("image"))
+        .as(
+            "El contrato de /coins/markets debe incluir 'image' (URL del logo): de ese campo depende"
+                + " el logo de CRYPTO en el catalogo")
+        .isInstanceOf(String.class);
+    assertThat((String) body.get(0).get("image")).isNotBlank();
   }
 }

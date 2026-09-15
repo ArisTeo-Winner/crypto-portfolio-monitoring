@@ -4,16 +4,20 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
-import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.ImportedStockTransactionRequest;
@@ -66,10 +70,13 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final TransactionIdempotencyService transactionIdempotencyService;
   private final TransactionAuditPort transactionAuditPort;
   private final TransactionRealizedPnlService transactionRealizedPnlService;
-  private final AssetProfileProvider assetProfileProvider;
   private final DividendDetailRepository dividendDetailRepository;
   private final AssetCatalogQueryPort assetCatalogQueryPort;
   private final GbmFrictionCalculator frictionCalculator;
+  private final AssetCatalogRefreshPort assetCatalogRefreshPort;
+
+  @Value("${catalog.icon.pull-once.enabled:true}")
+  private boolean iconPullOnceEnabled;
 
   @Override
   public TransactionResponse registerTransaction(
@@ -404,17 +411,12 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   }
 
   public List<TransactionResponse> getTransactionsByUser(UUID userId) {
-    return transactionRepository.findByUserId(userId, RECENT_FIRST_SORT).stream()
-        .map(this::toResponseWithLogo)
-        .toList();
+    return toResponsesWithLogos(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT));
   }
 
   public List<TransactionResponse> getTransactionsByUserAndSymbol(UUID userId, String assetSymbol) {
-    return transactionRepository
-        .findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT)
-        .stream()
-        .map(this::toResponseWithLogo)
-        .toList();
+    return toResponsesWithLogos(
+        transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT));
   }
 
   @Override
@@ -433,46 +435,72 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
     if (assetSymbol != null && assetType != null && transactionType != null) {
       AssetType normalizedAssetType = normalizedAssetType(assetType);
-      return transactionRepository
-          .findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
-              userId, assetSymbol, normalizedAssetType, transactionType)
-          .stream()
-          .map(this::toResponseWithLogo)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
+              userId, assetSymbol, normalizedAssetType, transactionType));
     }
     if (assetSymbol != null) {
-      return transactionRepository
-          .findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT)
-          .stream()
-          .map(this::toResponseWithLogo)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT));
     }
     if (assetType != null) {
-      return transactionRepository
-          .findByUserIdAndAssetType(userId, normalizedAssetType(assetType), RECENT_FIRST_SORT)
-          .stream()
-          .map(this::toResponseWithLogo)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndAssetType(
+              userId, normalizedAssetType(assetType), RECENT_FIRST_SORT));
     }
 
     if (transactionType != null) {
-      return transactionRepository
-          .findByUserIdAndTransactionType(userId, transactionType, RECENT_FIRST_SORT)
-          .stream()
-          .map(this::toResponseWithLogo)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndTransactionType(
+              userId, transactionType, RECENT_FIRST_SORT));
     }
-    return transactionRepository.findByUserId(userId, RECENT_FIRST_SORT).stream()
-        .map(this::toResponseWithLogo)
+    return toResponsesWithLogos(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT));
+  }
+
+  /**
+   * Resuelve los logos en batch para los símbolos distintos de la página, desde el catálogo
+   * cacheado (Redis), y los aplica a cada fila. Reemplaza la resolución per-row vía proveedor
+   * externo: N lookups por fila (con Finnhub inline, STOCK-only) → 1 lookup por símbolo distinto
+   * desde el catálogo (crypto y stock), sin proveedores externos en el hot path.
+   */
+  private List<TransactionResponse> toResponsesWithLogos(List<Transaction> transactions) {
+    Map<String, String> logos =
+        new HashMap<>(
+            assetCatalogQueryPort.findLogosBySymbols(
+                transactions.stream()
+                    .map(Transaction::getAssetSymbol)
+                    .collect(Collectors.toSet())));
+    if (iconPullOnceEnabled) {
+      Map<String, String> candidates = distinctSymbolTypes(transactions);
+      if (!candidates.isEmpty()) {
+        // Resuelve/actualiza iconos desde los proveedores y los incluye en ESTA misma respuesta:
+        // símbolos faltantes se resuelven una vez; iconos provisionales (fallback determinista) se
+        // auto-actualizan al logo autoritativo (p.ej. CoinGecko). Ambos con caché y throttle en el
+        // catálogo, así que no golpean al proveedor en cada lectura.
+        logos.putAll(assetCatalogRefreshPort.resolveMissingIcons(candidates));
+      }
+    }
+    return transactions.stream()
+        .map(transaction -> toResponseWithLogo(transaction, logos))
         .toList();
   }
 
-  private TransactionResponse toResponseWithLogo(Transaction transaction) {
+  /** Símbolos distintos vistos en la página, mapeados a su tipo (deduplicados). */
+  private Map<String, String> distinctSymbolTypes(List<Transaction> transactions) {
+    return transactions.stream()
+        .filter(t -> t.getAssetSymbol() != null && !t.getAssetSymbol().isBlank())
+        .collect(
+            Collectors.toMap(
+                t -> t.getAssetSymbol().toUpperCase(Locale.ROOT),
+                t -> t.getAssetType() == null ? "" : t.getAssetType().name(),
+                (a, b) -> a));
+  }
+
+  private TransactionResponse toResponseWithLogo(
+      Transaction transaction, Map<String, String> logos) {
     TransactionResponse response = transactionMapper.toResponse(transaction);
-    String logoUrl =
-        transaction.getAssetType() == AssetType.STOCK
-            ? assetProfileProvider.getLogoUrl(transaction.getAssetSymbol()).orElse(null)
-            : null;
+    String symbol = transaction.getAssetSymbol();
+    String logoUrl = symbol == null ? null : logos.get(symbol.toUpperCase(Locale.ROOT));
     return new TransactionResponse(
         response.transactionId(),
         response.assetSymbol(),
@@ -556,6 +584,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             transactionAuditPort.logCreateSuccess(
                 userId, describeSuccessfulMutation(actionLabel, response));
+            // Pull-once: cataloga el icono del activo si aun no esta (background, no bloquea).
+            if (iconPullOnceEnabled) {
+              assetCatalogRefreshPort.ensureIconCatalogued(
+                  response.assetSymbol(), response.assetType());
+            }
             return response;
           } catch (RuntimeException ex) {
             log.error("Error creating transaction for user {}: {}", userId, ex.getMessage(), ex);

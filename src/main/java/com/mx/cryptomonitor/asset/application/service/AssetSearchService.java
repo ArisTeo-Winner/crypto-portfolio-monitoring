@@ -2,9 +2,12 @@ package com.mx.cryptomonitor.asset.application.service;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
@@ -67,6 +70,29 @@ public class AssetSearchService implements AssetCatalogQueryPort {
   @Override
   public Optional<String> findNameBySymbol(String symbol) {
     return redisService.findEntry(symbol).map(AssetCatalogDto::name);
+  }
+
+  @Override
+  public Map<String, String> findLogosBySymbols(Collection<String> symbols) {
+    if (symbols == null || symbols.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, String> logos = new HashMap<>();
+    for (String symbol : symbols) {
+      if (symbol == null || symbol.isBlank()) {
+        continue;
+      }
+      String upper = symbol.trim().toUpperCase(Locale.ROOT);
+      if (logos.containsKey(upper)) {
+        continue;
+      }
+      redisService
+          .findEntry(upper)
+          .map(AssetCatalogDto::logoUrl)
+          .filter(url -> url != null && !url.isBlank())
+          .ifPresent(url -> logos.put(upper, url));
+    }
+    return logos;
   }
 
   public List<AssetOptionResponse> getPopular(String assetType) {

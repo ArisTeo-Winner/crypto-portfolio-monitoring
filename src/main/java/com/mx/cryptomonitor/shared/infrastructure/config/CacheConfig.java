@@ -35,7 +35,6 @@ public class CacheConfig extends CachingConfigurerSupport {
   public CacheManager cacheManager(
       RedisConnectionFactory redisConnectionFactory,
       @Value("${app.cache.stock-prices-ttl:PT24H}") Duration stockPricesTtl,
-      @Value("${asset.logo.cache-ttl:PT24H}") Duration assetLogoTtl,
       @Value("${external.providers.coingecko.cache-ttl:PT15M}") Duration coinGeckoHistoricalTtl) {
     RedisSerializer<Object> jsonSerializer =
         new GenericJackson2JsonRedisSerializer()
@@ -75,16 +74,6 @@ public class CacheConfig extends CachingConfigurerSupport {
     RedisCacheConfiguration historicalConfig =
         RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofDays(3650L))
-            .serializeKeysWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    new StringRedisSerializer()))
-            .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
-
-    RedisCacheConfiguration assetLogoConfig =
-        RedisCacheConfiguration.defaultCacheConfig()
-            .entryTtl(assetLogoTtl)
-            .disableCachingNullValues()
             .serializeKeysWith(
                 RedisSerializationContext.SerializationPair.fromSerializer(
                     new StringRedisSerializer()))
@@ -132,7 +121,6 @@ public class CacheConfig extends CachingConfigurerSupport {
         .withCacheConfiguration("cryptoHistoricalPrices", coinGeckoHistoricalConfig)
         .withCacheConfiguration("cryptoPrices", cryptoPriceConfig)
         .withCacheConfiguration("stockPrices", stockPriceConfig)
-        .withCacheConfiguration("asset-logos", assetLogoConfig)
         .withCacheConfiguration("stockTimeSeries", stockTimeSeriesConfig)
         .withCacheConfiguration("testCache", testCache)
         .build();

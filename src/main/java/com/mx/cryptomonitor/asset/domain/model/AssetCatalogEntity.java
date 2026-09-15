@@ -45,6 +45,14 @@ public class AssetCatalogEntity {
   @Column(name = "is_popular", nullable = false)
   private boolean popular;
 
+  // Estado de resolucion del logo: RESOLVED (hay URL) | NONE (confirmado sin logo) | PENDING.
+  // NONE actua como cache de negativos: el pull-once no vuelve a intentar resolverlo.
+  @Column(name = "logo_status", length = 20)
+  private String logoStatus;
+
+  @Column(name = "logo_checked_at")
+  private OffsetDateTime logoCheckedAt;
+
   @Column(name = "updated_at", nullable = false)
   private OffsetDateTime updatedAt;
 }

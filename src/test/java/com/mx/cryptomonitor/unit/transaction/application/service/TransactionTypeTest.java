@@ -14,7 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
-import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionDetailsResponse;
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
 import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjectionSyncPort;
@@ -42,9 +42,9 @@ class TransactionTypeTest {
   @Mock private TransactionIdempotencyService transactionIdempotencyService;
   @Mock private TransactionAuditPort transactionAuditPort;
   @Mock private TransactionRealizedPnlService transactionRealizedPnlService;
-  @Mock private AssetProfileProvider assetProfileProvider;
   @Mock private DividendDetailRepository dividendDetailRepository;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
+  @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
 
   @InjectMocks private TransactionService service;
 

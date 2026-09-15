@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.unit.asset.application.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -9,20 +10,25 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
+import com.mx.cryptomonitor.asset.application.port.out.CryptoLogoPort;
 import com.mx.cryptomonitor.asset.application.port.out.IpoCalendarPort;
 import com.mx.cryptomonitor.asset.application.port.out.IpoCalendarPort.IpoEntry;
 import com.mx.cryptomonitor.asset.application.port.out.LogoResolverPort;
@@ -44,6 +50,7 @@ class CatalogSyncServiceTest {
   @Mock private LogoResolverPort logoResolver;
   @Mock private StockProfilePort stockProfilePort;
   @Mock private IpoCalendarPort ipoCalendarPort;
+  @Mock private CryptoLogoPort cryptoLogoPort;
 
   @InjectMocks private CatalogSyncService syncService;
 
@@ -173,6 +180,7 @@ class CatalogSyncServiceTest {
     when(fmpAdapter.fetchTopStocks(anyInt())).thenReturn(List.of());
     when(fmpAdapter.fetchTopEtfs(anyInt())).thenReturn(List.of());
     when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+    when(cryptoLogoPort.fetchLogosBySymbol(any())).thenReturn(Map.of());
 
     syncService.forceFullSync();
 
@@ -318,12 +326,201 @@ class CatalogSyncServiceTest {
   @Test
   void syncTypeCryptoUsesStaticListWithoutFmpCall() {
     when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+    when(cryptoLogoPort.fetchLogosBySymbol(any())).thenReturn(Map.of());
 
     syncService.syncType("crypto", 50);
 
     verify(fmpAdapter, never()).fetchTopStocks(anyInt());
     verify(fmpAdapter, never()).fetchTopEtfs(anyInt());
     verify(catalogRepository, atLeastOnce()).save(any(AssetCatalogEntity.class));
+  }
+
+  // ── ensureIconCatalogued (pull-once on-demand) ──────────────────────────────
+
+  @Test
+  void ensureIconCataloguedResolvesCryptoLogoFromCoinGeckoAndUpserts() {
+    when(catalogRepository.findById("BTC")).thenReturn(Optional.empty());
+    when(cryptoLogoPort.fetchLogosBySymbol(List.of("BTC")))
+        .thenReturn(Map.of("BTC", "https://assets.coingecko.com/btc.png"));
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    syncService.ensureIconCatalogued("btc", "crypto");
+
+    AssetCatalogDto expected =
+        new AssetCatalogDto(
+            "BTC", "BTC", "CRYPTO", "https://assets.coingecko.com/btc.png", null, null, null);
+    verify(catalogRepository).save(any(AssetCatalogEntity.class));
+    verify(redisService).saveEntry(expected);
+  }
+
+  @Test
+  void ensureIconCataloguedFallsBackToJsDelivrWhenCoinGeckoHasNoImage() {
+    when(catalogRepository.findById("XYZ")).thenReturn(Optional.empty());
+    when(cryptoLogoPort.fetchLogosBySymbol(List.of("XYZ"))).thenReturn(Map.of());
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    syncService.ensureIconCatalogued("xyz", "CRYPTO");
+
+    AssetCatalogDto expected =
+        new AssetCatalogDto(
+            "XYZ",
+            "XYZ",
+            "CRYPTO",
+            "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/xyz.png",
+            null,
+            null,
+            null);
+    verify(redisService).saveEntry(expected);
+  }
+
+  @Test
+  void ensureIconCataloguedIsNoOpWhenSymbolAlreadyHasLogo() {
+    when(catalogRepository.findById("BTC"))
+        .thenReturn(
+            Optional.of(
+                AssetCatalogEntity.builder()
+                    .symbol("BTC")
+                    .name("Bitcoin")
+                    .assetType("CRYPTO")
+                    .logoUrl("https://x/btc.png")
+                    .logoStatus("RESOLVED")
+                    .popular(false)
+                    .updatedAt(OffsetDateTime.now())
+                    .build()));
+
+    syncService.ensureIconCatalogued("BTC", "CRYPTO");
+
+    verify(catalogRepository, never()).save(any());
+    verify(redisService, never()).saveEntry(any());
+    verify(cryptoLogoPort, never()).fetchLogosBySymbol(any());
+  }
+
+  @Test
+  void ensureIconCataloguedMarksNoneWhenTypeHasNoResolver() {
+    when(catalogRepository.findById("SPX")).thenReturn(Optional.empty());
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    syncService.ensureIconCatalogued("SPX", "INDEX");
+
+    ArgumentCaptor<AssetCatalogEntity> captor = ArgumentCaptor.forClass(AssetCatalogEntity.class);
+    verify(catalogRepository).save(captor.capture());
+    assertThat(captor.getValue().getLogoStatus()).isEqualTo("NONE");
+    verify(redisService, never()).saveEntry(any());
+    verify(cryptoLogoPort, never()).fetchLogosBySymbol(any());
+  }
+
+  @Test
+  void ensureIconCataloguedIsNoOpWhenAlreadyMarkedNone() {
+    when(catalogRepository.findById("SPX"))
+        .thenReturn(
+            Optional.of(
+                AssetCatalogEntity.builder()
+                    .symbol("SPX")
+                    .name("SPX")
+                    .assetType("INDEX")
+                    .logoStatus("NONE")
+                    .popular(false)
+                    .updatedAt(OffsetDateTime.now())
+                    .build()));
+
+    syncService.ensureIconCatalogued("SPX", "INDEX");
+
+    verify(catalogRepository, never()).save(any());
+    verify(cryptoLogoPort, never()).fetchLogosBySymbol(any());
+  }
+
+  @Test
+  void resolveMissingIconsResolvesFromCoinGeckoAndReturnsUrl() {
+    when(catalogRepository.findById("HYPE")).thenReturn(Optional.empty());
+    when(cryptoLogoPort.fetchLogosBySymbol(List.of("HYPE")))
+        .thenReturn(Map.of("HYPE", "https://coin-images.coingecko.com/hype.jpg"));
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    Map<String, String> result = syncService.resolveMissingIcons(Map.of("hype", "CRYPTO"));
+
+    assertThat(result).containsEntry("HYPE", "https://coin-images.coingecko.com/hype.jpg");
+    verify(redisService).saveEntry(any(AssetCatalogDto.class));
+  }
+
+  @Test
+  void resolveMissingIconsUpgradesProvisionalJsDelivrToCoinGecko() {
+    ReflectionTestUtils.setField(syncService, "fallbackRetryAfter", Duration.ofHours(6));
+    AssetCatalogEntity provisional =
+        AssetCatalogEntity.builder()
+            .symbol("HYPE")
+            .name("Hyperliquid")
+            .assetType("CRYPTO")
+            .logoUrl(
+                "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/hype.png")
+            .logoStatus("RESOLVED") // fila antigua, escrita antes del estado FALLBACK
+            .logoCheckedAt(OffsetDateTime.now().minusDays(2))
+            .popular(false)
+            .updatedAt(OffsetDateTime.now())
+            .build();
+    when(catalogRepository.findById("HYPE")).thenReturn(Optional.of(provisional));
+    when(cryptoLogoPort.fetchLogosBySymbol(List.of("HYPE")))
+        .thenReturn(Map.of("HYPE", "https://coin-images.coingecko.com/hype.jpg"));
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    Map<String, String> result = syncService.resolveMissingIcons(Map.of("hype", "CRYPTO"));
+
+    assertThat(result).containsEntry("HYPE", "https://coin-images.coingecko.com/hype.jpg");
+    ArgumentCaptor<AssetCatalogEntity> captor = ArgumentCaptor.forClass(AssetCatalogEntity.class);
+    verify(catalogRepository).save(captor.capture());
+    assertThat(captor.getValue().getLogoUrl())
+        .isEqualTo("https://coin-images.coingecko.com/hype.jpg");
+    assertThat(captor.getValue().getLogoStatus()).isEqualTo("RESOLVED");
+  }
+
+  @Test
+  void resolveMissingIconsUpgradesHeuristicProvisionalEvenWithinThrottleWindow() {
+    ReflectionTestUtils.setField(syncService, "fallbackRetryAfter", Duration.ofHours(6));
+    AssetCatalogEntity recentJsDelivrResolved =
+        AssetCatalogEntity.builder()
+            .symbol("HYPE")
+            .name("Hyperliquid")
+            .assetType("CRYPTO")
+            .logoUrl(
+                "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/hype.png")
+            .logoStatus("RESOLVED") // marcada por migración; nunca intentada por el path nuevo
+            .logoCheckedAt(OffsetDateTime.now()) // dentro de la ventana de 6h
+            .popular(false)
+            .updatedAt(OffsetDateTime.now())
+            .build();
+    when(catalogRepository.findById("HYPE")).thenReturn(Optional.of(recentJsDelivrResolved));
+    when(cryptoLogoPort.fetchLogosBySymbol(List.of("HYPE")))
+        .thenReturn(Map.of("HYPE", "https://coin-images.coingecko.com/hype.jpg"));
+    when(catalogRepository.save(any(AssetCatalogEntity.class))).thenReturn(null);
+
+    Map<String, String> result = syncService.resolveMissingIcons(Map.of("hype", "CRYPTO"));
+
+    assertThat(result).containsEntry("HYPE", "https://coin-images.coingecko.com/hype.jpg");
+    verify(cryptoLogoPort).fetchLogosBySymbol(List.of("HYPE"));
+  }
+
+  @Test
+  void resolveMissingIconsDoesNotRequeryProviderForRecentProvisional() {
+    ReflectionTestUtils.setField(syncService, "fallbackRetryAfter", Duration.ofHours(6));
+    String jsDelivr =
+        "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/hype.png";
+    AssetCatalogEntity recentProvisional =
+        AssetCatalogEntity.builder()
+            .symbol("HYPE")
+            .name("Hyperliquid")
+            .assetType("CRYPTO")
+            .logoUrl(jsDelivr)
+            .logoStatus("FALLBACK")
+            .logoCheckedAt(OffsetDateTime.now())
+            .popular(false)
+            .updatedAt(OffsetDateTime.now())
+            .build();
+    when(catalogRepository.findById("HYPE")).thenReturn(Optional.of(recentProvisional));
+
+    Map<String, String> result = syncService.resolveMissingIcons(Map.of("hype", "CRYPTO"));
+
+    assertThat(result).containsEntry("HYPE", jsDelivr);
+    verify(cryptoLogoPort, never()).fetchLogosBySymbol(any());
+    verify(catalogRepository, never()).save(any());
   }
 
   // ── discoverNewListings (IPO discovery) ─────────────────────────────────────

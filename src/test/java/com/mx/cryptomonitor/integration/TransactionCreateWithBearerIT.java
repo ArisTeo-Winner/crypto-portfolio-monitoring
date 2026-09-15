@@ -32,7 +32,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.jayway.jsonpath.JsonPath;
-import com.mx.cryptomonitor.asset.application.port.out.AssetProfileProvider;
+import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
+import com.mx.cryptomonitor.asset.application.port.out.CatalogStorePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
@@ -63,11 +64,11 @@ class TransactionCreateWithBearerIT {
   @Autowired private TransactionRepository transactionRepository;
   @Autowired private PortfolioEntryRepository portfolioEntryRepository;
   @Autowired private PasswordEncoder passwordEncoder;
+  @Autowired private CatalogStorePort catalogStore;
 
   @MockBean private RefreshTokenStoreService refreshTokenStoreService;
   @MockBean private MarketDataProvider marketDataProvider;
   @MockBean private AssetPricePort assetPricePort;
-  @MockBean private AssetProfileProvider assetProfileProvider;
 
   @BeforeEach
   void setUpMocks() {
@@ -92,10 +93,6 @@ class TransactionCreateWithBearerIT {
         .thenReturn(java.util.Optional.of(new BigDecimal("249.56")));
     when(marketDataProvider.getLatest("MSFT"))
         .thenReturn(java.util.Optional.of(new BigDecimal("411.35")));
-    when(assetProfileProvider.getLogoUrl("AAPL"))
-        .thenReturn(java.util.Optional.of("https://static2.finnhub.io/aapl.png"));
-    when(assetProfileProvider.getLogoUrl("MSFT"))
-        .thenReturn(java.util.Optional.of("https://static2.finnhub.io/msft.png"));
   }
 
   @Test
@@ -277,9 +274,17 @@ class TransactionCreateWithBearerIT {
   }
 
   @Test
-  void getUserTransactionsShouldExposeFinnhubLogosForStockTableRows() throws Exception {
+  void getUserTransactionsShouldExposeCatalogLogosForStockTableRows() throws Exception {
     User user = persistRoleUser("tx-stock-logos-" + UUID.randomUUID() + "@example.com");
     String accessToken = loginAndGetAccessToken(user.getEmail(), "ValidPass123!");
+
+    // El logo se resuelve del catalogo (batch + dedupe), no de un proveedor externo en el hot path.
+    catalogStore.saveEntry(
+        new AssetCatalogDto(
+            "AAPL", "Apple Inc.", "STOCK", "https://logos.test/aapl.png", "NASDAQ", "USD", null));
+    catalogStore.saveEntry(
+        new AssetCatalogDto(
+            "MSFT", "Microsoft", "STOCK", "https://logos.test/msft.png", "NASDAQ", "USD", null));
 
     persistStockTransaction(user, "AAPL", "1", "248.96", "2026-03-19T12:15:00Z");
     persistStockTransaction(user, "MSFT", "2", "411.35", "2026-03-20T12:15:00Z");
@@ -296,10 +301,10 @@ class TransactionCreateWithBearerIT {
                 .value(org.hamcrest.Matchers.containsInAnyOrder("AAPL", "MSFT")))
         .andExpect(
             jsonPath("$[?(@.assetSymbol == 'AAPL')].logoUrl")
-                .value(org.hamcrest.Matchers.contains("https://static2.finnhub.io/aapl.png")))
+                .value(org.hamcrest.Matchers.contains("https://logos.test/aapl.png")))
         .andExpect(
             jsonPath("$[?(@.assetSymbol == 'MSFT')].logoUrl")
-                .value(org.hamcrest.Matchers.contains("https://static2.finnhub.io/msft.png")));
+                .value(org.hamcrest.Matchers.contains("https://logos.test/msft.png")));
   }
 
   @Test
