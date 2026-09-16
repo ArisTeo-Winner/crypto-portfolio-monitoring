@@ -19,7 +19,7 @@
 
     <!-- ================================================================
          EJEMPLO 1 — Falso positivo por colision de nombre (CPE erroneo)
-         ----------------------------------------------------------------
+         ================================================================
          Dependency-Check a veces asocia un CVE del proyecto Apache "json"
          (C) a la libreria Java org.json por el nombre. Si tras verificar el
          CVE concreto se confirma que NO aplica a org.json, se suprime SOLO
@@ -38,7 +38,7 @@
 
     <!-- ================================================================
          EJEMPLO 2 — Riesgo aceptado temporalmente por un CVE puntual
-         ----------------------------------------------------------------
+         ================================================================
          Se acepta un CVE concreto con fecha de caducidad y issue de
          seguimiento. La entrada DEBE borrarse al actualizar la dependencia.
          (Plantilla comentada: descomentar y ajustar el CVE real.)
@@ -57,7 +57,7 @@
 
     <!-- ================================================================
          EJEMPLO 3 — Supresion por hash de archivo (maxima precision)
-         ----------------------------------------------------------------
+         ================================================================
          Cuando se quiere suprimir exactamente un JAR concreto por su sha1.
          (Plantilla comentada.)
          ================================================================ -->
