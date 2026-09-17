@@ -67,6 +67,31 @@ public final class GbmFrictionCalculator {
         reportedNet);
   }
 
+  /**
+   * Alta manual con desglose: comision, IVA y otros cargos llegan como montos absolutos (leidos por
+   * el usuario del comprobante). No se recalcula el IVA desde una tasa; el bruto es {@code quantity
+   * * unitPrice}. {@code reportedTotal} nulo (no hay documento contra que validar) => {@link
+   * ReviewStatus#OK}.
+   */
+  public FrictionBreakdown manual(
+      FrictionSide side,
+      BigDecimal quantity,
+      BigDecimal unitPrice,
+      BigDecimal commission,
+      BigDecimal iva,
+      BigDecimal otherFees,
+      BigDecimal reportedTotal) {
+    BigDecimal gross = money(amount(quantity).multiply(amount(unitPrice)));
+    return build(
+        side,
+        quantity,
+        gross,
+        money(amount(commission)),
+        money(amount(iva)),
+        amount(otherFees),
+        reportedTotal);
+  }
+
   private FrictionBreakdown build(
       FrictionSide side,
       BigDecimal quantity,

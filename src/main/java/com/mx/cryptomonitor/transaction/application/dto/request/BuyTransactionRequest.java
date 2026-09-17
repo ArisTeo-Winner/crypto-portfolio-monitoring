@@ -29,4 +29,50 @@ public record BuyTransactionRequest(
     BigDecimal faceValue,
     LocalDate maturityDate,
     BigDecimal couponRate,
-    Boolean autoReinvestment) {}
+    Boolean autoReinvestment,
+    @PositiveOrZero(message = "La comision no puede ser negativa") BigDecimal brokerCommission,
+    @PositiveOrZero(message = "El IVA no puede ser negativo") BigDecimal brokerIva,
+    @PositiveOrZero(message = "Otros cargos no pueden ser negativos") BigDecimal otherFees) {
+
+  /**
+   * Constructor de compatibilidad: alta sin desglose de comision/IVA (import GBM legado, tests). El
+   * split queda en {@code null} y el desglose de friccion cae a la vista gruesa ({@code
+   * totalFrictionCost == fee}).
+   */
+  public BuyTransactionRequest(
+      String assetSymbol,
+      String assetType,
+      BigDecimal quantity,
+      BigDecimal pricePerUnit,
+      BigDecimal fee,
+      OffsetDateTime transactionDate,
+      String notes,
+      String assetName,
+      String exchange,
+      String broker,
+      String currency,
+      BigDecimal faceValue,
+      LocalDate maturityDate,
+      BigDecimal couponRate,
+      Boolean autoReinvestment) {
+    this(
+        assetSymbol,
+        assetType,
+        quantity,
+        pricePerUnit,
+        fee,
+        transactionDate,
+        notes,
+        assetName,
+        exchange,
+        broker,
+        currency,
+        faceValue,
+        maturityDate,
+        couponRate,
+        autoReinvestment,
+        null,
+        null,
+        null);
+  }
+}

@@ -89,6 +89,44 @@ class GbmFrictionCalculatorTest {
   }
 
   @Test
+  void manualPreservesCommissionIvaSplit() {
+    FrictionBreakdown breakdown =
+        calculator.manual(
+            FrictionSide.BUY,
+            new BigDecimal("100"),
+            new BigDecimal("15.50"),
+            new BigDecimal("3.87"),
+            new BigDecimal("0.62"),
+            new BigDecimal("0.00"),
+            null);
+
+    assertThat(breakdown.grossAmount()).isEqualByComparingTo("1550.00");
+    assertThat(breakdown.brokerCommission()).isEqualByComparingTo("3.87");
+    assertThat(breakdown.brokerIva()).isEqualByComparingTo("0.62");
+    assertThat(breakdown.otherFees()).isEqualByComparingTo("0.00");
+    assertThat(breakdown.totalFrictionCost()).isEqualByComparingTo("4.49");
+    assertThat(breakdown.finalNetCost()).isEqualByComparingTo("1554.49");
+    assertThat(breakdown.reviewStatus()).isEqualTo(ReviewStatus.OK);
+  }
+
+  @Test
+  void manualUsaProductHasNoIva() {
+    FrictionBreakdown breakdown =
+        calculator.manual(
+            FrictionSide.BUY,
+            new BigDecimal("377.13248"),
+            new BigDecimal("0.10993"),
+            new BigDecimal("0.10"),
+            new BigDecimal("0.00"),
+            new BigDecimal("0.00"),
+            null);
+
+    assertThat(breakdown.brokerIva()).isEqualByComparingTo("0.00");
+    assertThat(breakdown.totalFrictionCost()).isEqualByComparingTo("0.10");
+    assertThat(breakdown.finalNetCost()).isEqualByComparingTo("41.56");
+  }
+
+  @Test
   void sellSubtractsFrictionFromGross() {
     FrictionBreakdown breakdown =
         calculator.mexicanEquity(

@@ -88,23 +88,82 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   @Override
   public TransactionResponse registerBuyTransaction(
       UUID userId, BuyTransactionRequest request, String idempotencyKey) {
-    return registerWithIdempotency(
+    TransactionResponse response =
+        registerWithIdempotency(
+            userId,
+            CREATE_BUY_SCOPE,
+            toLegacyRequest(request),
+            idempotencyKey,
+            "Create buy transaction");
+    applyManualFriction(
         userId,
-        CREATE_BUY_SCOPE,
-        toLegacyRequest(request),
-        idempotencyKey,
-        "Create buy transaction");
+        response,
+        manualBreakdown(
+            FrictionSide.BUY,
+            request.quantity(),
+            request.pricePerUnit(),
+            request.brokerCommission(),
+            request.brokerIva(),
+            request.otherFees()));
+    return response;
   }
 
   @Override
   public TransactionResponse registerSellTransaction(
       UUID userId, SellTransactionRequest request, String idempotencyKey) {
-    return registerWithIdempotency(
+    TransactionResponse response =
+        registerWithIdempotency(
+            userId,
+            CREATE_SELL_SCOPE,
+            toLegacyRequest(request),
+            idempotencyKey,
+            "Create sell transaction");
+    applyManualFriction(
         userId,
-        CREATE_SELL_SCOPE,
-        toLegacyRequest(request),
-        idempotencyKey,
-        "Create sell transaction");
+        response,
+        manualBreakdown(
+            FrictionSide.SELL,
+            request.quantity(),
+            request.pricePerUnit(),
+            request.brokerCommission(),
+            request.brokerIva(),
+            request.otherFees()));
+    return response;
+  }
+
+  private FrictionBreakdown manualBreakdown(
+      FrictionSide side,
+      BigDecimal quantity,
+      BigDecimal unitPrice,
+      BigDecimal commission,
+      BigDecimal iva,
+      BigDecimal otherFees) {
+    if (commission == null && iva == null && otherFees == null) {
+      return null;
+    }
+    return frictionCalculator.manual(side, quantity, unitPrice, commission, iva, otherFees, null);
+  }
+
+  private void applyManualFriction(
+      UUID userId, TransactionResponse response, FrictionBreakdown breakdown) {
+    if (breakdown == null) {
+      return;
+    }
+    transactionRepository
+        .findByTransactionIdAndUserId(response.transactionId(), userId)
+        .ifPresent(
+            transaction -> {
+              transaction.applyFriction(breakdown);
+              transactionRepository.save(transaction);
+            });
+  }
+
+  private BigDecimal resolveManualFee(
+      BigDecimal fee, BigDecimal commission, BigDecimal iva, BigDecimal otherFees) {
+    if (commission == null && iva == null && otherFees == null) {
+      return normalizedFee(fee);
+    }
+    return normalizedFee(commission).add(normalizedFee(iva)).add(normalizedFee(otherFees));
   }
 
   @Override
@@ -637,7 +696,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         request.pricePerUnit(),
         calculateGrossAmount(request.quantity(), request.pricePerUnit()),
         request.transactionDate(),
-        normalizedFee(request.fee()),
+        resolveManualFee(
+            request.fee(), request.brokerCommission(), request.brokerIva(), request.otherFees()),
         request.notes(),
         null,
         assetName,
@@ -663,7 +723,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         request.pricePerUnit(),
         calculateGrossAmount(request.quantity(), request.pricePerUnit()),
         request.transactionDate(),
-        normalizedFee(request.fee()),
+        resolveManualFee(
+            request.fee(), request.brokerCommission(), request.brokerIva(), request.otherFees()),
         request.notes(),
         null,
         assetName,
