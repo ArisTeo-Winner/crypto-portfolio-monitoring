@@ -43,6 +43,11 @@ LABEL org.opencontainers.image.title="crypto-portfolio-monitoring" \
 
 WORKDIR /app
 
+# Parchear paquetes del SO de la base (gate Trivy: libssl3/libcrypto3/openssl,
+# libexpat con CVE HIGH ya corregido en el repo de Alpine). Se ejecuta como root
+# antes de bajar a appuser. --no-cache evita dejar el indice apk en la imagen.
+RUN apk --no-cache -U upgrade
+
 # Usuario/grupo no-root fijo (UID/GID 1001).
 RUN addgroup -S -g 1001 appuser \
     && adduser -S -u 1001 -G appuser -h /app appuser

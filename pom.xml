@@ -38,6 +38,21 @@
 		<!-- Override del BOM de Jackson a 2.21.4 (fix CVE-2026-54512/54513). Boot 3.5.14
 		     ya trae 2.21.2, asi que es solo un patch dentro del minor: bajo riesgo. -->
 		<jackson-bom.version>2.21.4</jackson-bom.version>
+
+		<!-- ===== Overrides de seguridad (gate Trivy: HIGH/CRITICAL con fix) =====
+		     Transitivas gestionadas por el BOM de Spring Boot 3.5.14 con CVE 2026 ya
+		     parcheado aguas arriba. Patch dentro del mismo minor -> bajo riesgo.
+		     Retirar cada override cuando Spring Boot suba la version gestionada
+		     (Dependabot). spring-data-commons no tiene property por-artefacto en el
+		     BOM: se fija en <dependencyManagement>. -->
+		<netty.version>4.1.137.Final</netty.version>
+		<!-- 10.1.58 (el numero que reporta Trivy) es un release de Apache que no se
+		     publico en Maven Central; la siguiente 10.1.x disponible y >= al fix es 10.1.60. -->
+		<tomcat.version>10.1.60</tomcat.version>
+		<spring-framework.version>6.2.19</spring-framework.version>
+		<micrometer.version>1.15.12</micrometer.version>
+		<postgresql.version>42.7.12</postgresql.version>
+
 		<sonar.projectKey>crypto-portfolio-monitoring</sonar.projectKey>
 		<sonar.projectName>crypto-portfolio-monitoring</sonar.projectName>
 		<sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
@@ -71,7 +86,17 @@
 	</properties>
 	<dependencyManagement>
 		<dependencies>
-			
+
+			<!-- Override de seguridad: spring-data-commons 3.5.11 -> 3.5.12
+			     (CVE-2026-41695 / CVE-2026-41716, DoS). El BOM de Boot lo gestiona
+			     via el release train spring-data-bom, sin property por-artefacto,
+			     asi que se fija aqui de forma explicita. -->
+			<dependency>
+				<groupId>org.springframework.data</groupId>
+				<artifactId>spring-data-commons</artifactId>
+				<version>3.5.12</version>
+			</dependency>
+
 		<dependency>
 			<groupId>org.springframework.modulith</groupId>
 			<artifactId>spring-modulith-api</artifactId>
