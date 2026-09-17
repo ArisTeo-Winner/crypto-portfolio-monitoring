@@ -173,6 +173,7 @@ class TransactionControllerCreateTransactionIT {
                     new BigDecimal("0.50"),
                     new BigDecimal("22302.54"),
                     new BigDecimal("89210.16"),
+                    new BigDecimal("2.00000000"),
                     com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK)));
 
     mockMvc

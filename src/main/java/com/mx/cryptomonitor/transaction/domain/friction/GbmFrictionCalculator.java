@@ -85,6 +85,10 @@ public final class GbmFrictionCalculator {
         amount(quantity).signum() == 0
             ? BigDecimal.ZERO.setScale(UNIT_SCALE)
             : netCost.divide(amount(quantity), UNIT_SCALE, RoundingMode.HALF_UP);
+    BigDecimal perUnitFriction =
+        amount(quantity).signum() == 0
+            ? BigDecimal.ZERO.setScale(UNIT_SCALE)
+            : totalFriction.divide(amount(quantity), UNIT_SCALE, RoundingMode.HALF_UP);
     return new FrictionBreakdown(
         gross,
         commission,
@@ -93,6 +97,7 @@ public final class GbmFrictionCalculator {
         totalFriction,
         netCost,
         adjustedUnitPrice,
+        perUnitFriction,
         reviewStatus(netCost, reportedTotal));
   }
 

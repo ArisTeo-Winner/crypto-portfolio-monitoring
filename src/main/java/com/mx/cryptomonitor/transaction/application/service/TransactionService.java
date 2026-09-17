@@ -399,6 +399,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         (netAmount != null && quantity != null && quantity.compareTo(BigDecimal.ZERO) > 0)
             ? netAmount.divide(quantity, 8, RoundingMode.HALF_UP)
             : null;
+    BigDecimal perUnitFriction =
+        (fee != null && quantity != null && quantity.compareTo(BigDecimal.ZERO) > 0)
+            ? fee.divide(quantity, 8, RoundingMode.HALF_UP)
+            : null;
     return new FrictionBreakdownView(
         grossAmount,
         transaction.getBrokerCommission(),
@@ -407,6 +411,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         fee,
         netAmount,
         adjustedUnitPrice,
+        perUnitFriction,
         transaction.getReviewStatus());
   }
 

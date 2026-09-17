@@ -18,4 +18,5 @@ public record FrictionBreakdownView(
     BigDecimal totalFrictionCost,
     BigDecimal finalNetCost,
     BigDecimal adjustedUnitPrice,
+    BigDecimal perUnitFriction,
     ReviewStatus reviewStatus) {}

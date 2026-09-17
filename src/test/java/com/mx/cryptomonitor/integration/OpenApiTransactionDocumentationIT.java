@@ -70,6 +70,7 @@ class OpenApiTransactionDocumentationIT {
     assertThat(openApi).contains("\"FrictionBreakdownView\"");
     assertThat(openApi).contains("frictionBreakdown");
     assertThat(openApi).contains("adjustedUnitPrice");
+    assertThat(openApi).contains("perUnitFriction");
     // reviewStatus como enum tipado, no string libre
     assertThat(openApi).contains("REQUIERE_REVISION");
 

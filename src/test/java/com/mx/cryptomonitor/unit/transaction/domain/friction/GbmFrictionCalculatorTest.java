@@ -84,6 +84,7 @@ class GbmFrictionCalculatorTest {
     assertThat(breakdown.otherFees()).isEqualByComparingTo("0.00");
     assertThat(breakdown.totalFrictionCost()).isEqualByComparingTo("0.25");
     assertThat(breakdown.finalNetCost()).isEqualByComparingTo("104.01");
+    assertThat(breakdown.perUnitFriction()).isEqualByComparingTo("0.26214052");
     assertThat(breakdown.reviewStatus()).isEqualTo(ReviewStatus.OK);
   }
 
