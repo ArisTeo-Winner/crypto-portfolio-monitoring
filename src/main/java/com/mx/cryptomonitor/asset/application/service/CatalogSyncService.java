@@ -13,6 +13,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -446,11 +447,11 @@ public class CatalogSyncService implements AssetCatalogRefreshPort {
     AssetCatalogDto resolved = resolution.dto();
     if (resolved.logoUrl() == null || resolved.logoUrl().isBlank()) {
       // Sin logo posible: marca NONE (cache de negativos) para no reintentar en cada request.
-      catalogRepository.save(toEntity(resolved, "NONE"));
+      persistIgnoringDuplicate(toEntity(resolved, "NONE"));
       return null;
     }
 
-    catalogRepository.save(toEntity(resolved, resolution.status()));
+    persistIgnoringDuplicate(toEntity(resolved, resolution.status()));
     redisService.saveEntry(resolved);
     if ("RESOLVED".equals(resolution.status())) {
       log.info("CatalogSync: icono resuelto on-demand para {} ({})", upper, type);
@@ -461,6 +462,24 @@ public class CatalogSyncService implements AssetCatalogRefreshPort {
           type);
     }
     return resolved.logoUrl();
+  }
+
+  /**
+   * Guarda una fila del catalogo tolerando la carrera on-demand: si dos peticiones concurrentes
+   * resuelven el mismo simbolo nuevo a la vez, ambas pasan el check de existencia y ambas hacen
+   * INSERT; la segunda choca con la PK. Como la resolucion es idempotente (misma fila), tragamos la
+   * violacion: la fila ya quedo persistida por el otro hilo. El path de lectura no es
+   * transaccional, asi que el save corre en su propia transaccion y esta excepcion no envenena la
+   * lectura.
+   */
+  private void persistIgnoringDuplicate(AssetCatalogEntity entity) {
+    try {
+      catalogRepository.save(entity);
+    } catch (DataIntegrityViolationException raceInsert) {
+      log.debug(
+          "CatalogSync: {} ya fue insertado por otro hilo (carrera on-demand); se ignora",
+          entity.getSymbol());
+    }
   }
 
   /**

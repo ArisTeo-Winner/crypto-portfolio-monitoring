@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
@@ -351,6 +352,22 @@ class CatalogSyncServiceTest {
             "BTC", "BTC", "CRYPTO", "https://assets.coingecko.com/btc.png", null, null, null);
     verify(catalogRepository).save(any(AssetCatalogEntity.class));
     verify(redisService).saveEntry(expected);
+  }
+
+  @Test
+  void ensureIconCataloguedSwallowsDuplicateKeyFromConcurrentInsert() {
+    when(catalogRepository.findById("BTC")).thenReturn(Optional.empty());
+    when(cryptoLogoPort.fetchLogosBySymbol(List.of("BTC")))
+        .thenReturn(Map.of("BTC", "https://assets.coingecko.com/btc.png"));
+    when(catalogRepository.save(any(AssetCatalogEntity.class)))
+        .thenThrow(
+            new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"asset_catalog_pkey\""));
+
+    // Carrera on-demand: otro hilo ya inserto BTC. El save no debe propagar la excepcion.
+    syncService.ensureIconCatalogued("btc", "crypto");
+
+    verify(catalogRepository).save(any(AssetCatalogEntity.class));
   }
 
   @Test
