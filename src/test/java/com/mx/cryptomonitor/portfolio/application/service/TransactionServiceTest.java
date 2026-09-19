@@ -510,6 +510,85 @@ class TransactionServiceTest {
   }
 
   @Test
+  @DisplayName("updateTransaction: rejects financial edit on imported transaction (notes only)")
+  void updateTransactionRejectsFinancialEditOnImported() {
+    UUID txId = UUID.randomUUID();
+    Transaction imported =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("0.95368698"))
+            .pricePerUnit(new BigDecimal("108.7988"))
+            .totalValue(new BigDecimal("103.76"))
+            .fee(new BigDecimal("0.25"))
+            .transactionDate(OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC))
+            .importSource(ImportSource.DRIVEWEALTH)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(imported));
+
+    UpdateTransactionRequest changePrice =
+        new UpdateTransactionRequest(
+            "CRCL",
+            "STOCK",
+            new BigDecimal("0.95368698"),
+            new BigDecimal("200.00"),
+            OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("0.25"),
+            "nota",
+            null);
+
+    assertThatThrownBy(
+            () -> transactionService.updateTransaction(userId, txId, changePrice, IDEMPOTENCY_KEY))
+        .isInstanceOf(
+            com.mx.cryptomonitor.transaction.domain.exception
+                .ImportedTransactionNotEditableException.class);
+    verify(transactionRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("updateTransaction: allows notes-only edit on imported transaction")
+  void updateTransactionAllowsNotesOnlyOnImported() {
+    UUID txId = UUID.randomUUID();
+    Transaction imported =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("0.95368698"))
+            .pricePerUnit(new BigDecimal("108.7988"))
+            .totalValue(new BigDecimal("103.76"))
+            .fee(new BigDecimal("0.25"))
+            .transactionDate(OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC))
+            .importSource(ImportSource.DRIVEWEALTH)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(imported));
+    when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    UpdateTransactionRequest notesOnly =
+        new UpdateTransactionRequest(
+            "CRCL",
+            "STOCK",
+            new BigDecimal("0.95368698"),
+            new BigDecimal("108.7988"),
+            OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("0.25"),
+            "nueva anotacion",
+            null);
+
+    transactionService.updateTransaction(userId, txId, notesOnly, IDEMPOTENCY_KEY);
+
+    assertThat(imported.getNotes()).isEqualTo("nueva anotacion");
+    verify(transactionRepository).save(imported);
+    verify(portfolioProjectionSyncPort, never()).reconcileUserPortfolio(any());
+    verify(transactionRealizedPnlService, never()).rebuildUserRealizedPnl(any());
+  }
+
+  @Test
   @DisplayName("updateTransaction: transfer keeps zero price and transfer type")
   void updateTransactionTransferUsesZeroPriceAndTotal() {
     UUID txId = transaction.getTransactionId();

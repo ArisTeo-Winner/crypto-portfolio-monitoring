@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.mx.cryptomonitor.transaction.domain.exception.IdempotencyConflictException;
+import com.mx.cryptomonitor.transaction.domain.exception.ImportedTransactionNotEditableException;
 import com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
 import com.mx.cryptomonitor.transaction.infrastructure.inbound.rest.TransactionController;
@@ -26,6 +27,14 @@ public class TransactionExceptionHandler {
     ProblemDetail problemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     problemDetail.setTitle("Invalid Transaction");
+    return problemDetail;
+  }
+
+  @ExceptionHandler(ImportedTransactionNotEditableException.class)
+  ProblemDetail handleImportedReadOnly(ImportedTransactionNotEditableException ex) {
+    ProblemDetail problemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    problemDetail.setTitle("Imported Transaction Read-Only");
     return problemDetail;
   }
 

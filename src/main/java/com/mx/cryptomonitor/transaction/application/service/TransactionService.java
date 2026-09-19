@@ -35,6 +35,7 @@ import com.mx.cryptomonitor.transaction.application.port.in.TransactionQueryUseC
 import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjectionSyncPort;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionAuditPort;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistrationPort;
+import com.mx.cryptomonitor.transaction.domain.exception.ImportedTransactionNotEditableException;
 import com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
 import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
@@ -164,6 +165,42 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
       return normalizedFee(fee);
     }
     return normalizedFee(commission).add(normalizedFee(iva)).add(normalizedFee(otherFees));
+  }
+
+  private static boolean isImported(ImportSource source) {
+    return source != null && source != ImportSource.MANUAL;
+  }
+
+  private void guardImportedFinancialFieldsUnchanged(
+      Transaction stored, UpdateTransactionRequest request) {
+    boolean financialChange =
+        !stored.getAssetSymbol().equalsIgnoreCase(request.assetSymbol().trim())
+            || stored.getAssetType() != normalizedAssetType(request.assetType())
+            || numberChanged(stored.getQuantity(), request.quantity())
+            || numberChanged(stored.getPricePerUnit(), request.pricePerUnit())
+            || instantChanged(stored.getTransactionDate(), request.transactionDate())
+            || numberChanged(stored.getFee(), request.fee());
+    if (financialChange) {
+      throw new ImportedTransactionNotEditableException(
+          "La transaccion fue importada de "
+              + stored.getImportSource().name()
+              + " y es un registro de solo lectura del broker: solo se pueden editar las notas.");
+    }
+  }
+
+  private static boolean numberChanged(BigDecimal stored, BigDecimal requested) {
+    if (requested == null) {
+      return false;
+    }
+    BigDecimal current = stored != null ? stored : BigDecimal.ZERO;
+    return current.compareTo(requested) != 0;
+  }
+
+  private static boolean instantChanged(OffsetDateTime stored, OffsetDateTime requested) {
+    if (stored == null || requested == null) {
+      return stored != requested;
+    }
+    return !stored.toInstant().equals(requested.toInstant());
   }
 
   @Override
@@ -356,6 +393,20 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
             String transactionType = normalizeTransactionType(transaction.getTransactionType());
             validateUpdateRequest(transactionType, request);
+
+            if (isImported(transaction.getImportSource())) {
+              // Importado (DriveWealth/GBM): registro autoritativo del broker. Solo Notas es
+              // editable; cualquier cambio financiero se rechaza (ver ADR-0007).
+              guardImportedFinancialFieldsUnchanged(transaction, request);
+              transaction.setNotes(request.notes());
+              transaction.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+              TransactionResponse notesOnly =
+                  transactionMapper.toResponse(transactionRepository.save(transaction));
+              transactionAuditPort.logUpdateSuccess(
+                  userId,
+                  describeSuccessfulMutation("Updated imported transaction notes", notesOnly));
+              return notesOnly;
+            }
 
             transaction.setAssetSymbol(request.assetSymbol().trim().toUpperCase(Locale.ROOT));
             transaction.setAssetType(normalizedAssetType(request.assetType()));
