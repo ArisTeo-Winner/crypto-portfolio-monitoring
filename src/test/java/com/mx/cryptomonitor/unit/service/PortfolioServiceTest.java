@@ -29,6 +29,7 @@ import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePoint;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPriceSeries;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRatePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
@@ -46,6 +47,7 @@ class PortfolioServiceTest {
   @Mock private CryptoHistoricalPricePort cryptoHistoricalPricePort;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private TransactionHistoryPort transactionHistoryPort;
+  @Mock private FxRatePort fxRatePort;
 
   @InjectMocks private PortfolioService portfolioService;
 
@@ -363,6 +365,37 @@ class PortfolioServiceTest {
     assertThat(response.allTimeProfit()).isEqualByComparingTo("5807.44");
     assertThat(response.allTimeProfitPercent()).isEqualByComparingTo("265.01");
     assertThat(response.firstTransactionDate()).isEqualTo(LocalDate.of(2025, 3, 3));
+  }
+
+  @Test
+  void holdingsPerformanceConvertsMxnCostToUsdBaseUsingFxRate() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "MELIX",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("1"),
+                    new BigDecimal("31562.38"),
+                    new BigDecimal("31562.38"),
+                    new BigDecimal("78.90"),
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 0, ZoneOffset.UTC),
+                    "MXN")));
+    when(fxRatePort.usdMxnRate()).thenReturn(Optional.of(new BigDecimal("20")));
+    when(assetPricePort.getCryptoPriceAmount("MELIX"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2000.00")));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("MELIX")).thenReturn(Optional.empty());
+
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "MELIX", "ALL");
+
+    // Costo MXN (31562.38 + 78.90 = 31641.28) normalizado a USD (/20) = 1582.06, NO el crudo en
+    // pesos. Antes de ADR-0006 el costo MXN se comparaba contra precio USD -> P&L falso.
+    assertThat(response.costBasis()).isEqualByComparingTo("1582.06");
   }
 
   @Test

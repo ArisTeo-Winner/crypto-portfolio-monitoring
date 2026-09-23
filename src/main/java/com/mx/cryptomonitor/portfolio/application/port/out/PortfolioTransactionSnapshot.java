@@ -13,8 +13,36 @@ public record PortfolioTransactionSnapshot(
     BigDecimal pricePerUnit,
     BigDecimal fee,
     BigDecimal realizedPnl,
-    OffsetDateTime transactionDate) {
+    OffsetDateTime transactionDate,
+    String currency) {
 
+  /** Compat: sin {@code currency} (queda null => sin conversion FX). */
+  public PortfolioTransactionSnapshot(
+      String assetSymbol,
+      String assetType,
+      String transactionType,
+      String transferType,
+      BigDecimal quantity,
+      BigDecimal totalValue,
+      BigDecimal pricePerUnit,
+      BigDecimal fee,
+      BigDecimal realizedPnl,
+      OffsetDateTime transactionDate) {
+    this(
+        assetSymbol,
+        assetType,
+        transactionType,
+        transferType,
+        quantity,
+        totalValue,
+        pricePerUnit,
+        fee,
+        realizedPnl,
+        transactionDate,
+        null);
+  }
+
+  /** Compat: sin {@code realizedPnl} ni {@code currency}. */
   public PortfolioTransactionSnapshot(
       String assetSymbol,
       String assetType,
@@ -35,6 +63,7 @@ public record PortfolioTransactionSnapshot(
         pricePerUnit,
         fee,
         BigDecimal.ZERO,
-        transactionDate);
+        transactionDate,
+        null);
   }
 }

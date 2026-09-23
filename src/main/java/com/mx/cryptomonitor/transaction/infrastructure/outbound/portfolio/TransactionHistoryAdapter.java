@@ -50,6 +50,7 @@ public class TransactionHistoryAdapter
         transaction.getPricePerUnit(),
         transaction.getFee(),
         transaction.getRealizedPnl(),
-        transaction.getTransactionDate());
+        transaction.getTransactionDate(),
+        transaction.getCurrency());
   }
 }

@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRatePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.service.PortfolioService;
@@ -32,6 +33,7 @@ class PortfolioServiceTest {
   @Mock private CryptoHistoricalPricePort cryptoHistoricalPricePort;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private TransactionHistoryPort transactionHistoryPort;
+  @Mock private FxRatePort fxRatePort;
 
   @InjectMocks private PortfolioService portfolioService;
 

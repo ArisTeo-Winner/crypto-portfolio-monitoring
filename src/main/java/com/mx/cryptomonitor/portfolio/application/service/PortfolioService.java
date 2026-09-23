@@ -24,6 +24,7 @@ import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePoint;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRatePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
@@ -54,6 +55,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private final CryptoHistoricalPricePort cryptoHistoricalPricePort;
   private final AssetCatalogQueryPort assetCatalogQueryPort;
   private final TransactionHistoryPort transactionHistoryPort;
+  private final FxRatePort fxRatePort;
 
   @Override
   public List<PortfolioEntry> getPortfolioEntriesByUser(UUID userId) {
@@ -92,6 +94,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     }
 
     HoldingsPerformanceAccumulator accumulator = new HoldingsPerformanceAccumulator();
+    accumulator.usdMxnRate = resolveUsdMxnRate();
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
       PerformanceAssetState assetState =
@@ -574,14 +577,33 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
         .toList();
   }
 
+  private BigDecimal resolveUsdMxnRate() {
+    return fxRatePort.usdMxnRate().orElse(null);
+  }
+
+  // Normaliza a la moneda base del portafolio (USD). v1 (ADR-0006): convierte MXN->USD con la tasa
+  // actual; USD/null quedan igual. Sin tasa disponible => no convierte (comportamiento previo).
+  private static BigDecimal toBaseCurrency(
+      BigDecimal amount, String currency, BigDecimal usdMxnRate) {
+    BigDecimal value = amount != null ? amount : BigDecimal.ZERO;
+    if (usdMxnRate == null || usdMxnRate.signum() <= 0 || !"MXN".equalsIgnoreCase(currency)) {
+      return value;
+    }
+    return value.divide(usdMxnRate, COST_SCALE, RoundingMode.HALF_UP);
+  }
+
   private void applyPerformanceSnapshot(
       HoldingsPerformanceAccumulator accumulator,
       PerformanceAssetState assetState,
       PortfolioTransactionSnapshot snapshot) {
     BigDecimal quantity = normalizeAmount(snapshot.quantity());
-    BigDecimal unitPrice = normalizeAmount(snapshot.pricePerUnit());
-    BigDecimal fee = normalizeAmount(snapshot.fee());
-    BigDecimal grossAmount = resolveGrossAmount(snapshot, quantity, unitPrice);
+    BigDecimal rate = accumulator.usdMxnRate;
+    String currency = snapshot.currency();
+    BigDecimal rawUnitPrice = normalizeAmount(snapshot.pricePerUnit());
+    BigDecimal unitPrice = toBaseCurrency(rawUnitPrice, currency, rate);
+    BigDecimal fee = toBaseCurrency(normalizeAmount(snapshot.fee()), currency, rate);
+    BigDecimal grossAmount =
+        toBaseCurrency(resolveGrossAmount(snapshot, quantity, rawUnitPrice), currency, rate);
     String transactionType = snapshot.transactionType().trim().toUpperCase();
 
     if ("BUY".equals(transactionType)) {
@@ -687,6 +709,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       List<PortfolioTransactionSnapshot> snapshots,
       Map<String, PerformanceAssetState> assetsBySymbol) {
     HoldingsPerformanceAccumulator runningAccumulator = new HoldingsPerformanceAccumulator();
+    runningAccumulator.usdMxnRate = resolveUsdMxnRate();
     List<PortfolioHoldingsPerformanceResponse.SeriesPoint> series = new ArrayList<>();
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
@@ -1050,6 +1073,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private static final class HoldingsPerformanceAccumulator {
     private final Map<String, PerformanceAssetState> assetsBySymbol = new LinkedHashMap<>();
     private BigDecimal realizedProfit = BigDecimal.ZERO;
+    private BigDecimal usdMxnRate;
   }
 
   private static final class PerformanceAssetState {
