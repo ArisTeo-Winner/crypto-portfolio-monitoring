@@ -219,12 +219,14 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
 
     List<PortfolioEntry> rebuiltEntries = new ArrayList<>();
     List<PortfolioEntry> entriesToPersist = new ArrayList<>();
+    BigDecimal usdMxnRate = resolveUsdMxnRate();
 
     transactionsBySymbol.forEach(
         (assetSymbol, snapshots) -> {
           PortfolioEntry existingEntry = existingBySymbol.get(assetSymbol);
           PortfolioProjectionState originalState = PortfolioProjectionState.from(existingEntry);
-          PortfolioEntry rebuiltEntry = rebuildPortfolioEntry(userId, existingEntry, snapshots);
+          PortfolioEntry rebuiltEntry =
+              rebuildPortfolioEntry(userId, existingEntry, snapshots, usdMxnRate);
 
           if (rebuiltEntry.getTotalQuantity().compareTo(BigDecimal.ZERO) > 0) {
             rebuiltEntries.add(rebuiltEntry);
@@ -271,7 +273,10 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   }
 
   private PortfolioEntry rebuildPortfolioEntry(
-      UUID userId, PortfolioEntry existingEntry, List<PortfolioTransactionSnapshot> snapshots) {
+      UUID userId,
+      PortfolioEntry existingEntry,
+      List<PortfolioTransactionSnapshot> snapshots,
+      BigDecimal usdMxnRate) {
     Optional<BigDecimal> persistedPriceFallback = derivePersistedUnitPrice(existingEntry);
 
     PortfolioEntry entry =
@@ -290,7 +295,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     entry.setAveragePricePerUnit(BigDecimal.ZERO);
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
-      applySnapshot(entry, snapshot);
+      applySnapshot(entry, snapshot, usdMxnRate);
     }
 
     BigDecimal currentPrice =
@@ -371,7 +376,12 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     }
   }
 
-  private void applySnapshot(PortfolioEntry entry, PortfolioTransactionSnapshot snapshot) {
+  private void applySnapshot(
+      PortfolioEntry entry, PortfolioTransactionSnapshot snapshot, BigDecimal usdMxnRate) {
+    // Normaliza a base USD el costo y el precio de operaciones MXN, para que totalInvested y el P&L
+    // de la entry (que consume /me/portfolio) no comparen pesos contra un valor en USD (ADR-0006).
+    BigDecimal totalValue = toBaseCurrency(snapshot.totalValue(), snapshot.currency(), usdMxnRate);
+    BigDecimal unitPrice = toBaseCurrency(snapshot.pricePerUnit(), snapshot.currency(), usdMxnRate);
     PortfolioTransactionCommand command =
         new PortfolioTransactionCommand(
             snapshot.assetSymbol().toUpperCase(),
@@ -379,12 +389,12 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
             snapshot.transactionType(),
             snapshot.transferType(),
             snapshot.quantity(),
-            snapshot.totalValue(),
-            snapshot.pricePerUnit());
+            totalValue,
+            unitPrice);
 
     if ("BUY".equalsIgnoreCase(snapshot.transactionType())) {
       BigDecimal newQuantity = entry.getTotalQuantity().add(snapshot.quantity());
-      BigDecimal newInvested = entry.getTotalInvested().add(snapshot.totalValue());
+      BigDecimal newInvested = entry.getTotalInvested().add(totalValue);
       entry.setTotalQuantity(newQuantity);
       entry.setTotalInvested(newInvested);
       entry.setAveragePricePerUnit(
@@ -414,7 +424,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       applyTransfer(entry, command);
     }
 
-    entry.setLastTransactionPrice(snapshot.pricePerUnit());
+    entry.setLastTransactionPrice(unitPrice);
   }
 
   private PortfolioEntry getOrCreatePortfolioEntry(

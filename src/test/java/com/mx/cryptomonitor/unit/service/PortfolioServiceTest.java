@@ -399,6 +399,46 @@ class PortfolioServiceTest {
   }
 
   @Test
+  void reconcileConvertsMxnCostToUsdBaseInPortfolioEntry() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "MELIX",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    BigDecimal.ONE,
+                    new BigDecimal("31562.38"),
+                    new BigDecimal("31562.38"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 0, ZoneOffset.UTC),
+                    "MXN")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(fxRatePort.usdMxnRate()).thenReturn(Optional.of(new BigDecimal("17.5147")));
+    when(assetPricePort.getCryptoPriceAmount("MELIX"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("1801.22")));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    // Costo MXN 31562.38 normalizado a USD (/17.5147) = 1802.05, NO el crudo en pesos.
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("1802.05084872");
+    // P&L ~ breakeven (1801.22 - 1802.05), NO el falso -29761.
+    assertThat(saved[0].getTotalProfitLoss()).isEqualByComparingTo("-0.83");
+  }
+
+  @Test
   void shouldUseCoinGeckoHistoricalSeriesForCryptoHoldingsWhenAssetMappingExists() {
     UUID userId = UUID.randomUUID();
     when(transactionHistoryPort.getTransactionsByUser(userId))
