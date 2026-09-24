@@ -30,7 +30,7 @@ public class CatalogRedisAdapter implements CatalogStorePort {
             "symbol",
             entry.symbol(),
             "name",
-            entry.name(),
+            entry.name() != null ? entry.name() : "",
             "assetType",
             entry.assetType(),
             "logoUrl",
@@ -82,7 +82,7 @@ public class CatalogRedisAdapter implements CatalogStorePort {
             "symbol",
             entry.symbol(),
             "name",
-            entry.name(),
+            entry.name() != null ? entry.name() : "",
             "assetType",
             entry.assetType(),
             "logoUrl",
@@ -102,7 +102,7 @@ public class CatalogRedisAdapter implements CatalogStorePort {
   private AssetCatalogDto mapToDto(Map<Object, Object> fields) {
     return new AssetCatalogDto(
         (String) fields.get("symbol"),
-        (String) fields.get("name"),
+        nullIfBlank((String) fields.get("name")),
         (String) fields.get("assetType"),
         nullIfBlank((String) fields.get("logoUrl")),
         nullIfBlank((String) fields.get("exchange")),

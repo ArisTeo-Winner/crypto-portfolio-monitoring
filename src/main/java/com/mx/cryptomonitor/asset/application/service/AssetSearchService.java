@@ -95,6 +95,27 @@ public class AssetSearchService implements AssetCatalogQueryPort {
     return logos;
   }
 
+  @Override
+  public Map<String, AssetDisplay> findDisplayBySymbols(Collection<String> symbols) {
+    if (symbols == null || symbols.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, AssetDisplay> display = new HashMap<>();
+    for (String symbol : symbols) {
+      if (symbol == null || symbol.isBlank()) {
+        continue;
+      }
+      String upper = symbol.trim().toUpperCase(Locale.ROOT);
+      if (display.containsKey(upper)) {
+        continue;
+      }
+      redisService
+          .findEntry(upper)
+          .ifPresent(dto -> display.put(upper, new AssetDisplay(dto.name(), dto.logoUrl())));
+    }
+    return display;
+  }
+
   public List<AssetOptionResponse> getPopular(String assetType) {
     String key = "catalog:top10:" + assetType.toLowerCase(Locale.ROOT);
     return redisService.getTopSymbols(key, 10).stream()
@@ -183,13 +204,13 @@ public class AssetSearchService implements AssetCatalogQueryPort {
   }
 
   private boolean matches(AssetCatalogDto dto, String lower) {
-    return dto.symbol().toLowerCase(Locale.ROOT).contains(lower)
-        || dto.name().toLowerCase(Locale.ROOT).contains(lower);
+    String name = dto.name() == null ? "" : dto.name().toLowerCase(Locale.ROOT);
+    return dto.symbol().toLowerCase(Locale.ROOT).contains(lower) || name.contains(lower);
   }
 
   private Comparator<AssetCatalogDto> searchComparator(String lower) {
     return Comparator.comparing((AssetCatalogDto d) -> !d.symbol().equalsIgnoreCase(lower))
-        .thenComparing((AssetCatalogDto d) -> !d.name().equalsIgnoreCase(lower))
+        .thenComparing((AssetCatalogDto d) -> !lower.equalsIgnoreCase(d.name()))
         .thenComparing(AssetCatalogDto::symbol);
   }
 

@@ -146,26 +146,47 @@ public class CatalogSyncService implements AssetCatalogRefreshPort {
 
     int updated = 0;
     for (AssetCatalogEntity stock : stocks) {
-      Long marketCap;
+      Optional<StockProfile> profile;
       try {
-        marketCap =
-            fetchStockProfile(stock.getSymbol())
-                .map(StockProfile::marketCapMillions)
-                .orElse(stock.getMarketCap());
+        profile = fetchStockProfile(stock.getSymbol());
       } catch (RuntimeException ex) {
         log.warn(
-            "CatalogSync: fallo actualizando market cap de {}, se conserva el previo: {}",
+            "CatalogSync: fallo consultando profile de {}, se conservan los valores previos: {}",
             stock.getSymbol(),
             ex.getClass().getSimpleName());
-        marketCap = stock.getMarketCap();
+        profile = Optional.empty();
+      }
+
+      Long marketCap = profile.map(StockProfile::marketCapMillions).orElse(stock.getMarketCap());
+      boolean changed = false;
+      if (marketCap != null && !marketCap.equals(stock.getMarketCap())) {
+        stock.setMarketCap(marketCap);
+        changed = true;
+      }
+      // Reconciliacion ADR-0008: rellena el nombre real cuando aun es NULL (placeholder eliminado).
+      if (isBlank(stock.getName())) {
+        String name = profile.map(StockProfile::name).filter(n -> !n.isBlank()).orElse(null);
+        if (name != null) {
+          stock.setName(name);
+          changed = true;
+        }
+      }
+      if (isBlank(stock.getCurrency())) {
+        String currency =
+            profile.map(StockProfile::currency).filter(c -> !c.isBlank()).orElse(null);
+        if (currency != null) {
+          stock.setCurrency(currency);
+          changed = true;
+        }
+      }
+      if (changed) {
+        stock.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        catalogRepository.save(stock);
+        // Redis es la fuente de lectura del hot path: sincronizar tras actualizar la DB.
+        redisService.saveEntry(toDto(stock));
       }
       if (marketCap == null) {
         continue;
-      }
-      if (!marketCap.equals(stock.getMarketCap())) {
-        stock.setMarketCap(marketCap);
-        stock.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        catalogRepository.save(stock);
       }
       redisService.addToRanking("catalog:search:stock", stock.getSymbol(), marketCap);
       redisService.addToRanking("catalog:top10:stock", stock.getSymbol(), marketCap);
@@ -318,19 +339,48 @@ public class CatalogSyncService implements AssetCatalogRefreshPort {
         dto.marketCap());
   }
 
-  /** STOCK: Finnhub /profile2 aporta logo real y market cap real (reemplaza FMP para esto). */
+  /**
+   * STOCK: Finnhub /profile2 aporta nombre real, logo real, market cap y currency (reemplaza FMP
+   * para esto). ADR-0008: se copia el {@code name} del proveedor cuando el actual esta vacio (antes
+   * se descartaba, dejando el ticker como nombre). {@code firstNonBlank} nunca pisa un nombre bueno
+   * ya existente (p.ej. el de FMP), solo rellena huecos. {@code exchange} no se toca aqui por el
+   * limite VARCHAR(20) de la columna (queda como follow-up con su propia migracion).
+   */
   private AssetCatalogDto enrichStock(AssetCatalogDto dto) {
     Optional<StockProfile> profile = fetchStockProfile(dto.symbol());
+    String name = firstNonBlank(dto.name(), profile.map(StockProfile::name).orElse(null));
     String logoUrl = profile.map(StockProfile::logoUrl).orElse(dto.logoUrl());
     Long marketCap = profile.map(StockProfile::marketCapMillions).orElse(dto.marketCap());
+    String currency =
+        firstNonBlank(dto.currency(), profile.map(StockProfile::currency).orElse(null));
     return new AssetCatalogDto(
-        dto.symbol(),
-        dto.name(),
-        dto.assetType(),
-        logoUrl,
-        dto.exchange(),
-        dto.currency(),
-        marketCap);
+        dto.symbol(), name, dto.assetType(), logoUrl, dto.exchange(), currency, marketCap);
+  }
+
+  /**
+   * Devuelve {@code current} si no esta en blanco; si no, {@code incoming} (o null si ambos lo
+   * estan).
+   */
+  private static String firstNonBlank(String current, String incoming) {
+    if (current != null && !current.isBlank()) {
+      return current;
+    }
+    return (incoming != null && !incoming.isBlank()) ? incoming : null;
+  }
+
+  private static boolean isBlank(String s) {
+    return s == null || s.isBlank();
+  }
+
+  private AssetCatalogDto toDto(AssetCatalogEntity e) {
+    return new AssetCatalogDto(
+        e.getSymbol(),
+        e.getName(),
+        e.getAssetType(),
+        e.getLogoUrl(),
+        e.getExchange(),
+        e.getCurrency(),
+        e.getMarketCap());
   }
 
   private Optional<StockProfile> fetchStockProfile(String symbol) {
@@ -434,7 +484,10 @@ public class CatalogSyncService implements AssetCatalogRefreshPort {
                         e.getExchange(),
                         e.getCurrency(),
                         e.getMarketCap()))
-            .orElseGet(() -> new AssetCatalogDto(upper, upper, type, null, null, null, null));
+            // ADR-0008: sin placeholder de nombre. name=null = "aun no resuelto"; enrichStock lo
+            // rellena con el nombre real del proveedor y la reconciliacion diaria completa el
+            // resto.
+            .orElseGet(() -> new AssetCatalogDto(upper, null, type, null, null, null, null));
 
     IconResolution resolution =
         switch (type) {

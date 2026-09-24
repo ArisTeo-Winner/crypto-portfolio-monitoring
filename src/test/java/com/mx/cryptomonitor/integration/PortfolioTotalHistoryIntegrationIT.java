@@ -70,6 +70,12 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
   static void registerCoinGecko(DynamicPropertyRegistry registry) {
     registry.add("external.providers.coingecko.base-url", coinGecko::baseUrl);
     registry.add("external.providers.coingecko.enabled", () -> "true");
+    // Forzar CoinGecko (stubeado) como ÚNICO proveedor CRYPTO: apagar los de spot/futuros en vivo
+    // (@Order 0,1,2), que si no golpean Binance real y hacen el test dependiente de precios en
+    // vivo.
+    registry.add("external.providers.binance.enabled", () -> "false");
+    registry.add("external.providers.bybit.enabled", () -> "false");
+    registry.add("external.providers.binance.futures.enabled", () -> "false");
     registry.add("marketdata.alphavantage.base-url", () -> "http://localhost");
     registry.add("marketdata.alphavantage.api-key", () -> "demo");
     registry.add("polygon.base-url", () -> "");
@@ -88,25 +94,29 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
 
   @Test
   void totalHistorySharesRedisPriceCacheAndKeepsUserQuantitiesIsolated() throws Exception {
-    OffsetDateTime buyDate = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    // La compra es previa a los precios stubeados para que la cantidad ya aplique en el primer
+    // punto.
+    OffsetDateTime buyDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(10);
     transactionRepository.saveAndFlush(transaction(firstUser, "BTC", new BigDecimal("1"), buyDate));
     transactionRepository.saveAndFlush(
         transaction(secondUser, "BTC", new BigDecimal("2"), buyDate));
 
+    // El CoinGeckoMarketPriceHistoryAdapter llama /coins/{id}/market_chart/range (id = "BTC"); el
+    // path anterior (/coins/bitcoin/market_chart) nunca matcheaba y el test dependia de Binance.
+    // El historial TOTAL filtra los precios a la ventana [now-range, now], asi que los timestamps
+    // se generan relativos a now (ultimos dias) en vez de fechas fijas que caerian fuera del rango.
+    long dayMs = 86_400_000L;
+    long nowMs = System.currentTimeMillis();
+    String pricesBody =
+        String.format(
+            java.util.Locale.ROOT,
+            "{\"prices\":[[%d,100.00],[%d,110.00]]}",
+            nowMs - 3 * dayMs,
+            nowMs - dayMs);
     coinGecko.stubFor(
-        WireMock.get(urlPathEqualTo("/coins/bitcoin/market_chart"))
+        WireMock.get(urlPathEqualTo("/coins/BTC/market_chart/range"))
             .willReturn(
-                aResponse()
-                    .withHeader("Content-Type", "application/json")
-                    .withBody(
-                        """
-                        {
-                          "prices": [
-                            [1767225600000, 100.00],
-                            [1767312000000, 110.00]
-                          ]
-                        }
-                        """)));
+                aResponse().withHeader("Content-Type", "application/json").withBody(pricesBody)));
 
     String firstBody =
         mockMvc

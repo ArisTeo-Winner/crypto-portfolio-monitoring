@@ -55,6 +55,12 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
     }
     registry.add("external.providers.coingecko.base-url", coinGecko::baseUrl);
     registry.add("external.providers.coingecko.enabled", () -> "true");
+    // Forzar CoinGecko (stubeado) como ÚNICO proveedor CRYPTO: apagar los de spot/futuros en vivo
+    // (@Order 0,1,2), que si no golpean Binance real y hacen el test dependiente de precios en
+    // vivo.
+    registry.add("external.providers.binance.enabled", () -> "false");
+    registry.add("external.providers.bybit.enabled", () -> "false");
+    registry.add("external.providers.binance.futures.enabled", () -> "false");
     registry.add("security.portfolio-history-rate-limit.enabled", () -> "false");
   }
 
@@ -64,10 +70,12 @@ class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
     transactionRepository.deleteAll();
     userRepository.deleteAll();
 
+    // El CoinGeckoMarketPriceHistoryAdapter llama /coins/{id}/market_chart/range?vs_currency=usd&
+    // from=..&to.. (id = símbolo resuelto, "BTC"). Se matchea path + vs_currency e ignoran from/to
+    // (relativos a now) para que el stub sea determinista sin importar la fecha del reloj.
     coinGecko.stubFor(
-        get(urlPathEqualTo("/coins/bitcoin/market_chart"))
+        get(urlPathEqualTo("/coins/BTC/market_chart/range"))
             .withQueryParam("vs_currency", equalTo("usd"))
-            .withQueryParam("days", equalTo("30"))
             .willReturn(
                 aResponse()
                     .withHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)

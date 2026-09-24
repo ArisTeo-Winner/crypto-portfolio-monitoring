@@ -23,7 +23,9 @@ public class AssetCatalogEntity {
   @Column(name = "symbol", length = 20)
   private String symbol;
 
-  @Column(name = "name", nullable = false)
+  // Nullable: NULL = nombre aun no resuelto (ADR-0008). No se persiste el simbolo como placeholder;
+  // el frontend muestra el simbolo cuando name es NULL.
+  @Column(name = "name")
   private String name;
 
   @Column(name = "asset_type", length = 20, nullable = false)

@@ -347,9 +347,11 @@ class CatalogSyncServiceTest {
 
     syncService.ensureIconCatalogued("btc", "crypto");
 
+    // ADR-0008: sin placeholder de nombre. CRYPTO no tiene proveedor de nombre on-demand, asi que
+    // el nombre queda null hasta resolverse por STATIC_CRYPTOS/FMP (el front muestra el simbolo).
     AssetCatalogDto expected =
         new AssetCatalogDto(
-            "BTC", "BTC", "CRYPTO", "https://assets.coingecko.com/btc.png", null, null, null);
+            "BTC", null, "CRYPTO", "https://assets.coingecko.com/btc.png", null, null, null);
     verify(catalogRepository).save(any(AssetCatalogEntity.class));
     verify(redisService).saveEntry(expected);
   }
@@ -378,10 +380,11 @@ class CatalogSyncServiceTest {
 
     syncService.ensureIconCatalogued("xyz", "CRYPTO");
 
+    // ADR-0008: name null (sin placeholder de simbolo) para un CRYPTO on-demand sin nombre.
     AssetCatalogDto expected =
         new AssetCatalogDto(
             "XYZ",
-            "XYZ",
+            null,
             "CRYPTO",
             "https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/xyz.png",
             null,

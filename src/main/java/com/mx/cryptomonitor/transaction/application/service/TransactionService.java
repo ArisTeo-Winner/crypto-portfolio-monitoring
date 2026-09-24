@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort.AssetDisplay;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
@@ -579,24 +580,27 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
    * desde el catálogo (crypto y stock), sin proveedores externos en el hot path.
    */
   private List<TransactionResponse> toResponsesWithLogos(List<Transaction> transactions) {
-    Map<String, String> logos =
-        new HashMap<>(
-            assetCatalogQueryPort.findLogosBySymbols(
-                transactions.stream()
-                    .map(Transaction::getAssetSymbol)
-                    .collect(Collectors.toSet())));
     if (iconPullOnceEnabled) {
       Map<String, String> candidates = distinctSymbolTypes(transactions);
       if (!candidates.isEmpty()) {
-        // Resuelve/actualiza iconos desde los proveedores y los incluye en ESTA misma respuesta:
-        // símbolos faltantes se resuelven una vez; iconos provisionales (fallback determinista) se
-        // auto-actualizan al logo autoritativo (p.ej. CoinGecko). Ambos con caché y throttle en el
-        // catálogo, así que no golpean al proveedor en cada lectura.
-        logos.putAll(assetCatalogRefreshPort.resolveMissingIcons(candidates));
+        // Resuelve/actualiza en el catálogo (name + logo) los símbolos faltantes o provisionales:
+        // símbolos nuevos se resuelven una vez; iconos provisionales (fallback determinista) se
+        // auto-actualizan al logo autoritativo. Con caché y throttle en el catálogo, no golpean al
+        // proveedor en cada lectura.
+        assetCatalogRefreshPort.resolveMissingIcons(candidates);
       }
     }
+    // ADR-0008: el catálogo es la única fuente de verdad de name + logo; se leen tras la
+    // resolución,
+    // en lugar de un valor denormalizado y congelado en la transacción.
+    Map<String, AssetDisplay> display =
+        new HashMap<>(
+            assetCatalogQueryPort.findDisplayBySymbols(
+                transactions.stream()
+                    .map(Transaction::getAssetSymbol)
+                    .collect(Collectors.toSet())));
     return transactions.stream()
-        .map(transaction -> toResponseWithLogo(transaction, logos))
+        .map(transaction -> toResponseWithDisplay(transaction, display))
         .toList();
   }
 
@@ -611,11 +615,16 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                 (a, b) -> a));
   }
 
-  private TransactionResponse toResponseWithLogo(
-      Transaction transaction, Map<String, String> logos) {
+  private TransactionResponse toResponseWithDisplay(
+      Transaction transaction, Map<String, AssetDisplay> display) {
     TransactionResponse response = transactionMapper.toResponse(transaction);
     String symbol = transaction.getAssetSymbol();
-    String logoUrl = symbol == null ? null : logos.get(symbol.toUpperCase(Locale.ROOT));
+    AssetDisplay d = symbol == null ? null : display.get(symbol.toUpperCase(Locale.ROOT));
+    String logoUrl = d != null ? d.logoUrl() : null;
+    // El nombre viene del catálogo (fuente de verdad); si aún no está resuelto ahí, se cae al
+    // snapshot persistido en la transacción (p.ej. el nombre reportado por el broker en el alta).
+    String assetName =
+        (d != null && d.name() != null && !d.name().isBlank()) ? d.name() : response.assetName();
     return new TransactionResponse(
         response.transactionId(),
         response.assetSymbol(),
@@ -630,7 +639,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         response.createdAt(),
         response.updatedAt(),
         logoUrl,
-        response.assetName(),
+        assetName,
         response.exchange(),
         response.broker(),
         response.currency(),
