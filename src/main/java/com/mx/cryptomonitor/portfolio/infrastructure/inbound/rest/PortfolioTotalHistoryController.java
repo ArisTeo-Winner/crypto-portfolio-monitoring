@@ -10,8 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHistoryResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
+import com.mx.cryptomonitor.portfolio.application.service.PortfolioPerformancePresentationService;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioHistoryResult;
+import com.mx.cryptomonitor.portfolio.domain.model.PresentationCurrency;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.mapper.PortfolioResponseMapper;
 import com.mx.cryptomonitor.portfolio.infrastructure.inbound.rest.security.PortfolioHistoryRateLimiter;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
@@ -35,6 +38,7 @@ public class PortfolioTotalHistoryController {
   private final GetPortfolioTotalHistoryUseCase getPortfolioTotalHistoryUseCase;
   private final CurrentUserPort currentUserPort;
   private final PortfolioHistoryRateLimiter portfolioHistoryRateLimiter;
+  private final PortfolioPerformancePresentationService portfolioPerformancePresentationService;
 
   @Operation(
       summary = "Obtener historico agregado del portafolio",
@@ -85,6 +89,11 @@ public class PortfolioTotalHistoryController {
     if (LEGACY_MEDIA_TYPE.equals(acceptHeader)) {
       return ResponseEntity.ok(PortfolioResponseMapper.toLegacySeries(result));
     }
-    return ResponseEntity.ok(PortfolioResponseMapper.toEnrichedResponse(result));
+    PresentationCurrency displayCurrency =
+        PresentationCurrency.fromCodeOrDefault(
+            currentUserPort.resolvePreferredCurrency(authentication));
+    PortfolioHistoryResponse enriched = PortfolioResponseMapper.toEnrichedResponse(result);
+    return ResponseEntity.ok(
+        portfolioPerformancePresentationService.present(enriched, displayCurrency));
   }
 }

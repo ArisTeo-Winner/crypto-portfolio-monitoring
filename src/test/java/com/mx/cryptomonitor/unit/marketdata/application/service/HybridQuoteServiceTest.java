@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.mx.cryptomonitor.marketdata.application.port.out.BmvMarketDataPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.marketdata.application.port.out.MxnSymbolLookupPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.UsdMxnFxRateProviderPort;
 import com.mx.cryptomonitor.marketdata.application.service.HybridQuoteService;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvFxQuote;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvQuote;
@@ -44,6 +45,7 @@ class HybridQuoteServiceTest {
   @Mock private MxnSymbolLookupPort mxnSymbolLookupPort;
   @Mock private MarketPriceSnapshotRepository snapshotRepository;
   @Mock private MarketFxSnapshotRepository fxSnapshotRepository;
+  @Mock private UsdMxnFxRateProviderPort primaryFxRateProvider;
 
   @InjectMocks private HybridQuoteService hybridQuoteService;
 
@@ -104,7 +106,28 @@ class HybridQuoteServiceTest {
   // -------------------------------------------------------------------------
 
   @Test
-  void getUsdMxnRateReturnsRateAndPersistsFxSnapshot() {
+  void getUsdMxnRateUsesBanxicoPrimaryAndPersistsWithBanxicoProvider() {
+    when(primaryFxRateProvider.fetchUsdMxnRate())
+        .thenReturn(Optional.of(new BigDecimal("17.6425")));
+    when(primaryFxRateProvider.providerName()).thenReturn("BANXICO");
+
+    BigDecimal rate = hybridQuoteService.getUsdMxnRate();
+
+    assertThat(rate).isEqualByComparingTo("17.6425");
+    verify(databursatil, never()).getFxRate(any());
+
+    ArgumentCaptor<MarketFxSnapshotEntity> captor =
+        ArgumentCaptor.forClass(MarketFxSnapshotEntity.class);
+    verify(fxSnapshotRepository).save(captor.capture());
+    MarketFxSnapshotEntity saved = captor.getValue();
+    assertThat(saved.getTicker()).isEqualTo("USDMXN");
+    assertThat(saved.getRate()).isEqualByComparingTo("17.6425");
+    assertThat(saved.getProvider()).isEqualTo("BANXICO");
+  }
+
+  @Test
+  void getUsdMxnRateFallsBackToDataBursatilWhenPrimaryHasNoDatum() {
+    when(primaryFxRateProvider.fetchUsdMxnRate()).thenReturn(Optional.empty());
     BmvFxQuote fx = new BmvFxQuote(17.5249, 0.09, 0.0149, "2026-06-26 02:31:00");
     when(databursatil.getFxRate("USDMXN")).thenReturn(Mono.just(fx));
 
@@ -119,6 +142,18 @@ class HybridQuoteServiceTest {
     assertThat(saved.getTicker()).isEqualTo("USDMXN");
     assertThat(saved.getRate()).isEqualByComparingTo("17.5249");
     assertThat(saved.getProvider()).isEqualTo("DATABURSATIL");
+  }
+
+  @Test
+  void getUsdMxnRateFallsBackToDataBursatilWhenPrimaryThrows() {
+    when(primaryFxRateProvider.fetchUsdMxnRate()).thenThrow(new RuntimeException("Banxico caido"));
+    BmvFxQuote fx = new BmvFxQuote(17.5249, 0.09, 0.0149, "2026-06-26 02:31:00");
+    when(databursatil.getFxRate("USDMXN")).thenReturn(Mono.just(fx));
+
+    BigDecimal rate = hybridQuoteService.getUsdMxnRate();
+
+    assertThat(rate).isEqualByComparingTo("17.5249");
+    verify(fxSnapshotRepository).save(any());
   }
 
   // -------------------------------------------------------------------------

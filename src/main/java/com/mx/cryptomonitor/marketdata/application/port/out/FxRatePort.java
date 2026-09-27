@@ -14,4 +14,10 @@ public interface FxRatePort {
    * la tasa actual (no la de la fecha de operacion).
    */
   Optional<BigDecimal> usdMxnRate();
+
+  /**
+   * Igual que {@link #usdMxnRate()} pero con procedencia (proveedor + fecha de cotizacion), para el
+   * envelope de presentacion (ADR-0010). Vacio si no hay dato disponible.
+   */
+  Optional<UsdMxnRateDetail> usdMxnRateDetail();
 }

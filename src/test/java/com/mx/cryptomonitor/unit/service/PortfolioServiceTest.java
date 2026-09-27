@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.unit.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -29,7 +30,7 @@ import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePoint;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPriceSeries;
-import com.mx.cryptomonitor.marketdata.application.port.out.FxRatePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
@@ -47,7 +48,7 @@ class PortfolioServiceTest {
   @Mock private CryptoHistoricalPricePort cryptoHistoricalPricePort;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private TransactionHistoryPort transactionHistoryPort;
-  @Mock private FxRatePort fxRatePort;
+  @Mock private FxRateHistoryPort fxRateHistoryPort;
 
   @InjectMocks private PortfolioService portfolioService;
 
@@ -385,7 +386,7 @@ class PortfolioServiceTest {
                     BigDecimal.ZERO,
                     OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 0, ZoneOffset.UTC),
                     "MXN")));
-    when(fxRatePort.usdMxnRate()).thenReturn(Optional.of(new BigDecimal("20")));
+    when(fxRateHistoryPort.usdMxnRateOn(any())).thenReturn(Optional.of(new BigDecimal("20")));
     when(assetPricePort.getCryptoPriceAmount("MELIX"))
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2000.00")));
     when(assetCatalogQueryPort.findAssetIdBySymbol("MELIX")).thenReturn(Optional.empty());
@@ -417,7 +418,7 @@ class PortfolioServiceTest {
                     OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 0, ZoneOffset.UTC),
                     "MXN")));
     when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
-    when(fxRatePort.usdMxnRate()).thenReturn(Optional.of(new BigDecimal("17.5147")));
+    when(fxRateHistoryPort.usdMxnRateOn(any())).thenReturn(Optional.of(new BigDecimal("17.5147")));
     when(assetPricePort.getCryptoPriceAmount("MELIX"))
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("1801.22")));
 

@@ -21,6 +21,8 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mx.cryptomonitor.marketdata.application.port.out.GovBondRatePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.UsdMxnFxRateHistoryProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.UsdMxnFxRateProviderPort;
 import com.mx.cryptomonitor.marketdata.domain.exception.BanxicoException;
 import com.mx.cryptomonitor.marketdata.domain.exception.BanxicoRateLimitException;
 import com.mx.cryptomonitor.marketdata.domain.exception.ExternalProviderInvalidSymbolException;
@@ -37,7 +39,13 @@ import reactor.core.publisher.Mono;
  */
 @Component
 @Slf4j
-public class BanxicoRateAdapter implements GovBondRatePort {
+public class BanxicoRateAdapter
+    implements GovBondRatePort, UsdMxnFxRateProviderPort, UsdMxnFxRateHistoryProviderPort {
+
+  private static final String PROVIDER_NAME = "BANXICO";
+
+  // Tipo de cambio FIX Pesos por dolar E.U.A. (Banxico SIE). Serie diaria.
+  private static final String USD_MXN_FIX_SERIES = "SF43718";
 
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
   private static final DateTimeFormatter BANXICO_DATE_FORMAT =
@@ -97,6 +105,39 @@ public class BanxicoRateAdapter implements GovBondRatePort {
     return latestRateForSeries(fetchOportuno(REFERENCE_SERIES), REFERENCE_SERIES);
   }
 
+  /** /SieAPIRest/service/v1/series/SF43718/datos/oportuno — tipo de cambio FIX USD/MXN. */
+  @Override
+  public Optional<BigDecimal> fetchUsdMxnRate() {
+    return latestRateForSeries(fetchOportuno(USD_MXN_FIX_SERIES), USD_MXN_FIX_SERIES);
+  }
+
+  @Override
+  public String providerName() {
+    return PROVIDER_NAME;
+  }
+
+  /**
+   * /SieAPIRest/service/v1/series/SF43718/datos/{from}/{to} — serie historica del FIX USD/MXN. Solo
+   * devuelve dias con publicacion (habiles) del rango.
+   */
+  @Override
+  public Map<LocalDate, BigDecimal> fetchUsdMxnRates(LocalDate from, LocalDate to) {
+    BanxicoOportunoResponse response = fetchRange(USD_MXN_FIX_SERIES, from, to);
+    if (response == null || response.bmx() == null || response.bmx().series() == null) {
+      return Map.of();
+    }
+    Map<LocalDate, BigDecimal> rates = new TreeMap<>();
+    for (BanxicoSerie serie : response.bmx().series()) {
+      if (!USD_MXN_FIX_SERIES.equals(serie.idSerie()) || serie.datos() == null) {
+        continue;
+      }
+      for (BanxicoDato dato : serie.datos()) {
+        rates.put(LocalDate.parse(dato.fecha(), BANXICO_DATE_FORMAT), new BigDecimal(dato.dato()));
+      }
+    }
+    return rates;
+  }
+
   private Optional<BigDecimal> latestRateForSeries(
       BanxicoOportunoResponse response, String seriesId) {
     if (response == null || response.bmx() == null || response.bmx().series() == null) {
@@ -132,6 +173,19 @@ public class BanxicoRateAdapter implements GovBondRatePort {
                         uriBuilder
                             .path("/SieAPIRest/service/v1/series/{ids}/datos/oportuno")
                             .build(seriesIds))
+                .retrieve())
+        .block();
+  }
+
+  private BanxicoOportunoResponse fetchRange(String seriesId, LocalDate from, LocalDate to) {
+    return mapErrors(
+            webClient
+                .get()
+                .uri(
+                    uriBuilder ->
+                        uriBuilder
+                            .path("/SieAPIRest/service/v1/series/{id}/datos/{from}/{to}")
+                            .build(seriesId, from.toString(), to.toString()))
                 .retrieve())
         .block();
   }

@@ -15,10 +15,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioEntryResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
-import com.mx.cryptomonitor.portfolio.application.mapper.PortfolioEntryMapper;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioQueryPort;
+import com.mx.cryptomonitor.portfolio.application.service.PortfolioEntryPresentationService;
+import com.mx.cryptomonitor.portfolio.application.service.PortfolioPerformancePresentationService;
 import com.mx.cryptomonitor.portfolio.domain.exception.PortfolioEntryNotFoundException;
+import com.mx.cryptomonitor.portfolio.domain.model.PresentationCurrency;
 import com.mx.cryptomonitor.user.application.port.in.CurrentUserPort;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,7 +38,8 @@ public class PortfolioController {
 
   private final PortfolioQueryPort portfolioQueryPort;
   private final PortfolioEntryPort portfolioEntryPort;
-  private final PortfolioEntryMapper portfolioEntryMapper;
+  private final PortfolioEntryPresentationService portfolioEntryPresentationService;
+  private final PortfolioPerformancePresentationService portfolioPerformancePresentationService;
   private final CurrentUserPort currentUserPort;
 
   @Operation(
@@ -60,9 +63,11 @@ public class PortfolioController {
   @PreAuthorize("hasRole('USER')")
   public List<PortfolioEntryResponse> getCurrentUserPortfolio(Authentication authentication) {
     UUID userId = currentUserPort.resolveUserId(authentication);
-    return portfolioQueryPort.getPortfolioEntriesByUser(userId).stream()
-        .map(portfolioEntryMapper::toResponse)
-        .toList();
+    PresentationCurrency displayCurrency =
+        PresentationCurrency.fromCodeOrDefault(
+            currentUserPort.resolvePreferredCurrency(authentication));
+    return portfolioEntryPresentationService.present(
+        portfolioQueryPort.getPortfolioEntriesByUser(userId), displayCurrency);
   }
 
   @Operation(
@@ -86,9 +91,12 @@ public class PortfolioController {
   public PortfolioEntryResponse getCurrentUserPortfolioEntry(
       @PathVariable String assetSymbol, Authentication authentication) {
     UUID userId = currentUserPort.resolveUserId(authentication);
+    PresentationCurrency displayCurrency =
+        PresentationCurrency.fromCodeOrDefault(
+            currentUserPort.resolvePreferredCurrency(authentication));
     return portfolioQueryPort
         .getPortfolioEntryByUserAndSymbol(userId, assetSymbol.toUpperCase())
-        .map(portfolioEntryMapper::toResponse)
+        .map(entry -> portfolioEntryPresentationService.present(entry, displayCurrency))
         .orElseThrow(
             () ->
                 new PortfolioEntryNotFoundException(
@@ -118,7 +126,12 @@ public class PortfolioController {
       @RequestParam(defaultValue = "ALL") String period,
       Authentication authentication) {
     UUID userId = currentUserPort.resolveUserId(authentication);
-    return portfolioQueryPort.getHoldingsPerformanceByPortfolioId(userId, portfolioId, period);
+    PresentationCurrency displayCurrency =
+        PresentationCurrency.fromCodeOrDefault(
+            currentUserPort.resolvePreferredCurrency(authentication));
+    return portfolioPerformancePresentationService.present(
+        portfolioQueryPort.getHoldingsPerformanceByPortfolioId(userId, portfolioId, period),
+        displayCurrency);
   }
 
   @Operation(

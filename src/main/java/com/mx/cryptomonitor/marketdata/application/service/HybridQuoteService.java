@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import com.mx.cryptomonitor.marketdata.application.port.out.BmvMarketDataPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.marketdata.application.port.out.MxnSymbolLookupPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.UsdMxnFxRateProviderPort;
 import com.mx.cryptomonitor.marketdata.domain.exception.DataBursatilException;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvFxQuote;
 import com.mx.cryptomonitor.marketdata.domain.model.BmvQuote;
@@ -47,6 +49,7 @@ public class HybridQuoteService {
   private final MxnSymbolLookupPort mxnSymbolLookupPort;
   private final MarketPriceSnapshotRepository snapshotRepository;
   private final MarketFxSnapshotRepository fxSnapshotRepository;
+  private final UsdMxnFxRateProviderPort primaryFxRateProvider;
 
   @Value("${marketdata.databursatil.refresh.enabled:true}")
   private boolean scheduledRefreshEnabled;
@@ -81,26 +84,48 @@ public class HybridQuoteService {
         symbol, price, "USD", "orchestrator", OffsetDateTime.now(ZoneOffset.UTC));
   }
 
-  /** Tipo de cambio USD/MXN actual (DataBursatil /divisas), cacheado en market_fx_snapshot. */
+  /**
+   * Tipo de cambio USD/MXN actual, cacheado en market_fx_snapshot. Primario: Banxico SIE (FIX,
+   * serie SF43718) via {@link UsdMxnFxRateProviderPort}. Secundario (fallback): DataBursatil
+   * /divisas, usado cuando el primario no tiene dato o falla.
+   */
   public BigDecimal getUsdMxnRate() {
+    try {
+      Optional<BigDecimal> primaryRate = primaryFxRateProvider.fetchUsdMxnRate();
+      if (primaryRate.isPresent()) {
+        persistFxSnapshot(primaryRate.get(), null, null, primaryFxRateProvider.providerName());
+        return primaryRate.get();
+      }
+      log.warn(
+          "Proveedor primario FX ({}) no devolvio USD/MXN; usando DataBursatil como fallback",
+          primaryFxRateProvider.providerName());
+    } catch (RuntimeException ex) {
+      log.warn(
+          "Proveedor primario FX ({}) fallo; usando DataBursatil como fallback",
+          primaryFxRateProvider.providerName(),
+          ex);
+    }
+
     BmvFxQuote fx = databursatil.getFxRate(USD_MXN_TICKER).block();
     if (fx == null) {
       throw new DataBursatilException("DataBursatil no devolvio tipo de cambio USD/MXN");
     }
     BigDecimal rate = BigDecimal.valueOf(fx.u());
+    persistFxSnapshot(rate, BigDecimal.valueOf(fx.c()), BigDecimal.valueOf(fx.m()), PROVIDER);
+    return rate;
+  }
 
-    MarketFxSnapshotEntity snapshot =
+  private void persistFxSnapshot(
+      BigDecimal rate, BigDecimal absChange, BigDecimal pctChange, String provider) {
+    fxSnapshotRepository.save(
         MarketFxSnapshotEntity.builder()
             .ticker(USD_MXN_TICKER)
             .rate(rate)
-            .absChange(BigDecimal.valueOf(fx.c()))
-            .pctChange(BigDecimal.valueOf(fx.m()))
-            .provider(PROVIDER)
+            .absChange(absChange)
+            .pctChange(pctChange)
+            .provider(provider)
             .quoteAt(OffsetDateTime.now(ZoneOffset.UTC))
-            .build();
-    fxSnapshotRepository.save(snapshot);
-
-    return rate;
+            .build());
   }
 
   /** Refresco batch de todos los simbolos MXN en uso, en lotes de {@value #BATCH_SIZE}. */

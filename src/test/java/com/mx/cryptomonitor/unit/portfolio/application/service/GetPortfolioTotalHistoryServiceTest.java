@@ -7,14 +7,19 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort.PortfolioAssetReference;
+import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.service.GetPortfolioTotalHistoryService;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
@@ -31,9 +36,14 @@ class GetPortfolioTotalHistoryServiceTest {
       org.mockito.Mockito.mock(MarketPriceHistoryPort.class);
   private final PortfolioAssetUniversePort portfolioAssetUniversePort =
       org.mockito.Mockito.mock(PortfolioAssetUniversePort.class);
+  private final FxRateHistoryPort fxRateHistoryPort =
+      org.mockito.Mockito.mock(FxRateHistoryPort.class);
   private final GetPortfolioTotalHistoryService service =
       new GetPortfolioTotalHistoryService(
-          transactionHistoryPort, marketPriceHistoryPort, portfolioAssetUniversePort);
+          transactionHistoryPort,
+          marketPriceHistoryPort,
+          portfolioAssetUniversePort,
+          fxRateHistoryPort);
 
   @Test
   void returnsZeroSeriesForKnownPortfolioAssetWithoutTransactionsWhenPricesExist() {
@@ -107,5 +117,45 @@ class GetPortfolioTotalHistoryServiceTest {
     assertThat(result.partial()).isTrue();
     assertThat(result.unavailableSymbols()).containsExactly("HYPE");
     assertThat(result.series()).isNotEmpty();
+  }
+
+  @Test
+  void normalizesMxnBuyCostToUsdBaseInReturnMetrics() {
+    UUID userId = UUID.randomUUID();
+    OffsetDateTime buyDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(10);
+    PortfolioTransactionSnapshot mxnBuy =
+        new PortfolioTransactionSnapshot(
+            "MELI",
+            "STOCK",
+            "BUY",
+            null,
+            new BigDecimal("1"),
+            new BigDecimal("31562.38"),
+            new BigDecimal("31562.38"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            buyDate,
+            "MXN");
+    when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(mxnBuy));
+    when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
+    when(fxRateHistoryPort.usdMxnRateOn(any())).thenReturn(Optional.of(new BigDecimal("17.5147")));
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.STOCK), eq("MELI"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long startSec = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
+              return List.of(
+                  new PricePoint(Instant.ofEpochSecond(startSec), new BigDecimal("1801.22")),
+                  new PricePoint(
+                      Instant.ofEpochSecond(startSec + 86400), new BigDecimal("1801.22")));
+            });
+
+    PortfolioHistoryResult result = service.getTotalHistory(userId, "30d", "STOCK");
+
+    assertThat(result.returnMetrics()).isNotNull();
+    // 31562.38 MXN / 17.5147 = 1802.05 USD (base), no el monto crudo en pesos.
+    assertThat(result.returnMetrics().totalInvested())
+        .isEqualByComparingTo(new BigDecimal("1802.05"));
   }
 }

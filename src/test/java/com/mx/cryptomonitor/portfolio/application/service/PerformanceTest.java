@@ -19,6 +19,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
@@ -34,6 +35,7 @@ class PerformanceTest {
   @Mock TransactionHistoryPort transactionHistoryPort;
   @Mock MarketPriceHistoryPort marketPriceHistoryPort;
   @Mock PortfolioAssetUniversePort portfolioAssetUniversePort;
+  @Mock FxRateHistoryPort fxRateHistoryPort;
 
   @InjectMocks GetPortfolioTotalHistoryService service;
 

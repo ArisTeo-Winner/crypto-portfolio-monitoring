@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -206,6 +207,105 @@ class BanxicoRateAdapterTest {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
 
     assertThatThrownBy(() -> adapter.getCetesCurve()).isInstanceOf(BanxicoException.class);
+  }
+
+  @Test
+  void fetchUsdMxnRateParsesLatestFixFromSeriesSf43718() {
+    server.enqueue(
+        jsonOk(
+            """
+            {"bmx":{"series":[
+              {"idSerie":"SF43718","titulo":"Tipo de cambio FIX","datos":[
+                {"fecha":"23/09/2026","dato":"17.5900"},
+                {"fecha":"24/09/2026","dato":"17.6425"}
+              ]}
+            ]}}
+            """));
+
+    Optional<BigDecimal> rate = adapter.fetchUsdMxnRate();
+
+    assertThat(rate).isPresent();
+    assertThat(rate.get()).isEqualByComparingTo("17.6425");
+  }
+
+  @Test
+  void fetchUsdMxnRateRequestsSeriesSf43718WithTokenHeader() throws Exception {
+    server.enqueue(
+        jsonOk(
+            """
+            {"bmx":{"series":[
+              {"idSerie":"SF43718","datos":[{"fecha":"24/09/2026","dato":"17.6425"}]}
+            ]}}
+            """));
+
+    adapter.fetchUsdMxnRate();
+
+    RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getPath()).contains("SF43718");
+    assertThat(request.getHeader("Bmx-Token")).isEqualTo(TOKEN);
+    assertThat(request.getPath()).doesNotContain(TOKEN);
+  }
+
+  @Test
+  void fetchUsdMxnRateIsEmptyWhenSeriesAbsent() {
+    server.enqueue(jsonOk("{\"bmx\":{\"series\":[]}}"));
+
+    assertThat(adapter.fetchUsdMxnRate()).isEmpty();
+  }
+
+  @Test
+  void providerNameIsBanxico() {
+    assertThat(adapter.providerName()).isEqualTo("BANXICO");
+  }
+
+  @Test
+  void fetchUsdMxnRatesParsesRangeForSeriesSf43718() {
+    server.enqueue(
+        jsonOk(
+            """
+            {"bmx":{"series":[
+              {"idSerie":"SF43718","datos":[
+                {"fecha":"12/06/2025","dato":"18.9068"},
+                {"fecha":"13/06/2025","dato":"18.9302"},
+                {"fecha":"25/06/2025","dato":"18.9203"}
+              ]}
+            ]}}
+            """));
+
+    Map<LocalDate, BigDecimal> rates =
+        adapter.fetchUsdMxnRates(LocalDate.of(2025, 6, 12), LocalDate.of(2025, 6, 25));
+
+    assertThat(rates).hasSize(3);
+    assertThat(rates.get(LocalDate.of(2025, 6, 12))).isEqualByComparingTo("18.9068");
+    assertThat(rates.get(LocalDate.of(2025, 6, 13))).isEqualByComparingTo("18.9302");
+    assertThat(rates.get(LocalDate.of(2025, 6, 25))).isEqualByComparingTo("18.9203");
+  }
+
+  @Test
+  void fetchUsdMxnRatesRequestsSeriesAndDateRangeWithTokenHeader() throws Exception {
+    server.enqueue(
+        jsonOk(
+            """
+            {"bmx":{"series":[
+              {"idSerie":"SF43718","datos":[{"fecha":"12/06/2025","dato":"18.9068"}]}
+            ]}}
+            """));
+
+    adapter.fetchUsdMxnRates(LocalDate.of(2025, 6, 12), LocalDate.of(2025, 6, 25));
+
+    RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(request).isNotNull();
+    assertThat(request.getPath()).contains("SF43718").contains("2025-06-12").contains("2025-06-25");
+    assertThat(request.getHeader("Bmx-Token")).isEqualTo(TOKEN);
+  }
+
+  @Test
+  void fetchUsdMxnRatesIsEmptyWhenNoData() {
+    server.enqueue(jsonOk("{\"bmx\":{\"series\":[]}}"));
+
+    assertThat(adapter.fetchUsdMxnRates(LocalDate.of(2025, 6, 12), LocalDate.of(2025, 6, 25)))
+        .isEmpty();
   }
 
   private String fullCurveResponse() {

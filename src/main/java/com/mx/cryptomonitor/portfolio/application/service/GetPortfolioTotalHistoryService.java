@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
@@ -46,10 +47,12 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
 
   private static final int DOWNSAMPLE_THRESHOLD = 1200;
   private static final int DOWNSAMPLE_TARGET = 1000;
+  private static final int COST_SCALE = 8;
 
   private final TransactionHistoryPort transactionHistoryPort;
   private final MarketPriceHistoryPort marketPriceHistoryPort;
   private final PortfolioAssetUniversePort portfolioAssetUniversePort;
+  private final FxRateHistoryPort fxRateHistoryPort;
   private final PortfolioHoldingsAggregationEngine aggregationEngine;
   private final ChartResolutionStrategy chartResolutionStrategy;
   private final TwrEngine twrEngine;
@@ -58,10 +61,12 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   public GetPortfolioTotalHistoryService(
       TransactionHistoryPort transactionHistoryPort,
       MarketPriceHistoryPort marketPriceHistoryPort,
-      PortfolioAssetUniversePort portfolioAssetUniversePort) {
+      PortfolioAssetUniversePort portfolioAssetUniversePort,
+      FxRateHistoryPort fxRateHistoryPort) {
     this.transactionHistoryPort = transactionHistoryPort;
     this.marketPriceHistoryPort = marketPriceHistoryPort;
     this.portfolioAssetUniversePort = portfolioAssetUniversePort;
+    this.fxRateHistoryPort = fxRateHistoryPort;
     this.aggregationEngine = new PortfolioHoldingsAggregationEngine();
     this.chartResolutionStrategy = new ChartResolutionStrategy();
     this.twrEngine = new TwrEngine();
@@ -261,15 +266,38 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
 
   private PortfolioAccountingTransaction toAccountingTransaction(
       PortfolioTransactionSnapshot snapshot) {
+    String currency = snapshot.currency();
+    BigDecimal usdMxnRate = resolveRateFor(snapshot);
     return new PortfolioAccountingTransaction(
         snapshot.transactionDate().toInstant(),
         snapshot.assetSymbol(),
         AssetType.from(snapshot.assetType()),
         snapshot.transactionType(),
         snapshot.quantity(),
-        snapshot.pricePerUnit(),
-        snapshot.totalValue(),
-        snapshot.fee());
+        toBaseCurrency(snapshot.pricePerUnit(), currency, usdMxnRate),
+        toBaseCurrency(snapshot.totalValue(), currency, usdMxnRate),
+        toBaseCurrency(snapshot.fee(), currency, usdMxnRate));
+  }
+
+  // Tasa USD/MXN del dia de la operacion (trade-date, ADR-0009); null para no-MXN o sin dato.
+  private BigDecimal resolveRateFor(PortfolioTransactionSnapshot snapshot) {
+    if (!"MXN".equalsIgnoreCase(snapshot.currency()) || snapshot.transactionDate() == null) {
+      return null;
+    }
+    return fxRateHistoryPort.usdMxnRateOn(snapshot.transactionDate().toLocalDate()).orElse(null);
+  }
+
+  // Normaliza a la moneda base (USD): convierte MXN->USD con la tasa del dia de la operacion
+  // (ADR-0009); USD/null quedan igual. Sin tasa => no convierte (sin regresion).
+  private static BigDecimal toBaseCurrency(
+      BigDecimal amount, String currency, BigDecimal usdMxnRate) {
+    if (amount == null
+        || usdMxnRate == null
+        || usdMxnRate.signum() <= 0
+        || !"MXN".equalsIgnoreCase(currency)) {
+      return amount;
+    }
+    return amount.divide(usdMxnRate, COST_SCALE, RoundingMode.HALF_UP);
   }
 
   private AssetIdentity toAssetIdentity(PortfolioAssetReference asset) {

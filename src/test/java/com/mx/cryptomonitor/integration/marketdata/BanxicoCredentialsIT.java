@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -54,5 +55,40 @@ class BanxicoCredentialsIT {
     assertThat(curve)
         .as("Banxico /oportuno respondio sin datos con un token en teoria valido")
         .isNotEmpty();
+  }
+
+  @Test
+  void tokenIsAcceptedByBanxicoForUsdMxnFixSeries() {
+    String token = System.getenv("BANXICO_TOKEN");
+    Assumptions.assumeTrue(
+        StringUtils.hasText(token),
+        "BANXICO_TOKEN no esta configurado en el entorno, se omite la validacion contra la API"
+            + " real");
+
+    String baseUrl = System.getenv("BANXICO_BASE_URL");
+    if (!StringUtils.hasText(baseUrl)) {
+      baseUrl = "https://www.banxico.org.mx";
+    }
+
+    WebClient webClient =
+        WebClient.builder().baseUrl(baseUrl).defaultHeader("Bmx-Token", token).build();
+    BanxicoRateAdapter adapter = new BanxicoRateAdapter(webClient);
+
+    Optional<BigDecimal> fxRate;
+    try {
+      fxRate = adapter.fetchUsdMxnRate();
+    } catch (RuntimeException ex) {
+      fail(
+          "Banxico rechazo la peticion de la serie FIX USD/MXN (SF43718) con BANXICO_TOKEN"
+              + " configurado: token falso, caducado o base URL incorrecta. Causa: "
+              + ex.getMessage(),
+          ex);
+      return;
+    }
+
+    assertThat(fxRate)
+        .as("Banxico /oportuno respondio sin dato FIX USD/MXN (SF43718) con token valido")
+        .isPresent();
+    assertThat(fxRate.orElseThrow()).isPositive();
   }
 }

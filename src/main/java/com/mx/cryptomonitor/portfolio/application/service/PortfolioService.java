@@ -24,7 +24,7 @@ import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePoint;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
-import com.mx.cryptomonitor.marketdata.application.port.out.FxRatePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
@@ -55,7 +55,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private final CryptoHistoricalPricePort cryptoHistoricalPricePort;
   private final AssetCatalogQueryPort assetCatalogQueryPort;
   private final TransactionHistoryPort transactionHistoryPort;
-  private final FxRatePort fxRatePort;
+  private final FxRateHistoryPort fxRateHistoryPort;
 
   @Override
   public List<PortfolioEntry> getPortfolioEntriesByUser(UUID userId) {
@@ -94,7 +94,6 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     }
 
     HoldingsPerformanceAccumulator accumulator = new HoldingsPerformanceAccumulator();
-    accumulator.usdMxnRate = resolveUsdMxnRate();
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
       PerformanceAssetState assetState =
@@ -219,14 +218,12 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
 
     List<PortfolioEntry> rebuiltEntries = new ArrayList<>();
     List<PortfolioEntry> entriesToPersist = new ArrayList<>();
-    BigDecimal usdMxnRate = resolveUsdMxnRate();
 
     transactionsBySymbol.forEach(
         (assetSymbol, snapshots) -> {
           PortfolioEntry existingEntry = existingBySymbol.get(assetSymbol);
           PortfolioProjectionState originalState = PortfolioProjectionState.from(existingEntry);
-          PortfolioEntry rebuiltEntry =
-              rebuildPortfolioEntry(userId, existingEntry, snapshots, usdMxnRate);
+          PortfolioEntry rebuiltEntry = rebuildPortfolioEntry(userId, existingEntry, snapshots);
 
           if (rebuiltEntry.getTotalQuantity().compareTo(BigDecimal.ZERO) > 0) {
             rebuiltEntries.add(rebuiltEntry);
@@ -273,10 +270,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   }
 
   private PortfolioEntry rebuildPortfolioEntry(
-      UUID userId,
-      PortfolioEntry existingEntry,
-      List<PortfolioTransactionSnapshot> snapshots,
-      BigDecimal usdMxnRate) {
+      UUID userId, PortfolioEntry existingEntry, List<PortfolioTransactionSnapshot> snapshots) {
     Optional<BigDecimal> persistedPriceFallback = derivePersistedUnitPrice(existingEntry);
 
     PortfolioEntry entry =
@@ -295,7 +289,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     entry.setAveragePricePerUnit(BigDecimal.ZERO);
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
-      applySnapshot(entry, snapshot, usdMxnRate);
+      applySnapshot(entry, snapshot);
     }
 
     BigDecimal currentPrice =
@@ -376,10 +370,11 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     }
   }
 
-  private void applySnapshot(
-      PortfolioEntry entry, PortfolioTransactionSnapshot snapshot, BigDecimal usdMxnRate) {
-    // Normaliza a base USD el costo y el precio de operaciones MXN, para que totalInvested y el P&L
-    // de la entry (que consume /me/portfolio) no comparen pesos contra un valor en USD (ADR-0006).
+  private void applySnapshot(PortfolioEntry entry, PortfolioTransactionSnapshot snapshot) {
+    // Normaliza a base USD el costo y el precio de operaciones MXN con el FX de la fecha de la
+    // operacion (trade-date, ADR-0009), para que totalInvested y el P&L de la entry (que consume
+    // /me/portfolio) no comparen pesos contra un valor en USD.
+    BigDecimal usdMxnRate = resolveRateFor(snapshot);
     BigDecimal totalValue = toBaseCurrency(snapshot.totalValue(), snapshot.currency(), usdMxnRate);
     BigDecimal unitPrice = toBaseCurrency(snapshot.pricePerUnit(), snapshot.currency(), usdMxnRate);
     PortfolioTransactionCommand command =
@@ -587,12 +582,18 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
         .toList();
   }
 
-  private BigDecimal resolveUsdMxnRate() {
-    return fxRatePort.usdMxnRate().orElse(null);
+  // Tasa USD/MXN del dia de la operacion (trade-date, ADR-0009); null para operaciones no-MXN o si
+  // no hay dato disponible (=> toBaseCurrency no convierte, sin regresion).
+  private BigDecimal resolveRateFor(PortfolioTransactionSnapshot snapshot) {
+    if (!"MXN".equalsIgnoreCase(snapshot.currency()) || snapshot.transactionDate() == null) {
+      return null;
+    }
+    return fxRateHistoryPort.usdMxnRateOn(snapshot.transactionDate().toLocalDate()).orElse(null);
   }
 
-  // Normaliza a la moneda base del portafolio (USD). v1 (ADR-0006): convierte MXN->USD con la tasa
-  // actual; USD/null quedan igual. Sin tasa disponible => no convierte (comportamiento previo).
+  // Normaliza a la moneda base del portafolio (USD): convierte MXN->USD con la tasa dada (la del
+  // dia
+  // de la operacion, ADR-0009); USD/null quedan igual. Sin tasa => no convierte.
   private static BigDecimal toBaseCurrency(
       BigDecimal amount, String currency, BigDecimal usdMxnRate) {
     BigDecimal value = amount != null ? amount : BigDecimal.ZERO;
@@ -607,7 +608,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       PerformanceAssetState assetState,
       PortfolioTransactionSnapshot snapshot) {
     BigDecimal quantity = normalizeAmount(snapshot.quantity());
-    BigDecimal rate = accumulator.usdMxnRate;
+    BigDecimal rate = resolveRateFor(snapshot);
     String currency = snapshot.currency();
     BigDecimal rawUnitPrice = normalizeAmount(snapshot.pricePerUnit());
     BigDecimal unitPrice = toBaseCurrency(rawUnitPrice, currency, rate);
@@ -719,7 +720,6 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       List<PortfolioTransactionSnapshot> snapshots,
       Map<String, PerformanceAssetState> assetsBySymbol) {
     HoldingsPerformanceAccumulator runningAccumulator = new HoldingsPerformanceAccumulator();
-    runningAccumulator.usdMxnRate = resolveUsdMxnRate();
     List<PortfolioHoldingsPerformanceResponse.SeriesPoint> series = new ArrayList<>();
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
@@ -1083,7 +1083,6 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private static final class HoldingsPerformanceAccumulator {
     private final Map<String, PerformanceAssetState> assetsBySymbol = new LinkedHashMap<>();
     private BigDecimal realizedProfit = BigDecimal.ZERO;
-    private BigDecimal usdMxnRate;
   }
 
   private static final class PerformanceAssetState {

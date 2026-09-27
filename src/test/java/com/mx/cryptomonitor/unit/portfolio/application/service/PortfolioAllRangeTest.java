@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
@@ -37,9 +38,13 @@ class PortfolioAllRangeTest {
   private final MarketPriceHistoryPort marketPriceHistoryPort = mock(MarketPriceHistoryPort.class);
   private final PortfolioAssetUniversePort portfolioAssetUniversePort =
       mock(PortfolioAssetUniversePort.class);
+  private final FxRateHistoryPort fxRateHistoryPort = mock(FxRateHistoryPort.class);
   private final GetPortfolioTotalHistoryService service =
       new GetPortfolioTotalHistoryService(
-          transactionHistoryPort, marketPriceHistoryPort, portfolioAssetUniversePort);
+          transactionHistoryPort,
+          marketPriceHistoryPort,
+          portfolioAssetUniversePort,
+          fxRateHistoryPort);
 
   @Test
   void allRangeIsParsedWithDailyResolution() {

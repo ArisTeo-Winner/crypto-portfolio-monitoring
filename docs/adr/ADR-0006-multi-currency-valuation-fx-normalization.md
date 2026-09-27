@@ -33,9 +33,20 @@ FX en el motor de agregación.
 - `PortfolioTransactionSnapshot` gana `currency`; `TransactionHistoryAdapter` lo puebla desde
   `transaction.getCurrency()`.
 - Puerto `FxRatePort` (en `marketdata.application.port.out`) con `usdMxnRate()`; adapter
-  `CachedFxRateAdapter` lee la tasa más reciente de `market_fx_snapshot` (barato, sin llamada
-  externa en el hot path). Portfolio ya consume puertos out de marketdata → arquitectura
-  hexagonal respetada.
+  `CachedFxRateAdapter` sirve la tasa más reciente de `market_fx_snapshot` cuando está fresca
+  (barato, sin llamada externa en el hot path). Portfolio ya consume puertos out de marketdata →
+  arquitectura hexagonal respetada.
+
+  **v1.1 (fix del cache vacío):** la tabla `market_fx_snapshot` solo se poblaba al golpear el
+  endpoint `/fx/usdmxn` (nada la refresca en el path de valuación; el `@Scheduled` de
+  `HybridQuoteService` refresca precios MXN, no el FX). En un entorno recién levantado la tabla
+  estaba vacía → `usdMxnRate()` devolvía `empty` → la valuación **no convertía** y el P&L de MELI
+  seguía crudo (−29,761). Solución: `CachedFxRateAdapter`, ante cache vacío o vencido (TTL
+  `marketdata.fx.cache-ttl-minutes`, default 60), refresca en vivo vía
+  `HybridQuoteService.getUsdMxnRate()` (que persiste el snapshot). Si el refresco falla, cae al
+  cache vencido; si tampoco hay, devuelve `empty` (sin regresión). La dependencia
+  `infrastructure → application.service` dentro del mismo módulo es válida (ArchUnit solo prohíbe
+  `application → infrastructure`; sin ciclo porque `HybridQuoteService` no depende de `FxRatePort`).
 - En `PortfolioService.applyPerformanceSnapshot`, `grossAmount`/`fee`/`unitPrice` de una
   operación `currency=MXN` se convierten a USD (÷ tasa) antes de acumular costo base y P&L. Sin
   tasa disponible → no convierte (comportamiento previo, sin regresión).
@@ -73,8 +84,18 @@ irreversible. **Rechazada.**
 
 ## Action Items
 1. [x] `PortfolioTransactionSnapshot.currency` + `TransactionHistoryAdapter` lo puebla.
-2. [x] `FxRatePort` + `CachedFxRateAdapter` (lee `market_fx_snapshot`).
-3. [x] `PortfolioService`: `toBaseCurrency` (MXN→USD, tasa actual) en `applyPerformanceSnapshot`.
-4. [x] Test: costo MXN normalizado a USD en `getHoldingsPerformanceByPortfolioId`.
-5. [ ] Frontend: enviar `currency` (ya implementado por QA) — coordinar prueba end-to-end.
-6. [ ] v2: enrutamiento price-feed por moneda + FX histórico.
+2. [x] `FxRatePort` + `CachedFxRateAdapter` (lee `market_fx_snapshot`, con refresco en vivo
+   fetch-on-miss/stale + TTL — v1.1).
+3. [x] `PortfolioService`: `toBaseCurrency` (MXN→USD, tasa actual) en `applyPerformanceSnapshot` y
+   en la proyección de entries (`applySnapshot`, `/me/portfolio`).
+4. [x] Test: costo MXN normalizado a USD en `getHoldingsPerformanceByPortfolioId` y en la
+   proyección de entries.
+5. [x] `GetPortfolioTotalHistoryService` (`/me/portfolio/history`): convierte `grossValue`,
+   `price` y `fee` de cada transacción MXN→USD en `toAccountingTransaction`, de modo que
+   `totalInvested`/`absoluteGain`/MWR queden en base USD frente a la serie (qty × precio USD,
+   ya correcta). La serie de valor no requiere conversión: el motor de agregación solo usa la
+   cantidad × el precio de mercado (USD). Test: `normalizesMxnBuyCostToUsdBaseInReturnMetrics`.
+6. [x] Validado end-to-end en vivo: MELI N (compra MXN) pasa de `totalInvested 31,562.38 /
+   P&L −29,761.16` a `1,802.05 / −0.83` tras poblar `market_fx_snapshot` (tasa 17.5147).
+7. [ ] Frontend: enviar `currency` (ya implementado por QA) — coordinar prueba end-to-end.
+8. [ ] v2: enrutamiento price-feed por moneda + FX histórico por fecha.
