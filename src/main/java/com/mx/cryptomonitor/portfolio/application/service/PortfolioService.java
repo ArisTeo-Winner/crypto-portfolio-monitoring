@@ -26,7 +26,6 @@ import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPric
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
-import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
@@ -97,6 +96,8 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     }
 
     HoldingsPerformanceAccumulator accumulator = new HoldingsPerformanceAccumulator();
+    java.util.Map<String, List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData>>
+        splitsBySymbol = new java.util.HashMap<>();
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
       PerformanceAssetState assetState =
@@ -107,7 +108,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
                       snapshot.assetSymbol().toUpperCase(),
                       normalizeScopeAssetType(snapshot.assetType())));
 
-      applyPerformanceSnapshot(accumulator, assetState, snapshot);
+      applyPerformanceSnapshot(accumulator, assetState, snapshot, splitsBySymbol);
     }
 
     List<PortfolioHoldingsPerformanceResponse.SeriesPoint> series =
@@ -291,8 +292,11 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     entry.setTotalInvested(BigDecimal.ZERO);
     entry.setAveragePricePerUnit(BigDecimal.ZERO);
 
+    // Un solo simbolo por entry: resolver splitsFor(symbol) una vez y reutilizar en el loop.
+    List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits =
+        SplitFactors.splitsOf(stockSplitPort, snapshots.getFirst().assetSymbol());
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
-      applySnapshot(entry, snapshot);
+      applySnapshot(entry, snapshot, splits);
     }
 
     BigDecimal currentPrice =
@@ -373,7 +377,10 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     }
   }
 
-  private void applySnapshot(PortfolioEntry entry, PortfolioTransactionSnapshot snapshot) {
+  private void applySnapshot(
+      PortfolioEntry entry,
+      PortfolioTransactionSnapshot snapshot,
+      List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits) {
     // Normaliza a base USD el costo y el precio de operaciones MXN con el FX de la fecha de la
     // operacion (trade-date, ADR-0009), para que totalInvested y el P&L de la entry (que consume
     // /me/portfolio) no comparen pesos contra un valor en USD.
@@ -382,7 +389,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     // por
     // el factor y el precio unitario se divide; totalValue (price*qty) no cambia. Por fecha de la
     // operacion, no por fecha de registro.
-    BigDecimal splitFactor = resolveSplitFactor(snapshot);
+    BigDecimal splitFactor = SplitFactors.factorFor(splits, snapshot.transactionDate());
     BigDecimal quantity = applySplitToQuantity(snapshot.quantity(), splitFactor);
     BigDecimal totalValue = toBaseCurrency(snapshot.totalValue(), snapshot.currency(), usdMxnRate);
     BigDecimal unitPrice =
@@ -605,33 +612,12 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   // POSTERIORES
   // a la fecha de la operacion. 1 si no aplica. Detecta pre/post por fecha de operacion, no de
   // alta.
-  private BigDecimal resolveSplitFactor(PortfolioTransactionSnapshot snapshot) {
-    if (snapshot.transactionDate() == null) {
-      return BigDecimal.ONE;
-    }
-    LocalDate txDate = snapshot.transactionDate().toLocalDate();
-    BigDecimal factor = BigDecimal.ONE;
-    for (StockSplitData split : stockSplitPort.splitsFor(snapshot.assetSymbol())) {
-      if (split.executionDate() != null
-          && split.shareMultiplier() != null
-          && txDate.isBefore(split.executionDate())) {
-        factor = factor.multiply(split.shareMultiplier());
-      }
-    }
-    return factor;
-  }
-
   private static BigDecimal applySplitToQuantity(BigDecimal quantity, BigDecimal splitFactor) {
-    BigDecimal value = quantity != null ? quantity : BigDecimal.ZERO;
-    return splitFactor.compareTo(BigDecimal.ONE) == 0 ? value : value.multiply(splitFactor);
+    return SplitFactors.adjustQuantity(quantity, splitFactor);
   }
 
   private static BigDecimal applySplitToPrice(BigDecimal price, BigDecimal splitFactor) {
-    BigDecimal value = price != null ? price : BigDecimal.ZERO;
-    if (splitFactor.compareTo(BigDecimal.ONE) == 0 || splitFactor.signum() <= 0) {
-      return value;
-    }
-    return value.divide(splitFactor, COST_SCALE, RoundingMode.HALF_UP);
+    return SplitFactors.adjustPrice(price, splitFactor, COST_SCALE);
   }
 
   // Normaliza a la moneda base del portafolio (USD): convierte MXN->USD con la tasa dada (la del
@@ -649,11 +635,22 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private void applyPerformanceSnapshot(
       HoldingsPerformanceAccumulator accumulator,
       PerformanceAssetState assetState,
-      PortfolioTransactionSnapshot snapshot) {
-    BigDecimal quantity = normalizeAmount(snapshot.quantity());
+      PortfolioTransactionSnapshot snapshot,
+      java.util.Map<
+              String, List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData>>
+          splitsBySymbol) {
+    // Ajuste por split (ADR-0011, Fase 1b): lleva la cantidad a terminos post-split por fecha de la
+    // operacion; el precio unitario se divide para dejar price*qty invariante. El feed de precios
+    // (adjusted=true) ya esta en terminos post-split, por eso solo la cantidad hay que ajustarla.
+    List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits =
+        splitsBySymbol.computeIfAbsent(
+            snapshot.assetSymbol(), s -> SplitFactors.splitsOf(stockSplitPort, s));
+    BigDecimal splitFactor = SplitFactors.factorFor(splits, snapshot.transactionDate());
+    BigDecimal quantity = applySplitToQuantity(normalizeAmount(snapshot.quantity()), splitFactor);
     BigDecimal rate = resolveRateFor(snapshot);
     String currency = snapshot.currency();
-    BigDecimal rawUnitPrice = normalizeAmount(snapshot.pricePerUnit());
+    BigDecimal rawUnitPrice =
+        applySplitToPrice(normalizeAmount(snapshot.pricePerUnit()), splitFactor);
     BigDecimal unitPrice = toBaseCurrency(rawUnitPrice, currency, rate);
     BigDecimal fee = toBaseCurrency(normalizeAmount(snapshot.fee()), currency, rate);
     BigDecimal grossAmount =
@@ -764,6 +761,8 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       Map<String, PerformanceAssetState> assetsBySymbol) {
     HoldingsPerformanceAccumulator runningAccumulator = new HoldingsPerformanceAccumulator();
     List<PortfolioHoldingsPerformanceResponse.SeriesPoint> series = new ArrayList<>();
+    java.util.Map<String, List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData>>
+        splitsBySymbol = new java.util.HashMap<>();
 
     for (PortfolioTransactionSnapshot snapshot : snapshots) {
       PerformanceAssetState assetState =
@@ -774,7 +773,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
                       snapshot.assetSymbol().toUpperCase(),
                       normalizeScopeAssetType(snapshot.assetType())));
 
-      applyPerformanceSnapshot(runningAccumulator, assetState, snapshot);
+      applyPerformanceSnapshot(runningAccumulator, assetState, snapshot, splitsBySymbol);
       addOrReplaceSeriesPoint(
           series,
           snapshot.transactionDate().withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime(),

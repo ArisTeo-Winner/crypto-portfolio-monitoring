@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHoldingsHistoryResponse;
 import com.mx.cryptomonitor.portfolio.application.port.out.AssetTransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
@@ -154,11 +156,61 @@ class GetAssetHoldingsHistoryServiceTest {
     assertThat(resolutionCaptor.getValue().end()).isEqualTo(Instant.parse("2026-05-20T12:00:00Z"));
   }
 
+  @Test
+  void adjustsPreSplitQuantityInSeriesAndMarkersForReverseSplit() {
+    StockSplitPort splits = Mockito.mock(StockSplitPort.class);
+    when(splits.splitsFor("WETO"))
+        .thenReturn(
+            List.of(
+                new StockSplitData(
+                    "WETO", java.time.LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+    GetAssetHoldingsHistoryService serviceWithSplits =
+        new GetAssetHoldingsHistoryService(
+            marketPriceHistoryPort, assetTransactionHistoryPort, splits);
+
+    UUID userId = UUID.randomUUID();
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "WETO"))
+        .thenReturn(List.of(stockSnapshot("BUY", "100", "0.50", "2026-07-31T14:30:00")));
+    // Feed historico ya ajustado (adjusted=true): precios en terminos post-split.
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.STOCK, "WETO", "1M"))
+        .thenReturn(
+            List.of(
+                new PricePoint(Instant.parse("2026-07-31T00:00:00Z"), new BigDecimal("50.00")),
+                new PricePoint(Instant.parse("2026-08-05T00:00:00Z"), new BigDecimal("45.00"))));
+
+    AssetHoldingsHistoryResponse response =
+        serviceWithSplits.getAssetHoldingsHistory(userId, "WETO", "30d");
+
+    // Cantidad post-split 100 x 0.01 = 1 => valores 50 y 45, NO el pico ~5000 (qty cruda).
+    assertThat(response.series()).hasSize(2);
+    assertThat(response.series().get(0).value()).isEqualByComparingTo("50.00");
+    assertThat(response.series().get(1).value()).isEqualByComparingTo("45.00");
+    assertThat(response.series())
+        .allSatisfy(point -> assertThat(point.value()).isLessThan(new BigDecimal("1000")));
+    assertThat(response.markers()).hasSize(1);
+    assertThat(response.markers().getFirst().quantity()).isEqualByComparingTo("1");
+    assertThat(response.markers().getFirst().price()).isEqualByComparingTo("50");
+  }
+
   private PortfolioTransactionSnapshot snapshot(
       String type, String quantity, String pricePerUnit, String transactionDate) {
     return new PortfolioTransactionSnapshot(
         "BTC",
         "CRYPTO",
+        type,
+        null,
+        new BigDecimal(quantity),
+        new BigDecimal(quantity).multiply(new BigDecimal(pricePerUnit)),
+        new BigDecimal(pricePerUnit),
+        BigDecimal.ZERO,
+        OffsetDateTime.parse(transactionDate + "Z").withOffsetSameInstant(ZoneOffset.UTC));
+  }
+
+  private PortfolioTransactionSnapshot stockSnapshot(
+      String type, String quantity, String pricePerUnit, String transactionDate) {
+    return new PortfolioTransactionSnapshot(
+        "WETO",
+        "STOCK",
         type,
         null,
         new BigDecimal(quantity),

@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHistoryMarkerResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHoldingsHistoryResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetHoldingsHistoryUseCase;
@@ -27,8 +28,12 @@ import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
 @Service
 public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUseCase {
 
+  private static final int COST_SCALE = 8;
+  private static final StockSplitPort NO_SPLITS = symbol -> List.of();
+
   private final MarketPriceHistoryPort marketPriceHistoryPort;
   private final AssetTransactionHistoryPort assetTransactionHistoryPort;
+  private final StockSplitPort stockSplitPort;
   private final PortfolioQuantityTimelineEngine quantityTimelineEngine;
   private final HoldingsValueCalculator holdingsValueCalculator;
   private final ChartResolutionStrategy chartResolutionStrategy;
@@ -37,16 +42,32 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   @Autowired
   public GetAssetHoldingsHistoryService(
       MarketPriceHistoryPort marketPriceHistoryPort,
+      AssetTransactionHistoryPort assetTransactionHistoryPort,
+      StockSplitPort stockSplitPort) {
+    this(marketPriceHistoryPort, assetTransactionHistoryPort, stockSplitPort, Clock.systemUTC());
+  }
+
+  public GetAssetHoldingsHistoryService(
+      MarketPriceHistoryPort marketPriceHistoryPort,
       AssetTransactionHistoryPort assetTransactionHistoryPort) {
-    this(marketPriceHistoryPort, assetTransactionHistoryPort, Clock.systemUTC());
+    this(marketPriceHistoryPort, assetTransactionHistoryPort, NO_SPLITS, Clock.systemUTC());
   }
 
   public GetAssetHoldingsHistoryService(
       MarketPriceHistoryPort marketPriceHistoryPort,
       AssetTransactionHistoryPort assetTransactionHistoryPort,
       Clock clock) {
+    this(marketPriceHistoryPort, assetTransactionHistoryPort, NO_SPLITS, clock);
+  }
+
+  public GetAssetHoldingsHistoryService(
+      MarketPriceHistoryPort marketPriceHistoryPort,
+      AssetTransactionHistoryPort assetTransactionHistoryPort,
+      StockSplitPort stockSplitPort,
+      Clock clock) {
     this.marketPriceHistoryPort = marketPriceHistoryPort;
     this.assetTransactionHistoryPort = assetTransactionHistoryPort;
+    this.stockSplitPort = stockSplitPort;
     this.quantityTimelineEngine = new PortfolioQuantityTimelineEngine();
     this.holdingsValueCalculator = new HoldingsValueCalculator();
     this.chartResolutionStrategy = new ChartResolutionStrategy();
@@ -67,8 +88,11 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
     Instant end = Instant.now(clock);
     Instant start = determineStart(parsedRange, snapshots, end);
     List<PricePoint> prices = fetchPrices(assetType, symbol, parsedRange, start, end);
+    // Un solo simbolo: resolver splitsFor(symbol) una vez y reutilizar en serie y markers.
+    List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits =
+        SplitFactors.splitsOf(stockSplitPort, symbol);
     List<PortfolioAccountingTransaction> accountingTransactions =
-        snapshots.stream().map(this::toAccountingTransaction).toList();
+        snapshots.stream().map(snapshot -> toAccountingTransaction(snapshot, splits)).toList();
     List<TimeValuePoint> series =
         holdingsValueCalculator.calculate(
             prices, quantityTimelineEngine.buildQuantityTimeline(accountingTransactions));
@@ -77,7 +101,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
       series = series.stream().filter(point -> point.time() >= startEpoch).toList();
     }
 
-    return new AssetHoldingsHistoryResponse(series, markers(snapshots));
+    return new AssetHoldingsHistoryResponse(series, markers(snapshots, splits));
   }
 
   private List<PricePoint> fetchPrices(
@@ -107,28 +131,38 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   }
 
   private PortfolioAccountingTransaction toAccountingTransaction(
-      PortfolioTransactionSnapshot snapshot) {
+      PortfolioTransactionSnapshot snapshot,
+      List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits) {
+    // ADR-0011 Fase 1b: la serie valua cantidad_timeline x precio_de_mercado, y el feed historico
+    // ya viene ajustado (adjusted=true). Por eso la cantidad debe ir en terminos post-split; el
+    // precio unitario se divide para dejar price*qty invariante.
+    BigDecimal factor = SplitFactors.factorFor(splits, snapshot.transactionDate());
     return new PortfolioAccountingTransaction(
         snapshot.transactionDate().toInstant(),
         snapshot.assetSymbol(),
         AssetType.from(snapshot.assetType()),
         snapshot.transactionType(),
-        snapshot.quantity(),
-        snapshot.pricePerUnit(),
+        SplitFactors.adjustQuantity(snapshot.quantity(), factor),
+        SplitFactors.adjustPrice(snapshot.pricePerUnit(), factor, COST_SCALE),
         snapshot.totalValue(),
         snapshot.fee());
   }
 
-  private List<AssetHistoryMarkerResponse> markers(List<PortfolioTransactionSnapshot> snapshots) {
+  private List<AssetHistoryMarkerResponse> markers(
+      List<PortfolioTransactionSnapshot> snapshots,
+      List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits) {
     return snapshots.stream()
         .filter(snapshot -> isBuyOrSell(snapshot.transactionType()))
         .map(
-            snapshot ->
-                new AssetHistoryMarkerResponse(
-                    snapshot.transactionDate().toEpochSecond(),
-                    snapshot.transactionType().toUpperCase(),
-                    amount(snapshot.quantity()),
-                    amount(snapshot.pricePerUnit())))
+            snapshot -> {
+              // El marker debe caer sobre la linea ya ajustada: cantidad x factor, precio / factor.
+              BigDecimal factor = SplitFactors.factorFor(splits, snapshot.transactionDate());
+              return new AssetHistoryMarkerResponse(
+                  snapshot.transactionDate().toEpochSecond(),
+                  snapshot.transactionType().toUpperCase(),
+                  amount(SplitFactors.adjustQuantity(snapshot.quantity(), factor)),
+                  amount(SplitFactors.adjustPrice(snapshot.pricePerUnit(), factor, COST_SCALE)));
+            })
         .toList();
   }
 

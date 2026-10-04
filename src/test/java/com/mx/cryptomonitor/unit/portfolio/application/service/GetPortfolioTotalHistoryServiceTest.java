@@ -16,6 +16,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort.PortfolioAssetReference;
@@ -157,5 +159,63 @@ class GetPortfolioTotalHistoryServiceTest {
     // 31562.38 MXN / 17.5147 = 1802.05 USD (base), no el monto crudo en pesos.
     assertThat(result.returnMetrics().totalInvested())
         .isEqualByComparingTo(new BigDecimal("1802.05"));
+  }
+
+  @Test
+  void adjustsPreSplitQuantityInTotalSeriesForReverseSplit() {
+    StockSplitPort splits = org.mockito.Mockito.mock(StockSplitPort.class);
+    when(splits.splitsFor("WETO"))
+        .thenReturn(
+            List.of(
+                new StockSplitData(
+                    "WETO", java.time.LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+    GetPortfolioTotalHistoryService serviceWithSplits =
+        new GetPortfolioTotalHistoryService(
+            transactionHistoryPort,
+            marketPriceHistoryPort,
+            portfolioAssetUniversePort,
+            fxRateHistoryPort,
+            splits);
+
+    UUID userId = UUID.randomUUID();
+    PortfolioTransactionSnapshot preSplitBuy =
+        new PortfolioTransactionSnapshot(
+            "WETO",
+            "STOCK",
+            "BUY",
+            null,
+            new BigDecimal("100"),
+            new BigDecimal("50.00"),
+            new BigDecimal("0.50"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            OffsetDateTime.of(2026, 7, 31, 14, 30, 0, 0, ZoneOffset.UTC),
+            "USD");
+    when(transactionHistoryPort.getTransactionsByUser(userId)).thenReturn(List.of(preSplitBuy));
+    when(portfolioAssetUniversePort.getAssetsByUser(userId)).thenReturn(List.of());
+    // Feed historico ya ajustado (adjusted=true): precios en terminos post-split.
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.STOCK), eq("WETO"), any(ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              ChartResolution cr = inv.getArgument(2);
+              long startSec = cr.start().getEpochSecond() - (cr.start().getEpochSecond() % 86400L);
+              return List.of(
+                  new PricePoint(Instant.ofEpochSecond(startSec), new BigDecimal("50.00")),
+                  new PricePoint(Instant.ofEpochSecond(startSec + 86400), new BigDecimal("45.00")));
+            });
+
+    PortfolioHistoryResult result = serviceWithSplits.getTotalHistory(userId, "ALL", "STOCK");
+
+    // Cantidad post-split 100 x 0.01 = 1 => valor maximo 50, NO el pico ~5000 (qty cruda).
+    assertThat(result.series()).isNotEmpty();
+    assertThat(result.series())
+        .allSatisfy(point -> assertThat(point.value()).isLessThan(new BigDecimal("1000")));
+    BigDecimal maxValue =
+        result.series().stream()
+            .map(point -> point.value())
+            .max(BigDecimal::compareTo)
+            .orElseThrow();
+    assertThat(maxValue).isEqualByComparingTo("50.00");
   }
 }

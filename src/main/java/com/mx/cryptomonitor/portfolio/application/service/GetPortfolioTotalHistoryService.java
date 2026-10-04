@@ -16,6 +16,8 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetPortfolioTotalHistoryUseCase;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioAssetUniversePort;
@@ -49,28 +51,47 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   private static final int DOWNSAMPLE_TARGET = 1000;
   private static final int COST_SCALE = 8;
 
+  private static final StockSplitPort NO_SPLITS = symbol -> List.of();
+
   private final TransactionHistoryPort transactionHistoryPort;
   private final MarketPriceHistoryPort marketPriceHistoryPort;
   private final PortfolioAssetUniversePort portfolioAssetUniversePort;
   private final FxRateHistoryPort fxRateHistoryPort;
+  private final StockSplitPort stockSplitPort;
   private final PortfolioHoldingsAggregationEngine aggregationEngine;
   private final ChartResolutionStrategy chartResolutionStrategy;
   private final TwrEngine twrEngine;
   private final MwrEngine mwrEngine;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public GetPortfolioTotalHistoryService(
+      TransactionHistoryPort transactionHistoryPort,
+      MarketPriceHistoryPort marketPriceHistoryPort,
+      PortfolioAssetUniversePort portfolioAssetUniversePort,
+      FxRateHistoryPort fxRateHistoryPort,
+      StockSplitPort stockSplitPort) {
+    this.transactionHistoryPort = transactionHistoryPort;
+    this.marketPriceHistoryPort = marketPriceHistoryPort;
+    this.portfolioAssetUniversePort = portfolioAssetUniversePort;
+    this.fxRateHistoryPort = fxRateHistoryPort;
+    this.stockSplitPort = stockSplitPort;
+    this.aggregationEngine = new PortfolioHoldingsAggregationEngine();
+    this.chartResolutionStrategy = new ChartResolutionStrategy();
+    this.twrEngine = new TwrEngine();
+    this.mwrEngine = new MwrEngine();
+  }
 
   public GetPortfolioTotalHistoryService(
       TransactionHistoryPort transactionHistoryPort,
       MarketPriceHistoryPort marketPriceHistoryPort,
       PortfolioAssetUniversePort portfolioAssetUniversePort,
       FxRateHistoryPort fxRateHistoryPort) {
-    this.transactionHistoryPort = transactionHistoryPort;
-    this.marketPriceHistoryPort = marketPriceHistoryPort;
-    this.portfolioAssetUniversePort = portfolioAssetUniversePort;
-    this.fxRateHistoryPort = fxRateHistoryPort;
-    this.aggregationEngine = new PortfolioHoldingsAggregationEngine();
-    this.chartResolutionStrategy = new ChartResolutionStrategy();
-    this.twrEngine = new TwrEngine();
-    this.mwrEngine = new MwrEngine();
+    this(
+        transactionHistoryPort,
+        marketPriceHistoryPort,
+        portfolioAssetUniversePort,
+        fxRateHistoryPort,
+        NO_SPLITS);
   }
 
   @Override
@@ -112,13 +133,21 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     Instant start = determineStart(parsedRange, snapshots, end);
     ChartResolution chartResolution = chartResolutionStrategy.resolve(start, end);
 
+    // Memo por request: splitsFor(symbol) se resuelve una sola vez por simbolo (evita O(N)
+    // lecturas a la DB con un heavy user). Local => thread-safe en este @Service singleton.
+    Map<String, List<StockSplitData>> splitsBySymbol = new java.util.HashMap<>();
+
     List<String> unavailableSymbols = new ArrayList<>();
     List<PortfolioAssetHistoryInput> assets =
         snapshotsByAsset.entrySet().stream()
             .map(
                 entry ->
                     toAssetInput(
-                        entry.getKey(), entry.getValue(), chartResolution, unavailableSymbols))
+                        entry.getKey(),
+                        entry.getValue(),
+                        chartResolution,
+                        unavailableSymbols,
+                        splitsBySymbol))
             .filter(input -> !input.priceSeries().points().isEmpty())
             .sorted(Comparator.comparing(PortfolioAssetHistoryInput::symbol))
             .toList();
@@ -136,7 +165,9 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     long to = series.isEmpty() ? todayAligned : series.get(series.size() - 1).time();
 
     List<PortfolioAccountingTransaction> allTransactions =
-        snapshots.stream().map(this::toAccountingTransaction).toList();
+        snapshots.stream()
+            .map(snapshot -> toAccountingTransaction(snapshot, splitsBySymbol))
+            .toList();
     ReturnMetrics returnMetrics = computeReturnMetrics(series, allTransactions, end);
 
     logGenerated(
@@ -238,7 +269,8 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
       AssetIdentity identity,
       List<PortfolioTransactionSnapshot> snapshots,
       ChartResolution chartResolution,
-      List<String> unavailableSymbols) {
+      List<String> unavailableSymbols,
+      Map<String, List<StockSplitData>> splitsBySymbol) {
     List<PricePoint> prices;
     try {
       prices =
@@ -260,21 +292,30 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     return new PortfolioAssetHistoryInput(
         identity.assetType(),
         identity.symbol(),
-        snapshots.stream().map(this::toAccountingTransaction).toList(),
+        snapshots.stream()
+            .map(snapshot -> toAccountingTransaction(snapshot, splitsBySymbol))
+            .toList(),
         new HistoricalPriceSeries(identity.assetType(), identity.symbol(), prices));
   }
 
   private PortfolioAccountingTransaction toAccountingTransaction(
-      PortfolioTransactionSnapshot snapshot) {
+      PortfolioTransactionSnapshot snapshot, Map<String, List<StockSplitData>> splitsBySymbol) {
     String currency = snapshot.currency();
     BigDecimal usdMxnRate = resolveRateFor(snapshot);
+    // ADR-0011 Fase 1b: la cantidad va en terminos post-split (el feed historico ya es
+    // adjusted=true); el precio unitario se divide por el factor para dejar el costo invariante.
+    List<StockSplitData> splits =
+        splitsBySymbol.computeIfAbsent(
+            snapshot.assetSymbol(), s -> SplitFactors.splitsOf(stockSplitPort, s));
+    BigDecimal factor = SplitFactors.factorFor(splits, snapshot.transactionDate());
     return new PortfolioAccountingTransaction(
         snapshot.transactionDate().toInstant(),
         snapshot.assetSymbol(),
         AssetType.from(snapshot.assetType()),
         snapshot.transactionType(),
-        snapshot.quantity(),
-        toBaseCurrency(snapshot.pricePerUnit(), currency, usdMxnRate),
+        SplitFactors.adjustQuantity(snapshot.quantity(), factor),
+        SplitFactors.adjustPrice(
+            toBaseCurrency(snapshot.pricePerUnit(), currency, usdMxnRate), factor, COST_SCALE),
         toBaseCurrency(snapshot.totalValue(), currency, usdMxnRate),
         toBaseCurrency(snapshot.fee(), currency, usdMxnRate));
   }

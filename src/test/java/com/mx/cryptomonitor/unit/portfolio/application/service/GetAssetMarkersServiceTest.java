@@ -2,17 +2,22 @@ package com.mx.cryptomonitor.unit.portfolio.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioMarkersPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.service.GetAssetMarkersService;
@@ -125,6 +130,30 @@ class GetAssetMarkersServiceTest {
     assertThatThrownBy(() -> service.getAssetMarkers(USER_ID, "SOL", "180"))
         .isInstanceOf(PortfolioInvalidRequestException.class)
         .hasMessageContaining("range must be one of");
+  }
+
+  @Test
+  void appliesSplitFactorToMarkerTextForPreSplitBuy() {
+    PortfolioMarkersPort markersPort = Mockito.mock(PortfolioMarkersPort.class);
+    StockSplitPort splits = Mockito.mock(StockSplitPort.class);
+    Instant buyTime = Instant.parse("2026-07-31T14:30:00Z");
+    when(markersPort.getTransactionsByUserAndSymbol(USER_ID, "WETO"))
+        .thenReturn(List.of(snapshot("WETO", "BUY", "377.13248", "0.10993", buyTime)));
+    when(splits.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+    GetAssetMarkersService serviceWithSplits =
+        new GetAssetMarkersService(
+            markersPort,
+            splits,
+            Clock.fixed(Instant.parse("2026-08-10T00:00:00Z"), ZoneOffset.UTC));
+
+    List<PortfolioMarker> markers = serviceWithSplits.getAssetMarkers(USER_ID, "WETO", "3M");
+
+    // 377.13248 x 0.01 = 3.7713248 ; 0.10993 / 0.01 = 10.993 (texto en terminos post-split).
+    assertThat(markers)
+        .extracting(PortfolioMarker::text)
+        .containsExactly("BUY 3.7713248 WETO @ 10.993");
   }
 
   private PortfolioTransactionSnapshot snapshot(

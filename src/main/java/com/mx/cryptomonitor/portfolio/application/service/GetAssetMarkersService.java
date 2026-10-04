@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.GetAssetMarkersUseCase;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioMarkersPort;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
@@ -19,16 +20,31 @@ import com.mx.cryptomonitor.portfolio.domain.model.PortfolioMarkerFactory;
 @Service
 public class GetAssetMarkersService implements GetAssetMarkersUseCase {
 
+  private static final int COST_SCALE = 8;
+  private static final StockSplitPort NO_SPLITS = symbol -> List.of();
+
   private final PortfolioMarkersPort portfolioMarkersPort;
+  private final StockSplitPort stockSplitPort;
   private final Clock clock;
 
   @Autowired
+  public GetAssetMarkersService(
+      PortfolioMarkersPort portfolioMarkersPort, StockSplitPort stockSplitPort) {
+    this(portfolioMarkersPort, stockSplitPort, Clock.systemUTC());
+  }
+
   public GetAssetMarkersService(PortfolioMarkersPort portfolioMarkersPort) {
-    this(portfolioMarkersPort, Clock.systemUTC());
+    this(portfolioMarkersPort, NO_SPLITS, Clock.systemUTC());
   }
 
   public GetAssetMarkersService(PortfolioMarkersPort portfolioMarkersPort, Clock clock) {
+    this(portfolioMarkersPort, NO_SPLITS, clock);
+  }
+
+  public GetAssetMarkersService(
+      PortfolioMarkersPort portfolioMarkersPort, StockSplitPort stockSplitPort, Clock clock) {
     this.portfolioMarkersPort = portfolioMarkersPort;
+    this.stockSplitPort = stockSplitPort;
     this.clock = clock;
   }
 
@@ -36,12 +52,15 @@ public class GetAssetMarkersService implements GetAssetMarkersUseCase {
   public List<PortfolioMarker> getAssetMarkers(UUID userId, String symbol, String range) {
     HoldingsHistoryRange parsedRange = parseRange(range);
     Instant fromInclusive = Instant.now(clock).minus(Duration.ofDays(parsedRange.days()));
+    // Un solo simbolo: resolver splitsFor(symbol) una vez y reutilizar (evita O(N) a la DB).
+    List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits =
+        SplitFactors.splitsOf(stockSplitPort, symbol);
 
     return portfolioMarkersPort.getTransactionsByUserAndSymbol(userId, symbol).stream()
         .filter(this::hasTimestamp)
         .filter(this::isBuyOrSell)
         .filter(snapshot -> isInRange(snapshot, fromInclusive))
-        .map(this::toMarker)
+        .map(snapshot -> toMarker(snapshot, splits))
         .toList();
   }
 
@@ -67,12 +86,17 @@ public class GetAssetMarkersService implements GetAssetMarkersUseCase {
     return !snapshot.transactionDate().toInstant().isBefore(fromInclusive);
   }
 
-  private PortfolioMarker toMarker(PortfolioTransactionSnapshot snapshot) {
+  private PortfolioMarker toMarker(
+      PortfolioTransactionSnapshot snapshot,
+      List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits) {
+    // ADR-0011 Fase 1b: el texto del marker va en terminos post-split (cantidad x factor,
+    // precio / factor) para ser consistente con el holding y con la linea ya ajustada.
+    java.math.BigDecimal factor = SplitFactors.factorFor(splits, snapshot.transactionDate());
     return PortfolioMarkerFactory.assetMarker(
         snapshot.transactionDate().toInstant(),
         snapshot.transactionType(),
-        snapshot.quantity(),
+        SplitFactors.adjustQuantity(snapshot.quantity(), factor),
         snapshot.assetSymbol(),
-        snapshot.pricePerUnit());
+        SplitFactors.adjustPrice(snapshot.pricePerUnit(), factor, COST_SCALE));
   }
 }
