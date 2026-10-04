@@ -32,6 +32,8 @@ import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPric
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPriceSeries;
 import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
@@ -49,6 +51,7 @@ class PortfolioServiceTest {
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private TransactionHistoryPort transactionHistoryPort;
   @Mock private FxRateHistoryPort fxRateHistoryPort;
+  @Mock private StockSplitPort stockSplitPort;
 
   @InjectMocks private PortfolioService portfolioService;
 
@@ -437,6 +440,139 @@ class PortfolioServiceTest {
     assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("1802.05084872");
     // P&L ~ breakeven (1801.22 - 1802.05), NO el falso -29761.
     assertThat(saved[0].getTotalProfitLoss()).isEqualByComparingTo("-0.83");
+  }
+
+  @Test
+  void reconcileAdjustsPreSplitQuantityByStockSplitFactor() {
+    UUID userId = UUID.randomUUID();
+    // WETO: compra 377.13248 @ $0.11 el 2026-07-31, PRE-split (reverse 100:1 el 2026-08-03).
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("377.13248"),
+                    new BigDecimal("41.46"),
+                    new BigDecimal("0.10993"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 7, 31, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(stockSplitPort.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    // Compra 07-31 < split 08-03 => cantidad × 0.01: 377.13248 -> 3.7713248. totalInvested intacto.
+    assertThat(saved[0].getTotalQuantity()).isEqualByComparingTo("3.7713248");
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("41.46");
+  }
+
+  @Test
+  void reconcileAdjustsOnlyPreSplitBuysWhenSameTickerHasBuysOnBothSides() {
+    UUID userId = UUID.randomUUID();
+    // Mismo ticker, ambas compras registradas HOY (meses despues del split); solo transaction_date
+    // decide: la pre-split se ajusta, la post-split no. WETO reverse 100:1 el 2026-08-03.
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("100"),
+                    new BigDecimal("50.00"),
+                    new BigDecimal("0.50"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 7, 31, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD"),
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("2"),
+                    new BigDecimal("100.00"),
+                    new BigDecimal("50.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 8, 10, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(stockSplitPort.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    // Pre: 100 × 0.01 = 1. Post (08-10 > 08-03): 2 sin ajustar. Total 3 titulos; invertido 150.
+    assertThat(saved[0].getTotalQuantity()).isEqualByComparingTo("3");
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("150.00");
+  }
+
+  @Test
+  void reconcileDoesNotAdjustBuyExecutedOnSplitExecutionDate() {
+    UUID userId = UUID.randomUUID();
+    // Frontera estricta (<, no <=): una compra ejecutada el mismo dia del split ya negocia
+    // post-split, asi que NO se ajusta.
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("5"),
+                    new BigDecimal("50.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 8, 3, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(stockSplitPort.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    assertThat(saved[0].getTotalQuantity()).isEqualByComparingTo("5");
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("50.00");
   }
 
   @Test

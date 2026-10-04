@@ -180,6 +180,34 @@ class TransactionServiceTest {
   }
 
   @Test
+  @DisplayName(
+      "registerTransaction: reconciles portfolio after create so MXN cost is FX-normalized (not left"
+          + " crude)")
+  void registerTransactionReconcilesPortfolioAfterCreate() {
+    TransactionRequest request =
+        new TransactionRequest(
+            "MELI",
+            AssetType.STOCK,
+            "BUY",
+            BigDecimal.ONE,
+            new BigDecimal("31562.38"),
+            new BigDecimal("31562.38"),
+            OffsetDateTime.of(2026, 9, 17, 7, 18, 0, 0, ZoneOffset.UTC),
+            BigDecimal.ZERO,
+            "compra MXN");
+
+    when(transactionRegistrationPort.registerTransaction(userId, request))
+        .thenReturn(transactionResponse);
+
+    transactionService.registerTransaction(userId, request, IDEMPOTENCY_KEY);
+
+    // El registro incremental no normaliza FX; el reconcile (fuente de verdad) lo hace. Sin este
+    // reconcile, una compra MXN quedaba con el costo crudo en base USD (P&L falso).
+    verify(transactionRegistrationPort).registerTransaction(userId, request);
+    verify(portfolioProjectionSyncPort).reconcileUserPortfolio(userId);
+  }
+
+  @Test
   @DisplayName("registerBuyTransaction: computes gross amount in backend")
   void registerBuyTransactionComputesGrossAmount() {
     BuyTransactionRequest request =

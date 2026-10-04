@@ -704,6 +704,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
           try {
             TransactionResponse response =
                 transactionRegistrationPort.registerTransaction(userId, request);
+            // El registro incremental (applyTransaction) no normaliza FX: reconciliamos la
+            // proyeccion desde las transacciones (fuente de verdad) para que el costo MXN quede
+            // convertido a base USD con el FX de la fecha (ADR-0009), igual que en
+            // updateTransaction.
+            portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
             transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
             portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             transactionAuditPort.logCreateSuccess(

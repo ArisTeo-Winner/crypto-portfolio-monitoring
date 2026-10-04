@@ -26,6 +26,8 @@ import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPric
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioQueryPort;
@@ -56,6 +58,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private final AssetCatalogQueryPort assetCatalogQueryPort;
   private final TransactionHistoryPort transactionHistoryPort;
   private final FxRateHistoryPort fxRateHistoryPort;
+  private final StockSplitPort stockSplitPort;
 
   @Override
   public List<PortfolioEntry> getPortfolioEntriesByUser(UUID userId) {
@@ -375,20 +378,28 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     // operacion (trade-date, ADR-0009), para que totalInvested y el P&L de la entry (que consume
     // /me/portfolio) no comparen pesos contra un valor en USD.
     BigDecimal usdMxnRate = resolveRateFor(snapshot);
+    // Ajuste por split (ADR-0011): la cantidad de una operacion anterior a un split se multiplica
+    // por
+    // el factor y el precio unitario se divide; totalValue (price*qty) no cambia. Por fecha de la
+    // operacion, no por fecha de registro.
+    BigDecimal splitFactor = resolveSplitFactor(snapshot);
+    BigDecimal quantity = applySplitToQuantity(snapshot.quantity(), splitFactor);
     BigDecimal totalValue = toBaseCurrency(snapshot.totalValue(), snapshot.currency(), usdMxnRate);
-    BigDecimal unitPrice = toBaseCurrency(snapshot.pricePerUnit(), snapshot.currency(), usdMxnRate);
+    BigDecimal unitPrice =
+        applySplitToPrice(
+            toBaseCurrency(snapshot.pricePerUnit(), snapshot.currency(), usdMxnRate), splitFactor);
     PortfolioTransactionCommand command =
         new PortfolioTransactionCommand(
             snapshot.assetSymbol().toUpperCase(),
             snapshot.assetType(),
             snapshot.transactionType(),
             snapshot.transferType(),
-            snapshot.quantity(),
+            quantity,
             totalValue,
             unitPrice);
 
     if ("BUY".equalsIgnoreCase(snapshot.transactionType())) {
-      BigDecimal newQuantity = entry.getTotalQuantity().add(snapshot.quantity());
+      BigDecimal newQuantity = entry.getTotalQuantity().add(quantity);
       BigDecimal newInvested = entry.getTotalInvested().add(totalValue);
       entry.setTotalQuantity(newQuantity);
       entry.setTotalInvested(newInvested);
@@ -397,14 +408,13 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
               ? newInvested.divide(newQuantity, 8, RoundingMode.HALF_UP)
               : BigDecimal.ZERO);
     } else if ("SELL".equalsIgnoreCase(snapshot.transactionType())) {
-      if (entry.getTotalQuantity().compareTo(snapshot.quantity()) < 0) {
+      if (entry.getTotalQuantity().compareTo(quantity) < 0) {
         entry.setTotalQuantity(BigDecimal.ZERO);
         entry.setTotalInvested(BigDecimal.ZERO);
         entry.setAveragePricePerUnit(BigDecimal.ZERO);
       } else {
-        BigDecimal costBasisReduction =
-            entry.getAveragePricePerUnit().multiply(snapshot.quantity());
-        BigDecimal newQuantity = entry.getTotalQuantity().subtract(snapshot.quantity());
+        BigDecimal costBasisReduction = entry.getAveragePricePerUnit().multiply(quantity);
+        BigDecimal newQuantity = entry.getTotalQuantity().subtract(quantity);
         BigDecimal newInvested = entry.getTotalInvested().subtract(costBasisReduction);
         entry.setTotalQuantity(newQuantity);
         if (newQuantity.compareTo(BigDecimal.ZERO) > 0) {
@@ -589,6 +599,39 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       return null;
     }
     return fxRateHistoryPort.usdMxnRateOn(snapshot.transactionDate().toLocalDate()).orElse(null);
+  }
+
+  // Factor de split (ADR-0011): producto de los shareMultiplier de los splits del ticker
+  // POSTERIORES
+  // a la fecha de la operacion. 1 si no aplica. Detecta pre/post por fecha de operacion, no de
+  // alta.
+  private BigDecimal resolveSplitFactor(PortfolioTransactionSnapshot snapshot) {
+    if (snapshot.transactionDate() == null) {
+      return BigDecimal.ONE;
+    }
+    LocalDate txDate = snapshot.transactionDate().toLocalDate();
+    BigDecimal factor = BigDecimal.ONE;
+    for (StockSplitData split : stockSplitPort.splitsFor(snapshot.assetSymbol())) {
+      if (split.executionDate() != null
+          && split.shareMultiplier() != null
+          && txDate.isBefore(split.executionDate())) {
+        factor = factor.multiply(split.shareMultiplier());
+      }
+    }
+    return factor;
+  }
+
+  private static BigDecimal applySplitToQuantity(BigDecimal quantity, BigDecimal splitFactor) {
+    BigDecimal value = quantity != null ? quantity : BigDecimal.ZERO;
+    return splitFactor.compareTo(BigDecimal.ONE) == 0 ? value : value.multiply(splitFactor);
+  }
+
+  private static BigDecimal applySplitToPrice(BigDecimal price, BigDecimal splitFactor) {
+    BigDecimal value = price != null ? price : BigDecimal.ZERO;
+    if (splitFactor.compareTo(BigDecimal.ONE) == 0 || splitFactor.signum() <= 0) {
+      return value;
+    }
+    return value.divide(splitFactor, COST_SCALE, RoundingMode.HALF_UP);
   }
 
   // Normaliza a la moneda base del portafolio (USD): convierte MXN->USD con la tasa dada (la del

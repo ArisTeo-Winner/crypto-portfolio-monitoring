@@ -18,9 +18,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import com.mx.cryptomonitor.integration.support.ContainersConfig;
-import com.mx.cryptomonitor.marketdata.application.port.out.GovBondRatePort;
 import com.mx.cryptomonitor.marketdata.application.service.BanxicoCurveService;
 import com.mx.cryptomonitor.marketdata.domain.repository.BanxicoCetesRateRepository;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.banxico.BanxicoRateAdapter;
 
 /**
  * Verifica el cache Redis+Postgres de la curva CETES contra infraestructura real, incluyendo que un
@@ -36,7 +36,7 @@ class BanxicoCurveServiceIT {
   @Autowired private BanxicoCetesRateRepository rateRepository;
   @Autowired private StringRedisTemplate redisTemplate;
 
-  @MockBean private GovBondRatePort banxicoRateAdapter;
+  @MockBean private BanxicoRateAdapter banxicoRateAdapter;
 
   @BeforeEach
   void cleanState() {
