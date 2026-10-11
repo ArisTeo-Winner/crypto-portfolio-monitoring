@@ -16,17 +16,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
 import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuthService;
@@ -37,6 +36,8 @@ import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.security.RefreshTokenCookieHelper;
 
+import tools.jackson.databind.ObjectMapper;
+
 @WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import(AuthExceptionHandler.class)
@@ -45,10 +46,10 @@ class AuthControllerOwaspWebMvcTest {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
 
-  @MockBean private AuthService authService;
-  @MockBean private JwtRequestFilter jwtRequestFilter;
-  @MockBean private LoginRateLimiter loginRateLimiter;
-  @MockBean private RefreshTokenCookieHelper cookieHelper;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private JwtRequestFilter jwtRequestFilter;
+  @MockitoBean private LoginRateLimiter loginRateLimiter;
+  @MockitoBean private RefreshTokenCookieHelper cookieHelper;
 
   @BeforeEach
   void setupCookieHelper() {

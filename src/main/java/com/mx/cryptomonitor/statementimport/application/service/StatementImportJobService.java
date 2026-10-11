@@ -7,8 +7,6 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.statementimport.application.dto.response.StatementImportJobResponse;
 import com.mx.cryptomonitor.statementimport.application.dto.response.StatementImportResult;
 import com.mx.cryptomonitor.statementimport.application.port.in.EnqueueStatementImportUseCase;
@@ -24,6 +22,8 @@ import com.mx.cryptomonitor.statementimport.domain.model.UploadedDocument;
 import com.mx.cryptomonitor.statementimport.domain.repository.StatementImportJobRepository;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Encola, consulta y reintenta jobs manualmente — nunca parsea PDFs ni llama a
@@ -135,7 +135,7 @@ public class StatementImportJobService
     }
     try {
       return objectMapper.readValue(resultJson, StatementImportResult.class);
-    } catch (JsonProcessingException ex) {
+    } catch (JacksonException ex) {
       throw new InvalidStatementDocumentException("No se pudo leer el resultado del job", ex);
     }
   }

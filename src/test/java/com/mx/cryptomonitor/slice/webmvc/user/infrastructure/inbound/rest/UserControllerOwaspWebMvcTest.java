@@ -22,15 +22,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.user.application.dto.request.UserRegistrationRequest;
 import com.mx.cryptomonitor.user.application.dto.response.UserResponse;
 import com.mx.cryptomonitor.user.application.service.UserService;
@@ -46,6 +45,8 @@ import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.PasswordRe
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.UserRegistrationRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 
+import tools.jackson.databind.ObjectMapper;
+
 @WebMvcTest(controllers = UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import(UserExceptionHandler.class)
@@ -54,15 +55,15 @@ class UserControllerOwaspWebMvcTest {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
 
-  @MockBean private UserService userService;
-  @MockBean private JwtRequestFilter jwtRequestFilter;
-  @MockBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
-  @MockBean private PasswordResetRateLimiter passwordResetRateLimiter;
-  @MockBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
-  @MockBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
-  @MockBean private MeReadRateLimiter meReadRateLimiter;
-  @MockBean private MeWriteRateLimiter meWriteRateLimiter;
-  @MockBean private MeDeleteRateLimiter meDeleteRateLimiter;
+  @MockitoBean private UserService userService;
+  @MockitoBean private JwtRequestFilter jwtRequestFilter;
+  @MockitoBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
+  @MockitoBean private PasswordResetRateLimiter passwordResetRateLimiter;
+  @MockitoBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
+  @MockitoBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
+  @MockitoBean private MeReadRateLimiter meReadRateLimiter;
+  @MockitoBean private MeWriteRateLimiter meWriteRateLimiter;
+  @MockitoBean private MeDeleteRateLimiter meDeleteRateLimiter;
 
   @Test
   @DisplayName("RFC9457: 400 en registro invalido, con traceId heredado de X-Request-Id")

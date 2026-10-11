@@ -17,7 +17,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.statementimport.application.dto.response.StatementImportJobResponse;
 import com.mx.cryptomonitor.statementimport.domain.exception.StatementImportJobNotFoundException;
 import com.mx.cryptomonitor.statementimport.domain.exception.StatementImportJobNotRetryableException;
@@ -25,6 +24,8 @@ import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJob;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJobStatus;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJobType;
 import com.mx.cryptomonitor.statementimport.domain.repository.StatementImportJobRepository;
+
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class StatementImportJobServiceTest {

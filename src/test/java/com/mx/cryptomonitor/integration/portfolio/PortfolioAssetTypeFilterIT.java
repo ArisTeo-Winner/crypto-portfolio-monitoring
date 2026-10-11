@@ -17,20 +17,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
@@ -43,6 +41,8 @@ import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Verifica que ?assetType=CRYPTO y ?assetType=STOCK devuelven series distintas cuando el usuario
@@ -62,9 +62,9 @@ class PortfolioAssetTypeFilterIT {
   @Autowired private UserRepository userRepository;
   @Autowired private TransactionRepository transactionRepository;
   @Autowired private ObjectMapper objectMapper;
-  @MockBean private AssetPricePort assetPricePort;
-  @MockBean private CryptoHistoricalPricePort cryptoHistoricalPricePort;
-  @MockBean private MarketPriceHistoryPort marketPriceHistoryPort;
+  @MockitoBean private AssetPricePort assetPricePort;
+  @MockitoBean private CryptoHistoricalPricePort cryptoHistoricalPricePort;
+  @MockitoBean private MarketPriceHistoryPort marketPriceHistoryPort;
 
   private User testUser;
 

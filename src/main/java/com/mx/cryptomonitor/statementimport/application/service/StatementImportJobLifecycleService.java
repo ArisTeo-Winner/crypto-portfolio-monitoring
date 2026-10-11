@@ -10,14 +10,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.statementimport.application.dto.response.StatementImportResult;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJob;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJobStatus;
 import com.mx.cryptomonitor.statementimport.domain.repository.StatementImportJobRepository;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Transiciones de estado de {@link StatementImportJob}, cada una en su propia transaccion. Vive en
@@ -107,7 +107,7 @@ public class StatementImportJobLifecycleService {
   private String serialize(StatementImportResult result) {
     try {
       return objectMapper.writeValueAsString(result);
-    } catch (JsonProcessingException ex) {
+    } catch (JacksonException ex) {
       throw new IllegalStateException("No se pudo serializar el resultado del import", ex);
     }
   }

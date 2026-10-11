@@ -16,10 +16,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.mx.cryptomonitor.integration.user.support.UserModuleIntegrationTest;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+
+import tools.jackson.databind.JsonNode;
 
 /**
  * Regresión: fee con 8 decimales (0.12345678) debe conservarse sin pérdida de precisión a lo largo

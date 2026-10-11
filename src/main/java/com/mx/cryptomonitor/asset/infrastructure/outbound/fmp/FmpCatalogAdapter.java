@@ -10,8 +10,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
 import com.mx.cryptomonitor.asset.domain.exception.CatalogFetchException;
@@ -19,6 +17,9 @@ import com.mx.cryptomonitor.asset.infrastructure.outbound.companieslogo.Companie
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpInvalidKeyException;
 import com.mx.cryptomonitor.asset.infrastructure.outbound.fmp.exception.FmpPlanRestrictionException;
+
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class FmpCatalogAdapter implements CatalogFetchPort {

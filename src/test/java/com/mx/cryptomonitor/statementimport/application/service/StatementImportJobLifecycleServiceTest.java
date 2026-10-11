@@ -21,11 +21,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJob;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJobStatus;
 import com.mx.cryptomonitor.statementimport.domain.model.StatementImportJobType;
 import com.mx.cryptomonitor.statementimport.domain.repository.StatementImportJobRepository;
+
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class StatementImportJobLifecycleServiceTest {

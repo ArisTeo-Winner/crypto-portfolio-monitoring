@@ -10,12 +10,12 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.mx.cryptomonitor.integration.support.ContainersConfig;
 import com.mx.cryptomonitor.marketdata.application.service.BanxicoCurveService;
@@ -36,7 +36,7 @@ class BanxicoCurveServiceIT {
   @Autowired private BanxicoCetesRateRepository rateRepository;
   @Autowired private StringRedisTemplate redisTemplate;
 
-  @MockBean private BanxicoRateAdapter banxicoRateAdapter;
+  @MockitoBean private BanxicoRateAdapter banxicoRateAdapter;
 
   @BeforeEach
   void cleanState() {

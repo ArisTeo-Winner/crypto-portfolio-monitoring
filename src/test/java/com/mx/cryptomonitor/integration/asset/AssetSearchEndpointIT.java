@@ -12,8 +12,8 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.mx.cryptomonitor.asset.application.dto.AssetCatalogDto;
 import com.mx.cryptomonitor.asset.application.port.out.CatalogFetchPort;
@@ -25,7 +25,7 @@ class AssetSearchEndpointIT extends UserModuleIntegrationTest {
 
   @Autowired private StringRedisTemplate redisTemplate;
   @Autowired private CatalogStorePort catalogStorePort;
-  @MockBean private CatalogFetchPort catalogFetchPort;
+  @MockitoBean private CatalogFetchPort catalogFetchPort;
 
   @BeforeEach
   void clearCatalog() {

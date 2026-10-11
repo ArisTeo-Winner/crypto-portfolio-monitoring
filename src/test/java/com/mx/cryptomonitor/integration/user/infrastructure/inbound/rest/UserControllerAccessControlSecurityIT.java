@@ -17,9 +17,8 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -27,6 +26,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.mx.cryptomonitor.user.application.dto.response.UserResponse;
@@ -100,24 +100,24 @@ class UserControllerAccessControlSecurityIT {
 
   @Autowired private MockMvc mockMvc;
 
-  @MockBean private UserService userService;
-  @MockBean private AuthService authService;
-  @MockBean private LoginRateLimiter loginRateLimiter;
-  @MockBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
-  @MockBean private PasswordResetRateLimiter passwordResetRateLimiter;
-  @MockBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
-  @MockBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
-  @MockBean private MeReadRateLimiter meReadRateLimiter;
-  @MockBean private MeWriteRateLimiter meWriteRateLimiter;
-  @MockBean private MeDeleteRateLimiter meDeleteRateLimiter;
+  @MockitoBean private UserService userService;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private LoginRateLimiter loginRateLimiter;
+  @MockitoBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
+  @MockitoBean private PasswordResetRateLimiter passwordResetRateLimiter;
+  @MockitoBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
+  @MockitoBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
+  @MockitoBean private MeReadRateLimiter meReadRateLimiter;
+  @MockitoBean private MeWriteRateLimiter meWriteRateLimiter;
+  @MockitoBean private MeDeleteRateLimiter meDeleteRateLimiter;
 
   // SecurityConfig required dependencies (mocked to avoid scanning unrelated infrastructure).
-  @MockBean private JwtUserDetailsService jwtUserDetailsService;
-  @MockBean private CustomOAuth2FailureHandler customOAuth2FailureHandler;
-  @MockBean private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-  @MockBean private CustomOAuth2UserService customOAuth2UserService;
-  @MockBean private CustomOidcUserService customOidcUserService;
-  @MockBean private PasswordEncoder passwordEncoder;
+  @MockitoBean private JwtUserDetailsService jwtUserDetailsService;
+  @MockitoBean private CustomOAuth2FailureHandler customOAuth2FailureHandler;
+  @MockitoBean private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+  @MockitoBean private CustomOAuth2UserService customOAuth2UserService;
+  @MockitoBean private CustomOidcUserService customOidcUserService;
+  @MockitoBean private PasswordEncoder passwordEncoder;
 
   @Test
   void getAllUsersWithoutAuthShouldReturn401ProblemDetails() throws Exception {

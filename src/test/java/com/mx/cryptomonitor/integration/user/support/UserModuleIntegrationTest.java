@@ -8,9 +8,9 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,7 +23,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.mx.cryptomonitor.CryptoPortfolioMonitoringApplication;
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
@@ -33,6 +32,8 @@ import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.RoleRepository;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 import com.redis.testcontainers.RedisContainer;
+
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Base class for full-stack integration tests in the user module.

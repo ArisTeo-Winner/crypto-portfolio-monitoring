@@ -17,16 +17,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.user.application.dto.request.EmailVerifyRequest;
 import com.mx.cryptomonitor.user.application.dto.request.PasswordChangeRequest;
 import com.mx.cryptomonitor.user.application.dto.request.PasswordResetRequest;
@@ -51,6 +50,8 @@ import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.PasswordRe
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.UserRegistrationRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 
+import tools.jackson.databind.ObjectMapper;
+
 @WebMvcTest(controllers = UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import(UserExceptionHandler.class)
@@ -59,16 +60,16 @@ class UserControllerRateLimitAllEndpointsWebMvcTest {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
 
-  @MockBean private UserService userService;
-  @MockBean private JwtRequestFilter jwtRequestFilter;
+  @MockitoBean private UserService userService;
+  @MockitoBean private JwtRequestFilter jwtRequestFilter;
 
-  @MockBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
-  @MockBean private PasswordResetRateLimiter passwordResetRateLimiter;
-  @MockBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
-  @MockBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
-  @MockBean private MeReadRateLimiter meReadRateLimiter;
-  @MockBean private MeWriteRateLimiter meWriteRateLimiter;
-  @MockBean private MeDeleteRateLimiter meDeleteRateLimiter;
+  @MockitoBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
+  @MockitoBean private PasswordResetRateLimiter passwordResetRateLimiter;
+  @MockitoBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
+  @MockitoBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
+  @MockitoBean private MeReadRateLimiter meReadRateLimiter;
+  @MockitoBean private MeWriteRateLimiter meWriteRateLimiter;
+  @MockitoBean private MeDeleteRateLimiter meDeleteRateLimiter;
 
   @AfterEach
   void clearSecurityContext() {

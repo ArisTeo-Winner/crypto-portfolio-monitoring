@@ -13,9 +13,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitProviderPort;
@@ -25,6 +22,8 @@ import com.mx.cryptomonitor.marketdata.domain.repository.StockSplitRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.StockSplitSyncRepository;
 
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Splits de un ticker (ADR-0011). Lectura en capas: Redis (read-through) -> Postgres (fuente de
@@ -95,7 +94,7 @@ public class CachedStockSplitAdapter implements StockSplitPort {
         return null;
       }
       return objectMapper.readValue(json, new TypeReference<List<StockSplitData>>() {});
-    } catch (RuntimeException | JsonProcessingException ex) {
+    } catch (RuntimeException ex) {
       log.debug("Lectura de cache Redis de splits para {} fallo; se recurre a DB", ticker, ex);
       return null;
     }
@@ -112,7 +111,7 @@ public class CachedStockSplitAdapter implements StockSplitPort {
               CACHE_KEY_PREFIX + ticker,
               objectMapper.writeValueAsString(splits),
               Duration.ofHours(cacheTtlHours));
-    } catch (RuntimeException | JsonProcessingException ex) {
+    } catch (RuntimeException ex) {
       log.debug("Escritura de cache Redis de splits para {} fallo; se ignora", ticker, ex);
     }
   }

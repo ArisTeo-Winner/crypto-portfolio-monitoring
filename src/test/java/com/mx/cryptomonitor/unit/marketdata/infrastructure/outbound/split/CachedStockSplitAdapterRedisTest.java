@@ -25,8 +25,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitProviderPort;
 import com.mx.cryptomonitor.marketdata.domain.model.StockSplitEntity;
@@ -34,6 +32,8 @@ import com.mx.cryptomonitor.marketdata.domain.model.StockSplitSyncEntity;
 import com.mx.cryptomonitor.marketdata.domain.repository.StockSplitRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.StockSplitSyncRepository;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.split.CachedStockSplitAdapter;
+
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CachedStockSplitAdapterRedisTest {
@@ -44,7 +44,7 @@ class CachedStockSplitAdapterRedisTest {
   @Mock private StringRedisTemplate redisTemplate;
   @Mock private ValueOperations<String, String> valueOperations;
 
-  private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+  private final ObjectMapper objectMapper = new ObjectMapper();
   private CachedStockSplitAdapter adapter;
 
   private static final String KEY = "marketdata:splits:WETO";

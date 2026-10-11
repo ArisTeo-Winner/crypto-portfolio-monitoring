@@ -1,8 +1,8 @@
 package com.mx.cryptomonitor.shared.infrastructure.config;
 
 import org.slf4j.MDC;
-import org.springframework.boot.web.client.RestTemplateCustomizer;
-import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
+import org.springframework.boot.restclient.RestTemplateCustomizer;
+import org.springframework.boot.webclient.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
@@ -26,7 +26,7 @@ public class TracingPropagationConfig {
               ClientRequest.Builder tracedRequest = ClientRequest.from(request);
               injectTraceHeaders(tracer, propagator, tracedRequest);
               propagateRequestIdIfPresent(
-                  tracedRequest, request.headers().containsKey(REQUEST_ID_HEADER));
+                  tracedRequest, request.headers().containsHeader(REQUEST_ID_HEADER));
               return next.exchange(tracedRequest.build());
             });
   }
@@ -40,7 +40,7 @@ public class TracingPropagationConfig {
                 (request, body, execution) -> {
                   injectTraceHeaders(tracer, propagator, request.getHeaders());
                   propagateRequestIdIfPresent(
-                      request.getHeaders(), request.getHeaders().containsKey(REQUEST_ID_HEADER));
+                      request.getHeaders(), request.getHeaders().containsHeader(REQUEST_ID_HEADER));
                   return execution.execute(request, body);
                 });
   }
