@@ -16,8 +16,8 @@ import au.com.dius.pact.provider.junit5.PactVerificationContext;
 import au.com.dius.pact.provider.junitsupport.Provider;
 import au.com.dius.pact.provider.junitsupport.State;
 import au.com.dius.pact.provider.junitsupport.loader.PactFolder;
-import au.com.dius.pact.provider.spring.junit5.MockMvcTestTarget;
-import au.com.dius.pact.provider.spring.junit5.PactVerificationSpringProvider;
+import au.com.dius.pact.provider.spring.spring7.PactVerificationSpring7Provider;
+import au.com.dius.pact.provider.spring.spring7.Spring7MockMvcTestTarget;
 
 /**
  * Provider-side Pact verification for POST /api/v1/auth/login.
@@ -30,12 +30,12 @@ import au.com.dius.pact.provider.spring.junit5.PactVerificationSpringProvider;
 @Tag("contract")
 @Provider("crypto-portfolio-api")
 @PactFolder("pacts")
-@ExtendWith(PactVerificationSpringProvider.class)
+@ExtendWith(PactVerificationSpring7Provider.class)
 class AuthLoginProviderPactIT extends UserModuleIntegrationTest {
 
   @BeforeEach
   void configurarTarget(PactVerificationContext context) {
-    context.setTarget(new MockMvcTestTarget(mockMvc));
+    context.setTarget(new Spring7MockMvcTestTarget(mockMvc));
   }
 
   @TestTemplate
