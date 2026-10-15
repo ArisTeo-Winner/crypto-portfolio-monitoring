@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -42,6 +44,7 @@ class DriveWealthImportServiceTest {
             new BigDecimal("0.95368698"),
             new BigDecimal("108.7988"),
             LocalDate.of(2025, 6, 11),
+            LocalTime.of(9, 32, 25),
             new BigDecimal("103.76"),
             new BigDecimal("0.25"),
             new BigDecimal("0.00"),
@@ -79,6 +82,9 @@ class DriveWealthImportServiceTest {
     assertThat(request.currency()).isEqualTo("USD");
     assertThat(request.exchange()).isEqualTo("SIC");
     assertThat(request.assetName()).isEqualTo("CIRCLE STAR ENERGY CORP COM");
+    // ADR-0013: binomio de operacion = Trade Date + Execution Time en la zona de la plaza US.
+    assertThat(request.localExecutionTime()).isEqualTo(LocalDateTime.of(2025, 6, 11, 9, 32, 25));
+    assertThat(request.executionZoneId()).isEqualTo("America/New_York");
     assertThat(request.brokerKind())
         .isEqualTo(
             com.mx.cryptomonitor.transaction.application.dto.request.ImportedBrokerKind

@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.transaction.domain.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -71,6 +72,17 @@ public class Transaction {
 
   @Column(name = "transaction_date")
   private OffsetDateTime transactionDate = OffsetDateTime.now(ZoneOffset.UTC);
+
+  // ADR-0013: binomio inmutable del evento de operacion bursatil (wall-clock de la plaza + nombre
+  // IANA de la zona). Es la fuente de verdad; executedAtUtc es el instante derivado para orden.
+  @Column(name = "local_execution_time")
+  private LocalDateTime localExecutionTime;
+
+  @Column(name = "execution_zone_id", length = 64)
+  private String executionZoneId;
+
+  @Column(name = "executed_at_utc")
+  private OffsetDateTime executedAtUtc;
 
   @Column(name = "fee", precision = 18, scale = 8)
   private BigDecimal fee = BigDecimal.ZERO;

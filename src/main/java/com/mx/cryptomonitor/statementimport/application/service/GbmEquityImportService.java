@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.statementimport.application.service;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -36,6 +37,8 @@ public class GbmEquityImportService implements ImportGbmEquityConfirmationsUseCa
   private static final String BROKER = "GBM";
   private static final String EXCHANGE_BMV = "BMV";
   private static final String CURRENCY_MXN = "MXN";
+  // ADR-0013: la casa de bolsa nacional reporta en hora oficial de la plaza mexicana.
+  private static final String EXECUTION_ZONE = "America/Mexico_City";
 
   private final GbmEquityConfirmationParserPort confirmationParser;
   private final TransactionCommandUseCase transactionCommandUseCase;
@@ -64,6 +67,8 @@ public class GbmEquityImportService implements ImportGbmEquityConfirmationsUseCa
     boolean isBuy = "Compra".equalsIgnoreCase(row.action());
     OffsetDateTime transactionDate =
         row.tradeDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+    // ADR-0013: el comprobante GBM no trae hora; centinela 00:00 del Trade Date en zona MX.
+    LocalDateTime localExecutionTime = row.tradeDate().atStartOfDay();
     OffsetDateTime before = OffsetDateTime.now(ZoneOffset.UTC);
 
     String idempotencyKey =
@@ -83,6 +88,8 @@ public class GbmEquityImportService implements ImportGbmEquityConfirmationsUseCa
               row.quantity(),
               row.unitPrice(),
               transactionDate,
+              localExecutionTime,
+              EXECUTION_ZONE,
               null,
               EXCHANGE_BMV,
               BROKER,

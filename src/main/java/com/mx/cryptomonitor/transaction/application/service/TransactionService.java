@@ -46,6 +46,7 @@ import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
 import com.mx.cryptomonitor.transaction.domain.model.DividendType;
 import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
+import com.mx.cryptomonitor.transaction.domain.model.OperationTimestamps;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
@@ -264,6 +265,12 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             transaction -> {
               transaction.applyFriction(breakdown);
               transaction.setImportSource(source);
+              // ADR-0013: fija el binomio de operacion (wall-clock + zona IANA) desde el import y
+              // recalcula executed_at_utc. Si el import no lo trae, se deja para la migracion/F2b.
+              if (request.localExecutionTime() != null && request.executionZoneId() != null) {
+                OperationTimestamps.apply(
+                    transaction, request.localExecutionTime(), request.executionZoneId());
+              }
               transactionRepository.save(transaction);
             });
 

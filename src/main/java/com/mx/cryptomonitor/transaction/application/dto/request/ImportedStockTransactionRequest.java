@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 /**
@@ -15,6 +16,9 @@ public record ImportedStockTransactionRequest(
     BigDecimal quantity,
     BigDecimal pricePerUnit,
     OffsetDateTime transactionDate,
+    // ADR-0013: binomio del evento de operacion (wall-clock de la plaza + nombre IANA de la zona).
+    LocalDateTime localExecutionTime,
+    String executionZoneId,
     String notes,
     String exchange,
     String broker,

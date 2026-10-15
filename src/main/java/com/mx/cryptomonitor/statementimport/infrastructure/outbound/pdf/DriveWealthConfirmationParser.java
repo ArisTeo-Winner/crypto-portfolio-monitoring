@@ -2,8 +2,10 @@ package com.mx.cryptomonitor.statementimport.infrastructure.outbound.pdf;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,24 +27,31 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DriveWealthConfirmationParser implements DriveWealthConfirmationParserPort {
 
+  // La cantidad admite signo: en una venta DriveWealth viene negativa (p.ej. -0.953); se normaliza
+  // a magnitud en el parse y la direccion la da la columna Action (Buy/Sell).
   private static final Pattern DATA_ROW_PATTERN =
       Pattern.compile(
-          "^(\\S+)\\s+(.+?)\\s+([A-Z])\\s+(Buy|Sell)\\s+\\d{1,2}:\\d{2}:\\d{2}\\s*[AP]M\\s+"
-              + "(\\d+(?:\\.\\d+)?)\\s+(\\d+(?:\\.\\d+)?)\\s+(\\d{1,2}/\\d{1,2}/\\d{4})\\s+"
+          "^(\\S+)\\s+(.+?)\\s+([A-Z])\\s+(Buy|Sell)\\s+(\\d{1,2}:\\d{2}:\\d{2}\\s*[AP]M)\\s+"
+              + "(-?\\d+(?:\\.\\d+)?)\\s+(\\d+(?:\\.\\d+)?)\\s+(\\d{1,2}/\\d{1,2}/\\d{4})\\s+"
               + "\\d{1,2}/\\d{1,2}/\\d{4}\\s+\\S+\\s*$",
           Pattern.MULTILINE);
+  // Los montos de venta vienen en formato contable con parentesis, p.ej. "Net Amount ($233.24)";
+  // se aceptan los parentesis opcionales y se guarda la magnitud (la direccion la da el tipo).
   private static final Pattern PRINCIPAL_PATTERN =
-      Pattern.compile("Principal Amount\\s+\\$(-?[\\d,]+\\.\\d+)");
+      Pattern.compile("Principal Amount\\s+\\(?\\$(-?[\\d,]+\\.\\d+)\\)?");
   private static final Pattern COMMISSION_PATTERN =
-      Pattern.compile("Commission\\s+\\$(-?[\\d,]+\\.\\d+)");
+      Pattern.compile("Commission\\s+\\(?\\$(-?[\\d,]+\\.\\d+)\\)?");
   private static final Pattern TRANSACTION_FEE_PATTERN =
-      Pattern.compile("Transaction Fee\\s+\\$(-?[\\d,]+\\.\\d+)");
+      Pattern.compile("Transaction Fee\\s+\\(?\\$(-?[\\d,]+\\.\\d+)\\)?");
   private static final Pattern OTHER_FEES_PATTERN =
-      Pattern.compile("Other Fees\\s*/\\s*Credits\\s+\\$(-?[\\d,]+\\.\\d+)");
+      Pattern.compile("Other Fees\\s*/\\s*Credits\\s+\\(?\\$(-?[\\d,]+\\.\\d+)\\)?");
   private static final Pattern NET_AMOUNT_PATTERN =
-      Pattern.compile("Net Amount\\s+\\$(-?[\\d,]+\\.\\d+)");
+      Pattern.compile("Net Amount\\s+\\(?\\$(-?[\\d,]+\\.\\d+)\\)?");
   private static final DateTimeFormatter TRADE_DATE_FORMAT =
       DateTimeFormatter.ofPattern("M/d/yyyy");
+  // ADR-0013: la hora de ejecucion (p.ej. "11:27:29 AM") se interpreta despues en America/New_York.
+  private static final DateTimeFormatter EXECUTION_TIME_FORMAT =
+      DateTimeFormatter.ofPattern("h:mm:ss a", Locale.US);
 
   private final PdfBoxTextExtractor textExtractor;
 
@@ -64,9 +73,11 @@ public class DriveWealthConfirmationParser implements DriveWealthConfirmationPar
     String symbol = rowMatcher.group(1);
     String securityName = rowMatcher.group(2).trim();
     String action = rowMatcher.group(4);
-    BigDecimal quantity = parseDecimal(rowMatcher.group(5));
-    BigDecimal price = parseDecimal(rowMatcher.group(6));
-    LocalDate tradeDate = LocalDate.parse(rowMatcher.group(7), TRADE_DATE_FORMAT);
+    LocalTime executionTime = parseExecutionTime(rowMatcher.group(5));
+    // Magnitud: las ventas traen cantidad negativa; el signo/direccion lo lleva Action -> tipo.
+    BigDecimal quantity = parseDecimal(rowMatcher.group(6)).abs();
+    BigDecimal price = parseDecimal(rowMatcher.group(7));
+    LocalDate tradeDate = LocalDate.parse(rowMatcher.group(8), TRADE_DATE_FORMAT);
 
     BigDecimal commission = findAmount(fullText, COMMISSION_PATTERN).orElse(BigDecimal.ZERO);
     BigDecimal transactionFee =
@@ -88,11 +99,17 @@ public class DriveWealthConfirmationParser implements DriveWealthConfirmationPar
         quantity,
         price,
         tradeDate,
+        executionTime,
         principalAmount,
         commission,
         transactionFee,
         otherFees,
         netAmount);
+  }
+
+  private LocalTime parseExecutionTime(String raw) {
+    String normalized = raw.trim().replaceAll("(?i)\\s*([AP]M)$", " $1");
+    return LocalTime.parse(normalized, EXECUTION_TIME_FORMAT);
   }
 
   private void validateEntity(String fullText) {

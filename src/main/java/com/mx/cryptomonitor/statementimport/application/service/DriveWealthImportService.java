@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.statementimport.application.service;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -31,6 +32,8 @@ public class DriveWealthImportService implements ImportDriveWealthConfirmationsU
   private static final String BROKER = "DriveWealth";
   private static final String EXCHANGE_GLOBAL = "SIC";
   private static final String CURRENCY_USD = "USD";
+  // ADR-0013: la plaza de ejecucion de DriveWealth es el mercado US.
+  private static final String EXECUTION_ZONE = "America/New_York";
 
   private final DriveWealthConfirmationParserPort confirmationParser;
   private final TransactionCommandUseCase transactionCommandUseCase;
@@ -61,6 +64,11 @@ public class DriveWealthImportService implements ImportDriveWealthConfirmationsU
     boolean isBuy = "Buy".equalsIgnoreCase(row.action());
     OffsetDateTime transactionDate =
         row.tradeDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+    // ADR-0013: wall-clock real de la plaza; si falta la hora, centinela 00:00 del Trade Date.
+    LocalDateTime localExecutionTime =
+        row.executionTime() != null
+            ? LocalDateTime.of(row.tradeDate(), row.executionTime())
+            : row.tradeDate().atStartOfDay();
     OffsetDateTime before = OffsetDateTime.now(ZoneOffset.UTC);
     String assetSymbol = row.symbol().toUpperCase(Locale.ROOT);
 
@@ -73,6 +81,8 @@ public class DriveWealthImportService implements ImportDriveWealthConfirmationsU
               row.quantity(),
               row.price(),
               transactionDate,
+              localExecutionTime,
+              EXECUTION_ZONE,
               null,
               EXCHANGE_GLOBAL,
               BROKER,

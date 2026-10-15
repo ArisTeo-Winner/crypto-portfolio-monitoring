@@ -238,7 +238,9 @@ public class GbmStatementImportService implements ImportGbmStatementUseCase {
   }
 
   private OffsetDateTime toTransactionDate(java.time.LocalDate date) {
-    return date.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+    // ADR-0013: el estado de cuenta nacional reporta en hora de la plaza mexicana; se guarda el
+    // instante de la medianoche local de BMV para que el binomio de operacion recupere el dia real.
+    return date.atStartOfDay(java.time.ZoneId.of("America/Mexico_City")).toOffsetDateTime();
   }
 
   private String truncateSymbol(String symbol) {

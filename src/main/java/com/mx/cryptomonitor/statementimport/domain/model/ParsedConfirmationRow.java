@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.statementimport.domain.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 public record ParsedConfirmationRow(
     String symbol,
@@ -10,6 +11,7 @@ public record ParsedConfirmationRow(
     BigDecimal quantity,
     BigDecimal price,
     LocalDate tradeDate,
+    LocalTime executionTime,
     BigDecimal principalAmount,
     BigDecimal commission,
     BigDecimal transactionFee,
