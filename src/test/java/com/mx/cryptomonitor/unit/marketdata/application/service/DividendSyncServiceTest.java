@@ -35,9 +35,11 @@ class DividendSyncServiceTest {
   @Mock private DividendProviderPort provider;
   @Mock private CorporateActionRepository corporateActionRepository;
   @Mock private DividendActionDetailRepository detailRepository;
+  @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
   private DividendSyncService service() {
-    return new DividendSyncService(provider, corporateActionRepository, detailRepository);
+    return new DividendSyncService(
+        provider, corporateActionRepository, detailRepository, eventPublisher);
   }
 
   private DividendEventData paidGoogl() {
@@ -89,6 +91,14 @@ class DividendSyncServiceTest {
     assertThat(detail.getCurrency()).isEqualTo("USD");
     assertThat(detail.getFrequency()).isEqualTo((short) 4);
     assertThat(detail.getDistributionType()).isEqualTo(DividendDistributionType.RECURRING);
+
+    ArgumentCaptor<com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent>
+        eventCaptor =
+            ArgumentCaptor.forClass(
+                com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent.class);
+    verify(eventPublisher).publishEvent(eventCaptor.capture());
+    assertThat(eventCaptor.getValue().assetSymbol()).isEqualTo("GOOGL");
+    assertThat(eventCaptor.getValue().dividendPerShare()).isEqualByComparingTo("0.20");
   }
 
   @Test

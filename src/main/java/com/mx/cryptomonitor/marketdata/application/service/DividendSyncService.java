@@ -5,10 +5,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
@@ -38,6 +40,7 @@ public class DividendSyncService {
   private final DividendProviderPort dividendProvider;
   private final CorporateActionRepository corporateActionRepository;
   private final DividendActionDetailRepository dividendDetailRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   /** Sincroniza los dividendos de un ticker. Devuelve cuantos eventos NUEVOS se insertaron. */
   @Transactional
@@ -55,6 +58,13 @@ public class DividendSyncService {
       CorporateActionEntity action =
           corporateActionRepository.save(toCorporateAction(symbol, event));
       dividendDetailRepository.save(toDetail(action, event));
+      eventPublisher.publishEvent(
+          new DividendDetectedEvent(
+              symbol,
+              event.exDividendDate(),
+              event.paymentDate(),
+              event.cashAmount(),
+              event.currency() == null ? "USD" : event.currency()));
       created++;
     }
     if (created > 0) {
