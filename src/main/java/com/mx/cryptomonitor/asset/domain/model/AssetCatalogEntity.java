@@ -40,6 +40,21 @@ public class AssetCatalogEntity {
   @Column(name = "currency", length = 3)
   private String currency;
 
+  // ADR-0014 (security master): identificadores universales gratis para resolver corporate actions
+  // de forma estable (no por ticker). composite_figi = futura llave canonica; share_class_figi une
+  // cross-border; cik = emisor SEC; isin opcional. NO se guarda CUSIP (licenciado).
+  @Column(name = "composite_figi", length = 12)
+  private String compositeFigi;
+
+  @Column(name = "share_class_figi", length = 12)
+  private String shareClassFigi;
+
+  @Column(name = "cik", length = 10)
+  private String cik;
+
+  @Column(name = "isin", length = 12)
+  private String isin;
+
   @Column(name = "market_cap")
   private Long marketCap;
 
