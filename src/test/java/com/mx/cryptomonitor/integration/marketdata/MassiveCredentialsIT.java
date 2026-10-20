@@ -101,4 +101,84 @@ class MassiveCredentialsIT {
         .isNotNull()
         .containsKey("results");
   }
+
+  /**
+   * Contrato del endpoint que usa {@code MassiveDividendAdapter.fetchDividends} ({@code
+   * /stocks/v1/dividends?ticker=}): valida en vivo que la key sigue vigente para dividendos y que
+   * el payload conserva {@code status/results}. Key invalida → HTTP 401/403 o status != OK.
+   */
+  @Test
+  void dividendsEndpointAcceptsApiKey() {
+    String apiKey = System.getenv("MASSIVE_API_KEY");
+    String baseUrl = System.getenv("API_MASSIVE_BASE_URL");
+    Assumptions.assumeTrue(
+        StringUtils.hasText(apiKey) && StringUtils.hasText(baseUrl),
+        "MASSIVE_API_KEY o API_MASSIVE_BASE_URL no estan configurados en el entorno, se omite la"
+            + " validacion del endpoint de dividendos contra la API real");
+
+    WebClient webClient = WebClient.builder().baseUrl(baseUrl).build();
+
+    Map<String, Object> body;
+    try {
+      body =
+          webClient
+              .get()
+              .uri(
+                  uriBuilder ->
+                      uriBuilder
+                          .path("/stocks/v1/dividends")
+                          .queryParam("ticker", KNOWN_SYMBOL)
+                          .queryParam("limit", "10")
+                          .queryParam("apiKey", apiKey)
+                          .build())
+              .retrieve()
+              .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+              .timeout(Duration.ofSeconds(10))
+              .block();
+    } catch (WebClientResponseException ex) {
+      HttpStatusCode status = ex.getStatusCode();
+      if (status.value() == 401 || status.value() == 403) {
+        fail(
+            "Massive rechazo MASSIVE_API_KEY en /stocks/v1/dividends con HTTP "
+                + status.value()
+                + ": key invalida, revocada o plan/licencia caducada.",
+            ex);
+      } else {
+        fail(
+            "Massive respondio HTTP "
+                + status.value()
+                + " para /stocks/v1/dividends con una key en teoria valida. Causa: "
+                + ex.getMessage(),
+            ex);
+      }
+      return;
+    } catch (RuntimeException ex) {
+      fail(
+          "No se pudo contactar a Massive (API_MASSIVE_BASE_URL="
+              + baseUrl
+              + ") en /stocks/v1/dividends: "
+              + ex.getMessage(),
+          ex);
+      return;
+    }
+
+    String status = body == null ? "" : String.valueOf(body.get("status")).trim().toUpperCase();
+    if (!"OK".equals(status)) {
+      fail(
+          "Massive /stocks/v1/dividends respondio status='"
+              + status
+              + "' para "
+              + KNOWN_SYMBOL
+              + " con una key en teoria valida: key invalida, cuota agotada o contrato cambiado."
+              + " Detalle: "
+              + (body == null ? "sin body" : body.getOrDefault("error", body.get("message"))));
+    }
+
+    assertThat(body)
+        .as(
+            "Massive /stocks/v1/dividends respondio status=OK sin el campo 'results' con una key en"
+                + " teoria valida: revisar si el contrato de la API cambio")
+        .isNotNull()
+        .containsKey("results");
+  }
 }
