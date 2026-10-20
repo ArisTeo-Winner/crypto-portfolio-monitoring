@@ -668,4 +668,60 @@ class PortfolioServiceTest {
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any());
   }
+
+  @Test
+  void totalReturnAddsNetDividendIncomeToCapitalGain() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "BTC",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("2"),
+                    new BigDecimal("20.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2025, 4, 7, 0, 0, 0, 0, ZoneOffset.UTC)),
+                // Dividendo: bruto 4.00, retencion 1.00 -> neto 3.00 (no mueve cantidad ni costo).
+                new PortfolioTransactionSnapshot(
+                    "BTC",
+                    "CRYPTO",
+                    "DIVIDEND",
+                    null,
+                    BigDecimal.ZERO,
+                    new BigDecimal("4.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2025, 4, 8, 0, 0, 0, 0, ZoneOffset.UTC),
+                    "USD",
+                    new BigDecimal("1.00"))));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
+    when(cryptoHistoricalPricePort.getHistoricalUsdPrices(
+            org.mockito.ArgumentMatchers.eq("bitcoin"),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            reactor.core.publisher.Mono.just(
+                new CryptoHistoricalPriceSeries(
+                    "bitcoin",
+                    "usd",
+                    List.of(
+                        new CryptoHistoricalPricePoint(
+                            Instant.parse("2025-04-07T00:00:00Z"), new BigDecimal("10.00"))))));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("13.00")));
+
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "BTC", "ALL");
+
+    // Plusvalia: 2 BTC a 13 = 26 de valor, costo 20 -> +6. Dividendo neto 3. Total Return 9.
+    assertThat(response.allTimeProfit()).isEqualByComparingTo("6.00");
+    assertThat(response.dividendIncome()).isEqualByComparingTo("3.00");
+    assertThat(response.totalReturn()).isEqualByComparingTo("9.00");
+    assertThat(response.totalReturnPercent()).isEqualByComparingTo("45.00"); // 9 / 20
+  }
 }

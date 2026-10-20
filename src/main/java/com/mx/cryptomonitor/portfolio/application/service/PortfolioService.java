@@ -126,6 +126,9 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
         calculateUnrealizedProfit(accumulator.assetsBySymbol, currentValue);
     BigDecimal allTimeProfit = scaleCurrency(accumulator.realizedProfit.add(unrealizedProfit));
     BigDecimal allTimeProfitPercent = calculateAllTimeProfitPercent(allTimeProfit, costBasis);
+    BigDecimal dividendIncome = scaleCurrency(accumulator.dividendIncome);
+    BigDecimal totalReturn = scaleCurrency(allTimeProfit.add(dividendIncome));
+    BigDecimal totalReturnPercent = calculateAllTimeProfitPercent(totalReturn, costBasis);
     LocalDate firstTransactionDate = snapshots.getFirst().transactionDate().toLocalDate();
     List<PortfolioHoldingsPerformanceResponse.SeriesPoint> filteredSeries =
         filterSeriesByPeriod(series, period);
@@ -143,7 +146,11 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
         allTimeProfit,
         allTimeProfitPercent,
         costBasis,
-        firstTransactionDate);
+        firstTransactionDate,
+        null,
+        dividendIncome,
+        totalReturn,
+        totalReturnPercent);
   }
 
   @Override
@@ -695,6 +702,15 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
       return;
     }
 
+    if ("DIVIDEND".equals(transactionType)) {
+      // ADR-0014 F4: el income del dividendo entra al Total Return en NETO (bruto - retencion). El
+      // bruto es totalValue (grossAmount); la retencion vive en el snapshot (DividendDetail).
+      BigDecimal tax = toBaseCurrency(normalizeAmount(snapshot.taxWithheld()), currency, rate);
+      accumulator.dividendIncome =
+          accumulator.dividendIncome.add(grossAmount.subtract(tax).max(BigDecimal.ZERO));
+      return;
+    }
+
     assetState.lastKnownPrice = resolveKnownPrice(unitPrice, assetState.lastKnownPrice);
   }
 
@@ -1125,6 +1141,7 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
   private static final class HoldingsPerformanceAccumulator {
     private final Map<String, PerformanceAssetState> assetsBySymbol = new LinkedHashMap<>();
     private BigDecimal realizedProfit = BigDecimal.ZERO;
+    private BigDecimal dividendIncome = BigDecimal.ZERO;
   }
 
   private static final class PerformanceAssetState {

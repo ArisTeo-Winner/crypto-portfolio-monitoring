@@ -47,7 +47,10 @@ public class PortfolioPerformancePresentationService {
         base.allTimeProfitPercent(),
         moneyPresentationConverter.toDisplay(base.costBasis(), ctx),
         base.firstTransactionDate(),
-        envelope);
+        envelope,
+        moneyPresentationConverter.toDisplay(base.dividendIncome(), ctx),
+        moneyPresentationConverter.toDisplay(base.totalReturn(), ctx),
+        base.totalReturnPercent());
   }
 
   public PortfolioHistoryResponse present(

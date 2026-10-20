@@ -11,9 +11,34 @@ public record PortfolioHoldingsPerformanceResponse(
     BigDecimal allTimeProfitPercent,
     BigDecimal costBasis,
     LocalDate firstTransactionDate,
-    MoneyPresentation presentation) {
+    MoneyPresentation presentation,
+    BigDecimal dividendIncome,
+    BigDecimal totalReturn,
+    BigDecimal totalReturnPercent) {
 
   public record SeriesPoint(long time, BigDecimal value) {}
+
+  /** Compat (ADR-0014 F4): sin componentes de Total Return => quedan null. */
+  public PortfolioHoldingsPerformanceResponse(
+      List<SeriesPoint> series,
+      boolean isProfit,
+      BigDecimal allTimeProfit,
+      BigDecimal allTimeProfitPercent,
+      BigDecimal costBasis,
+      LocalDate firstTransactionDate,
+      MoneyPresentation presentation) {
+    this(
+        series,
+        isProfit,
+        allTimeProfit,
+        allTimeProfitPercent,
+        costBasis,
+        firstTransactionDate,
+        presentation,
+        null,
+        null,
+        null);
+  }
 
   /** Compat: sin envelope de presentacion (ADR-0010) => {@code presentation=null}. */
   public PortfolioHoldingsPerformanceResponse(
@@ -30,6 +55,9 @@ public record PortfolioHoldingsPerformanceResponse(
         allTimeProfitPercent,
         costBasis,
         firstTransactionDate,
+        null,
+        null,
+        null,
         null);
   }
 }

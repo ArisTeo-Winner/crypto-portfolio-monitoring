@@ -14,7 +14,36 @@ public record PortfolioTransactionSnapshot(
     BigDecimal fee,
     BigDecimal realizedPnl,
     OffsetDateTime transactionDate,
-    String currency) {
+    String currency,
+    BigDecimal taxWithheld) {
+
+  /** Compat: sin {@code taxWithheld} (queda null => sin retencion de dividendo, ADR-0014 F4). */
+  public PortfolioTransactionSnapshot(
+      String assetSymbol,
+      String assetType,
+      String transactionType,
+      String transferType,
+      BigDecimal quantity,
+      BigDecimal totalValue,
+      BigDecimal pricePerUnit,
+      BigDecimal fee,
+      BigDecimal realizedPnl,
+      OffsetDateTime transactionDate,
+      String currency) {
+    this(
+        assetSymbol,
+        assetType,
+        transactionType,
+        transferType,
+        quantity,
+        totalValue,
+        pricePerUnit,
+        fee,
+        realizedPnl,
+        transactionDate,
+        currency,
+        null);
+  }
 
   /** Compat: sin {@code currency} (queda null => sin conversion FX). */
   public PortfolioTransactionSnapshot(
@@ -39,6 +68,7 @@ public record PortfolioTransactionSnapshot(
         fee,
         realizedPnl,
         transactionDate,
+        null,
         null);
   }
 
@@ -64,6 +94,7 @@ public record PortfolioTransactionSnapshot(
         fee,
         BigDecimal.ZERO,
         transactionDate,
+        null,
         null);
   }
 }
