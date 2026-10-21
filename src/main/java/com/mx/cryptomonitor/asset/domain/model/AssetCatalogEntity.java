@@ -55,6 +55,22 @@ public class AssetCatalogEntity {
   @Column(name = "isin", length = 12)
   private String isin;
 
+  // ADR-0014 F6a (sucesion): identidad a traves de cambios de seguridad (merger / de-SPAC /
+  // delisting). predecessor_symbol/figi apuntan a la seguridad de la que esta es sucesora;
+  // market_status marca su estado en plaza (ACTIVE por defecto; MUTED_BY_MERGER al ser absorbida).
+  @Column(name = "predecessor_symbol", length = 20)
+  private String predecessorSymbol;
+
+  @Column(name = "predecessor_figi", length = 12)
+  private String predecessorFigi;
+
+  // Default a nivel Java (ademas del DEFAULT en DB): las filas del catalogo se crean por builder
+  // sin
+  // fijarlo, y la columna es NOT NULL -> nunca debe insertarse null.
+  @Builder.Default
+  @Column(name = "market_status", length = 20, nullable = false)
+  private String marketStatus = "ACTIVE";
+
   @Column(name = "market_cap")
   private Long marketCap;
 
