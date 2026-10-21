@@ -57,7 +57,8 @@ class CachedStockSplitAdapterRedisTest {
             stockSplitSyncRepository,
             stockSplitProvider,
             redisTemplate,
-            objectMapper);
+            objectMapper,
+            null);
     ReflectionTestUtils.setField(adapter, "cacheTtlHours", 24L);
   }
 

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitProviderPort;
+import com.mx.cryptomonitor.marketdata.application.service.SplitReconductionService;
 import com.mx.cryptomonitor.marketdata.domain.model.StockSplitEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.StockSplitSyncEntity;
 import com.mx.cryptomonitor.marketdata.domain.repository.StockSplitRepository;
@@ -43,6 +44,7 @@ public class CachedStockSplitAdapter implements StockSplitPort {
   private final StockSplitProviderPort stockSplitProvider;
   private final StringRedisTemplate redisTemplate;
   private final ObjectMapper objectMapper;
+  private final SplitReconductionService splitReconductionService;
 
   @Value("${marketdata.splits.cache-ttl-hours:24}")
   private long cacheTtlHours;
@@ -52,12 +54,14 @@ public class CachedStockSplitAdapter implements StockSplitPort {
       StockSplitSyncRepository stockSplitSyncRepository,
       StockSplitProviderPort stockSplitProvider,
       @Nullable StringRedisTemplate redisTemplate,
-      @Nullable ObjectMapper objectMapper) {
+      @Nullable ObjectMapper objectMapper,
+      @Nullable SplitReconductionService splitReconductionService) {
     this.stockSplitRepository = stockSplitRepository;
     this.stockSplitSyncRepository = stockSplitSyncRepository;
     this.stockSplitProvider = stockSplitProvider;
     this.redisTemplate = redisTemplate;
     this.objectMapper = objectMapper;
+    this.splitReconductionService = splitReconductionService;
   }
 
   @Override
@@ -166,6 +170,21 @@ public class CachedStockSplitAdapter implements StockSplitPort {
       stockSplitRepository.saveAll(toSave);
     } catch (DataIntegrityViolationException ex) {
       log.debug("Escritura concurrente de stock_split para {}; filas ya presentes", ticker, ex);
+    }
+    reconductToBase(ticker, fetched);
+  }
+
+  // ADR-0014 F2b-2: refleja los splits en la base CTI (corporate_action + split_action_detail), sin
+  // afectar la valuacion (que sigue leyendo stock_split). Best-effort: un fallo aqui no rompe el
+  // sync ni la lectura de splits. Opcional (null en tests que solo cubren cache/valuacion).
+  private void reconductToBase(String ticker, List<StockSplitData> fetched) {
+    if (splitReconductionService == null) {
+      return;
+    }
+    try {
+      splitReconductionService.reconduct(ticker, fetched);
+    } catch (RuntimeException ex) {
+      log.warn("Reconduccion de splits de {} a la base CTI fallo; se ignora", ticker, ex);
     }
   }
 }
