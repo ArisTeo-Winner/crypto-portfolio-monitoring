@@ -119,6 +119,7 @@ public class SecurityConfig {
                       "/api/v1/assets/search",
                       "/api/v1/assets/popular",
                       "/api/v1/market/status",
+                      "/api/v1/market/dividends/*/growth",
                       "/api/v1/health",
                       "/api/v1/oauth2/**",
                       "/actuator/health/**",
