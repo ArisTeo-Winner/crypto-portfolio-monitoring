@@ -137,6 +137,9 @@ public class SecurityConfig {
               authorizeRequests
                   .requestMatchers(HttpMethod.GET, "/api/v1/me/transactions/{userId}/{assetSymbol}")
                   .hasRole("USER");
+              authorizeRequests
+                  .requestMatchers("/api/v1/admin/corporate-actions/**")
+                  .hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/roles/**").hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/users").hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/users/me").hasRole("USER");
