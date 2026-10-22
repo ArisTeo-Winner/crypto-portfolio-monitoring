@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioEntryResponse;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
+import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioSummaryResponse;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioQueryPort;
 import com.mx.cryptomonitor.portfolio.application.service.PortfolioEntryPresentationService;
@@ -68,6 +69,39 @@ public class PortfolioController {
             currentUserPort.resolvePreferredCurrency(authentication));
     return portfolioEntryPresentationService.present(
         portfolioQueryPort.getPortfolioEntriesByUser(userId), displayCurrency);
+  }
+
+  @Operation(
+      summary = "Resumen agregado del portafolio (Total Return)",
+      description =
+          "Desglose Price / Income / Total Return del portafolio completo (sin serie), para la"
+              + " vista consolidada. Importes en divisa de presentacion; porcentajes como % (45.00).")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Resumen calculado",
+      content =
+          @Content(
+              mediaType = "application/json",
+              schema = @Schema(implementation = PortfolioSummaryResponse.class)))
+  @GetMapping("/summary")
+  @PreAuthorize("hasRole('USER')")
+  public PortfolioSummaryResponse getCurrentUserPortfolioSummary(Authentication authentication) {
+    UUID userId = currentUserPort.resolveUserId(authentication);
+    PresentationCurrency displayCurrency =
+        PresentationCurrency.fromCodeOrDefault(
+            currentUserPort.resolvePreferredCurrency(authentication));
+    PortfolioHoldingsPerformanceResponse perf =
+        portfolioPerformancePresentationService.present(
+            portfolioQueryPort.getHoldingsPerformanceByPortfolioId(userId, "ALL", "ALL"),
+            displayCurrency);
+    return new PortfolioSummaryResponse(
+        perf.costBasis(),
+        perf.allTimeProfit(),
+        perf.allTimeProfitPercent(),
+        perf.dividendIncome(),
+        perf.totalReturn(),
+        perf.totalReturnPercent(),
+        perf.presentation());
   }
 
   @Operation(
