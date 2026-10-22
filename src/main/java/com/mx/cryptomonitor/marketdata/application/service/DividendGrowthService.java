@@ -33,21 +33,26 @@ public class DividendGrowthService implements GetDividendGrowthUseCase {
   @Override
   public DividendGrowthResponse growthFor(String symbol) {
     if (!StringUtils.hasText(symbol)) {
-      return toResponse(DividendGrowthResult.empty(""));
+      return toResponse(DividendGrowthResult.empty(""), null);
     }
     String normalized = symbol.trim().toUpperCase();
+    List<Object[]> rows = dividendDetailRepository.findRecurringDpsBySymbol(normalized);
     List<DatedDps> dividends =
-        dividendDetailRepository.findRecurringDpsBySymbol(normalized).stream()
-            .map(row -> new DatedDps((LocalDate) row[0], (BigDecimal) row[1]))
-            .toList();
-    return toResponse(growthCalculator.compute(normalized, dividends, currentYear()));
+        rows.stream().map(row -> new DatedDps((LocalDate) row[0], (BigDecimal) row[1])).toList();
+    String currency =
+        rows.stream()
+            .map(row -> (String) row[2])
+            .filter(StringUtils::hasText)
+            .reduce((first, second) -> second) // ultima no nula (moneda vigente de la seguridad)
+            .orElse(null);
+    return toResponse(growthCalculator.compute(normalized, dividends, currentYear()), currency);
   }
 
   protected int currentYear() {
     return Year.now(ZoneOffset.UTC).getValue();
   }
 
-  private DividendGrowthResponse toResponse(DividendGrowthResult result) {
+  private DividendGrowthResponse toResponse(DividendGrowthResult result, String currency) {
     return new DividendGrowthResponse(
         result.symbol(),
         result.annualDividends().stream()
@@ -56,6 +61,7 @@ public class DividendGrowthService implements GetDividendGrowthUseCase {
         result.cagr1y(),
         result.cagr3y(),
         result.cagr5y(),
-        result.cagr10y());
+        result.cagr10y(),
+        currency);
   }
 }

@@ -14,7 +14,8 @@ public record DividendGrowthResponse(
     BigDecimal cagr1y,
     BigDecimal cagr3y,
     BigDecimal cagr5y,
-    BigDecimal cagr10y) {
+    BigDecimal cagr10y,
+    String currency) {
 
   public record AnnualDividendPoint(int year, BigDecimal totalDps) {}
 }

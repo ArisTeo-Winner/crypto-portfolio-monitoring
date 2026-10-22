@@ -32,7 +32,7 @@ class DividendGrowthServiceTest {
   }
 
   private Object[] row(int year, String dps) {
-    return new Object[] {LocalDate.of(year, 6, 10), new BigDecimal(dps)};
+    return new Object[] {LocalDate.of(year, 6, 10), new BigDecimal(dps), "USD"};
   }
 
   @Test
@@ -48,6 +48,7 @@ class DividendGrowthServiceTest {
         .containsExactly(2022, 2023); // 2024 excluido
     assertThat(response.cagr1y()).isEqualByComparingTo("0.100000");
     assertThat(response.cagr3y()).isNull();
+    assertThat(response.currency()).isEqualTo("USD");
   }
 
   @Test

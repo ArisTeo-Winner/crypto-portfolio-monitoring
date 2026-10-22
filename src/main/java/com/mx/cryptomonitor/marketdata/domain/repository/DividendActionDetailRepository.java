@@ -15,11 +15,13 @@ public interface DividendActionDetailRepository
 
   /**
    * DPS recurring de una seguridad para el crecimiento de dividendo (ADR-0014 F5): devuelve {@code
-   * [exDate (pivotalDate), dps]} usando split_adjusted_dps cuando existe (comparable entre splits)
-   * y excluyendo SPECIAL. El agregado anual y la CAGR los calcula el dominio.
+   * [exDate (pivotalDate), dps, currency]} usando split_adjusted_dps cuando existe (comparable
+   * entre splits) y excluyendo SPECIAL. {@code currency} es la moneda nativa declarada
+   * (multi-mercado MXN/USD). El agregado anual y la CAGR los calcula el dominio; la moneda la
+   * propaga el servicio.
    */
   @Query(
-      "SELECT ca.pivotalDate, COALESCE(d.splitAdjustedDps, d.amountPerShare)"
+      "SELECT ca.pivotalDate, COALESCE(d.splitAdjustedDps, d.amountPerShare), d.currency"
           + " FROM DividendActionDetailEntity d JOIN d.corporateAction ca"
           + " WHERE ca.assetSymbol = :symbol"
           + " AND ca.actionType = com.mx.cryptomonitor.marketdata.domain.model"
