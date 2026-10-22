@@ -31,6 +31,7 @@ import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldings
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioQueryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioTransactionCommand;
+import com.mx.cryptomonitor.portfolio.application.port.in.SecurityPositionPort.SecurityPosition;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.domain.exception.InsufficientFundsException;
@@ -43,7 +44,10 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort {
+public class PortfolioService
+    implements PortfolioQueryPort,
+        PortfolioEntryPort,
+        com.mx.cryptomonitor.portfolio.application.port.in.SecurityPositionPort {
   private static final int MAX_RECONCILE_ATTEMPTS = 2;
   private static final int MONEY_SCALE = 2;
   private static final int COST_SCALE = 8;
@@ -70,6 +74,12 @@ public class PortfolioService implements PortfolioQueryPort, PortfolioEntryPort 
     return portfolioEntryRepository
         .findByUserIdAndAssetSymbol(userId, assetSymbol.toUpperCase())
         .map(entry -> sortPortfolioEntries(List.of(entry)).stream().findFirst().orElse(entry));
+  }
+
+  @Override
+  public Optional<SecurityPosition> positionOf(UUID userId, String assetSymbol) {
+    return getPortfolioEntryByUserAndSymbol(userId, assetSymbol)
+        .map(entry -> new SecurityPosition(entry.getTotalQuantity(), entry.getTotalInvested()));
   }
 
   @Override
