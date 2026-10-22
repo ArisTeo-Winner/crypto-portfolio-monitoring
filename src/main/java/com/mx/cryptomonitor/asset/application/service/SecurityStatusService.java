@@ -25,6 +25,16 @@ public class SecurityStatusService implements SecurityStatusPort {
   @Override
   @Transactional
   public void markDelisted(String symbol) {
+    applyStatus(symbol, MarketStatus.DELISTED);
+  }
+
+  @Override
+  @Transactional
+  public void markBankrupt(String symbol) {
+    applyStatus(symbol, MarketStatus.BANKRUPT);
+  }
+
+  private void applyStatus(String symbol, MarketStatus status) {
     if (!StringUtils.hasText(symbol)) {
       return;
     }
@@ -33,10 +43,10 @@ public class SecurityStatusService implements SecurityStatusPort {
         .findById(normalized)
         .ifPresent(
             row -> {
-              row.setMarketStatus(MarketStatus.DELISTED.name());
+              row.setMarketStatus(status.name());
               row.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
               assetCatalogRepository.save(row);
-              log.info("Seguridad {} marcada DELISTED", normalized);
+              log.info("Seguridad {} marcada {}", normalized, status);
             });
   }
 }

@@ -10,4 +10,7 @@ public interface SecurityStatusPort {
 
   /** Marca la seguridad como dada de baja del mercado (DELISTED). */
   void markDelisted(String symbol);
+
+  /** Marca la seguridad como en quiebra (BANKRUPT). */
+  void markBankrupt(String symbol);
 }
