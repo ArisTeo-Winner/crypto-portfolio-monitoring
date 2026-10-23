@@ -723,5 +723,8 @@ class PortfolioServiceTest {
     assertThat(response.dividendIncome()).isEqualByComparingTo("3.00");
     assertThat(response.totalReturn()).isEqualByComparingTo("9.00");
     assertThat(response.totalReturnPercent()).isEqualByComparingTo("45.00"); // 9 / 20
+    // Desglose (coord. front): sin ventas -> realizado 0, no-realizado = plusvalia 6.
+    assertThat(response.realizedPnl()).isEqualByComparingTo("0.00");
+    assertThat(response.unrealizedPnl()).isEqualByComparingTo("6.00");
   }
 }

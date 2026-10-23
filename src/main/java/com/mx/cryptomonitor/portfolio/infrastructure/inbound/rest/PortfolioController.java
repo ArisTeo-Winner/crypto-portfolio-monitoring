@@ -101,6 +101,8 @@ public class PortfolioController {
         perf.dividendIncome(),
         perf.totalReturn(),
         perf.totalReturnPercent(),
+        perf.realizedPnl(),
+        perf.unrealizedPnl(),
         perf.presentation());
   }
 

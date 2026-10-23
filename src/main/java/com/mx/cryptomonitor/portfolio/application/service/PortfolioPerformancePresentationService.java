@@ -50,7 +50,9 @@ public class PortfolioPerformancePresentationService {
         envelope,
         moneyPresentationConverter.toDisplay(base.dividendIncome(), ctx),
         moneyPresentationConverter.toDisplay(base.totalReturn(), ctx),
-        base.totalReturnPercent());
+        base.totalReturnPercent(),
+        moneyPresentationConverter.toDisplay(base.realizedPnl(), ctx),
+        moneyPresentationConverter.toDisplay(base.unrealizedPnl(), ctx));
   }
 
   public PortfolioHistoryResponse present(

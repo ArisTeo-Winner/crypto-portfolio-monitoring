@@ -16,4 +16,6 @@ public record PortfolioSummaryResponse(
     BigDecimal dividendIncome,
     BigDecimal totalReturn,
     BigDecimal totalReturnPercent,
+    BigDecimal realizedPnl,
+    BigDecimal unrealizedPnl,
     MoneyPresentation presentation) {}

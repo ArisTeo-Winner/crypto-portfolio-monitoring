@@ -134,6 +134,8 @@ public class PortfolioService
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
     BigDecimal unrealizedProfit =
         calculateUnrealizedProfit(accumulator.assetsBySymbol, currentValue);
+    BigDecimal realizedPnl = scaleCurrency(accumulator.realizedProfit);
+    BigDecimal unrealizedPnl = scaleCurrency(unrealizedProfit);
     BigDecimal allTimeProfit = scaleCurrency(accumulator.realizedProfit.add(unrealizedProfit));
     BigDecimal allTimeProfitPercent = calculateAllTimeProfitPercent(allTimeProfit, costBasis);
     BigDecimal dividendIncome = scaleCurrency(accumulator.dividendIncome);
@@ -160,7 +162,9 @@ public class PortfolioService
         null,
         dividendIncome,
         totalReturn,
-        totalReturnPercent);
+        totalReturnPercent,
+        realizedPnl,
+        unrealizedPnl);
   }
 
   @Override
