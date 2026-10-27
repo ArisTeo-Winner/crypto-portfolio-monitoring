@@ -22,4 +22,11 @@ public interface CorporateActionRepository extends JpaRepository<CorporateAction
   /** Dedup natural (simbolo + tipo + fecha pivote) para seeds/manual sin id de proveedor. */
   boolean existsByAssetSymbolAndActionTypeAndPivotalDate(
       String assetSymbol, CorporateActionType actionType, LocalDate pivotalDate);
+
+  /**
+   * Lookup natural (simbolo + tipo + fecha pivote) para reconciliar un evento ya almacenado sin id
+   * de proveedor (ADR-0018): decide si esta congelado (skip) o es provisional (actualizable).
+   */
+  Optional<CorporateActionEntity> findByAssetSymbolAndActionTypeAndPivotalDate(
+      String assetSymbol, CorporateActionType actionType, LocalDate pivotalDate);
 }

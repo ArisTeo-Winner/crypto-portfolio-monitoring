@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.asset.domain.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,4 +19,10 @@ public interface AssetCatalogRepository extends JpaRepository<AssetCatalogEntity
 
   /** Catalogo por estado de plaza (p.ej. listar lo MUTED_BY_MERGER o DELISTED). */
   List<AssetCatalogEntity> findByMarketStatus(String marketStatus);
+
+  /**
+   * Filas de los tipos dados que aun no tienen FIGI canonico (ADR-0019): candidatas al backfill de
+   * identidad via OpenFIGI.
+   */
+  List<AssetCatalogEntity> findByAssetTypeInAndShareClassFigiIsNull(Collection<String> assetTypes);
 }

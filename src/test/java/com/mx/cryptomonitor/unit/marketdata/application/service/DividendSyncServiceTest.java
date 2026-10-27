@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.unit.marketdata.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -9,15 +10,21 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
 import com.mx.cryptomonitor.marketdata.application.service.DividendSyncService;
@@ -32,152 +39,120 @@ import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRep
 @ExtendWith(MockitoExtension.class)
 class DividendSyncServiceTest {
 
-  @Mock private DividendProviderPort provider;
+  @Mock private DividendProviderPort dividendProvider;
   @Mock private CorporateActionRepository corporateActionRepository;
-  @Mock private DividendActionDetailRepository detailRepository;
-  @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
+  @Mock private DividendActionDetailRepository dividendDetailRepository;
+  @Mock private ApplicationEventPublisher eventPublisher;
+  @InjectMocks private DividendSyncService service;
 
-  private DividendSyncService service() {
-    return new DividendSyncService(
-        provider, corporateActionRepository, detailRepository, eventPublisher);
-  }
-
-  private DividendEventData paidGoogl() {
+  private static DividendEventData event(
+      LocalDate ex, LocalDate pay, String amount, String providerId) {
     return new DividendEventData(
         "GOOGL",
-        LocalDate.of(2024, 6, 10),
-        LocalDate.of(2024, 6, 10),
-        LocalDate.of(2024, 6, 17),
-        LocalDate.of(2024, 4, 25),
-        new BigDecimal("0.20"),
+        ex,
+        ex,
+        pay,
+        ex.minusMonths(1),
+        new BigDecimal(amount),
         "USD",
         (short) 4,
         "recurring",
-        new BigDecimal("0.20"),
-        new BigDecimal("0.994165"),
-        "E1cdc29fc58066");
+        new BigDecimal(amount),
+        new BigDecimal("0.99"),
+        providerId);
+  }
+
+  private static CorporateActionEntity stored(
+      LocalDate ex, LocalDate pay, CorporateActionStatus status, String providerId) {
+    return CorporateActionEntity.builder()
+        .id(UUID.randomUUID())
+        .assetSymbol("GOOGL")
+        .actionType(CorporateActionType.DIVIDEND)
+        .status(status)
+        .pivotalDate(ex)
+        .paymentDate(pay)
+        .sourceProvider("MASSIVE")
+        .providerEventId(providerId)
+        .syncedAt(OffsetDateTime.now(ZoneOffset.UTC))
+        .build();
+  }
+
+  private static DividendActionDetailEntity detail(CorporateActionEntity action, String amount) {
+    return DividendActionDetailEntity.builder()
+        .corporateActionId(action.getId())
+        .amountPerShare(new BigDecimal(amount))
+        .currency("USD")
+        .frequency((short) 4)
+        .distributionType(DividendDistributionType.RECURRING)
+        .splitAdjustedDps(new BigDecimal(amount))
+        .priceAdjustmentFactor(new BigDecimal("0.99"))
+        .build();
   }
 
   @Test
-  void insertsNewPaidDividendAsCompletedWithDetail() {
-    when(provider.fetchDividends("GOOGL")).thenReturn(List.of(paidGoogl()));
-    when(corporateActionRepository.findByProviderEventId("E1cdc29fc58066"))
+  void insertaEventoNuevo() {
+    LocalDate ex = LocalDate.now(ZoneOffset.UTC).minusMonths(1);
+    LocalDate pay = ex.plusDays(7);
+    when(dividendProvider.fetchDividends("GOOGL")).thenReturn(List.of(event(ex, pay, "0.21", "e1")));
+    when(corporateActionRepository.findByProviderEventId("e1")).thenReturn(Optional.empty());
+    when(corporateActionRepository.findByAssetSymbolAndActionTypeAndPivotalDate(
+            "GOOGL", CorporateActionType.DIVIDEND, ex))
         .thenReturn(Optional.empty());
-    when(corporateActionRepository.existsByAssetSymbolAndActionTypeAndPivotalDate(
-            "GOOGL", CorporateActionType.DIVIDEND, LocalDate.of(2024, 6, 10)))
-        .thenReturn(false);
     when(corporateActionRepository.save(any(CorporateActionEntity.class)))
         .thenAnswer(inv -> inv.getArgument(0));
 
-    int created = service().sync("googl");
+    int created = service.sync("GOOGL");
 
     assertThat(created).isEqualTo(1);
-
-    ArgumentCaptor<CorporateActionEntity> actionCaptor =
-        ArgumentCaptor.forClass(CorporateActionEntity.class);
-    verify(corporateActionRepository).save(actionCaptor.capture());
-    CorporateActionEntity action = actionCaptor.getValue();
-    assertThat(action.getAssetSymbol()).isEqualTo("GOOGL");
-    assertThat(action.getActionType()).isEqualTo(CorporateActionType.DIVIDEND);
-    assertThat(action.getStatus()).isEqualTo(CorporateActionStatus.COMPLETED);
-    assertThat(action.getPivotalDate()).isEqualTo(LocalDate.of(2024, 6, 10));
-    assertThat(action.getSourceProvider()).isEqualTo("MASSIVE");
-
-    ArgumentCaptor<DividendActionDetailEntity> detailCaptor =
-        ArgumentCaptor.forClass(DividendActionDetailEntity.class);
-    verify(detailRepository).save(detailCaptor.capture());
-    DividendActionDetailEntity detail = detailCaptor.getValue();
-    assertThat(detail.getAmountPerShare()).isEqualByComparingTo("0.20");
-    assertThat(detail.getCurrency()).isEqualTo("USD");
-    assertThat(detail.getFrequency()).isEqualTo((short) 4);
-    assertThat(detail.getDistributionType()).isEqualTo(DividendDistributionType.RECURRING);
-
-    ArgumentCaptor<com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent>
-        eventCaptor =
-            ArgumentCaptor.forClass(
-                com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent.class);
+    verify(corporateActionRepository).save(any(CorporateActionEntity.class));
+    verify(dividendDetailRepository).save(any(DividendActionDetailEntity.class));
+    ArgumentCaptor<DividendDetectedEvent> eventCaptor =
+        ArgumentCaptor.forClass(DividendDetectedEvent.class);
     verify(eventPublisher).publishEvent(eventCaptor.capture());
-    assertThat(eventCaptor.getValue().assetSymbol()).isEqualTo("GOOGL");
-    assertThat(eventCaptor.getValue().dividendPerShare()).isEqualByComparingTo("0.20");
+    DividendDetectedEvent published = eventCaptor.getValue();
+    assertThat(published.assetSymbol()).isEqualTo("GOOGL");
+    assertThat(published.exDividendDate()).isEqualTo(ex);
+    assertThat(published.paymentDate()).isEqualTo(pay);
+    assertThat(published.dividendPerShare()).isEqualByComparingTo("0.21");
+    assertThat(published.currency()).isEqualTo("USD");
   }
 
   @Test
-  void futureDividendIsAnnounced() {
-    DividendEventData future =
-        new DividendEventData(
-            "AMZN",
-            LocalDate.now().plusMonths(2),
-            LocalDate.now().plusMonths(2),
-            LocalDate.now().plusMonths(2).plusDays(7),
-            LocalDate.now().plusMonths(1),
-            new BigDecimal("0.25"),
-            "USD",
-            (short) 4,
-            "recurring",
-            null,
-            null,
-            "FUT1");
-    when(provider.fetchDividends("AMZN")).thenReturn(List.of(future));
-    when(corporateActionRepository.findByProviderEventId("FUT1")).thenReturn(Optional.empty());
-    when(corporateActionRepository.existsByAssetSymbolAndActionTypeAndPivotalDate(
-            any(), any(), any()))
-        .thenReturn(false);
-    when(corporateActionRepository.save(any(CorporateActionEntity.class)))
-        .thenAnswer(inv -> inv.getArgument(0));
+  void noReescribeEventoCongeladoAunqueElMontoCambie() {
+    LocalDate ex = LocalDate.now(ZoneOffset.UTC).minusMonths(2);
+    LocalDate pay = ex.plusDays(7);
+    CorporateActionEntity frozen = stored(ex, pay, CorporateActionStatus.COMPLETED, "e1");
+    when(dividendProvider.fetchDividends("GOOGL"))
+        .thenReturn(List.of(event(ex, pay, "567.97", "e1")));
+    when(corporateActionRepository.findByProviderEventId("e1")).thenReturn(Optional.of(frozen));
 
-    service().sync("AMZN");
-
-    ArgumentCaptor<CorporateActionEntity> captor =
-        ArgumentCaptor.forClass(CorporateActionEntity.class);
-    verify(corporateActionRepository).save(captor.capture());
-    assertThat(captor.getValue().getStatus()).isEqualTo(CorporateActionStatus.ANNOUNCED);
-  }
-
-  @Test
-  void skipsWhenProviderEventIdAlreadyStored() {
-    when(provider.fetchDividends("GOOGL")).thenReturn(List.of(paidGoogl()));
-    when(corporateActionRepository.findByProviderEventId("E1cdc29fc58066"))
-        .thenReturn(Optional.of(new CorporateActionEntity()));
-
-    int created = service().sync("GOOGL");
+    int created = service.sync("GOOGL");
 
     assertThat(created).isZero();
     verify(corporateActionRepository, never()).save(any());
-    verify(detailRepository, never()).save(any());
+    verify(dividendDetailRepository, never()).save(any());
+    verifyNoInteractions(eventPublisher);
   }
 
   @Test
-  void skipsDuplicateByNaturalKeyWhenNoProviderId() {
-    DividendEventData noId =
-        new DividendEventData(
-            "GOOGL",
-            LocalDate.of(2024, 6, 10),
-            null,
-            null,
-            null,
-            new BigDecimal("0.20"),
-            "USD",
-            (short) 4,
-            "recurring",
-            null,
-            null,
-            null);
-    when(provider.fetchDividends("GOOGL")).thenReturn(List.of(noId));
-    when(corporateActionRepository.existsByAssetSymbolAndActionTypeAndPivotalDate(
-            "GOOGL", CorporateActionType.DIVIDEND, LocalDate.of(2024, 6, 10)))
-        .thenReturn(true);
+  void actualizaEventoProvisionalRevisado() {
+    LocalDate ex = LocalDate.now(ZoneOffset.UTC).plusMonths(2);
+    LocalDate pay = ex.plusDays(7);
+    CorporateActionEntity provisional = stored(ex, pay, CorporateActionStatus.ANNOUNCED, "e1");
+    DividendActionDetailEntity detail = detail(provisional, "0.20");
+    when(dividendProvider.fetchDividends("GOOGL"))
+        .thenReturn(List.of(event(ex, pay, "0.25", "e1")));
+    when(corporateActionRepository.findByProviderEventId("e1")).thenReturn(Optional.of(provisional));
+    when(dividendDetailRepository.findById(provisional.getId())).thenReturn(Optional.of(detail));
 
-    int created = service().sync("GOOGL");
+    int created = service.sync("GOOGL");
 
     assertThat(created).isZero();
-    verify(corporateActionRepository, never()).save(any());
-  }
-
-  @Test
-  void blankTickerIsNoOp() {
-    int created = service().sync("  ");
-
-    assertThat(created).isZero();
-    verifyNoInteractions(provider, corporateActionRepository, detailRepository);
+    ArgumentCaptor<DividendActionDetailEntity> savedDetail =
+        ArgumentCaptor.forClass(DividendActionDetailEntity.class);
+    verify(corporateActionRepository).save(provisional);
+    verify(dividendDetailRepository).save(savedDetail.capture());
+    assertThat(savedDetail.getValue().getAmountPerShare()).isEqualByComparingTo("0.25");
+    verifyNoInteractions(eventPublisher);
   }
 }

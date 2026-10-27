@@ -35,4 +35,16 @@ public class AssetConfig {
     }
     return builder.build();
   }
+
+  /**
+   * WebClient para OpenFIGI (ADR-0019): identidad canonica (FIGI) via {@code POST /v3/mapping}. La
+   * API key se envia por header {@code X-OPENFIGI-APIKEY} en el adapter, no aqui.
+   */
+  @Bean
+  @Qualifier("openFigiWebClient")
+  public WebClient openFigiWebClient(
+      WebClient.Builder webClientBuilder,
+      @Value("${openfigi.base-url:https://api.openfigi.com}") String baseUrl) {
+    return webClientBuilder.baseUrl(baseUrl).build();
+  }
 }
