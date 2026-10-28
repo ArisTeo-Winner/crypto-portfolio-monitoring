@@ -17,14 +17,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.user.application.dto.request.UserRegistrationRequest;
 import com.mx.cryptomonitor.user.application.dto.response.UserResponse;
 import com.mx.cryptomonitor.user.application.service.AuthService;
@@ -43,6 +42,8 @@ import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.UserRegist
 import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
 
+import tools.jackson.databind.ObjectMapper;
+
 @WebMvcTest(controllers = UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @Import(UserExceptionHandler.class)
@@ -53,17 +54,17 @@ class UserControllerRegisterWebMvcTest {
 
   @Autowired private ObjectMapper objectMapper;
 
-  @MockBean private UserService userService;
-  @MockBean private AuthService authService;
-  @MockBean private JwtRequestFilter jwtRequestFilter;
-  @MockBean private LoginRateLimiter loginRateLimiter;
-  @MockBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
-  @MockBean private PasswordResetRateLimiter passwordResetRateLimiter;
-  @MockBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
-  @MockBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
-  @MockBean private MeReadRateLimiter meReadRateLimiter;
-  @MockBean private MeWriteRateLimiter meWriteRateLimiter;
-  @MockBean private MeDeleteRateLimiter meDeleteRateLimiter;
+  @MockitoBean private UserService userService;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private JwtRequestFilter jwtRequestFilter;
+  @MockitoBean private LoginRateLimiter loginRateLimiter;
+  @MockitoBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
+  @MockitoBean private PasswordResetRateLimiter passwordResetRateLimiter;
+  @MockitoBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
+  @MockitoBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
+  @MockitoBean private MeReadRateLimiter meReadRateLimiter;
+  @MockitoBean private MeWriteRateLimiter meWriteRateLimiter;
+  @MockitoBean private MeDeleteRateLimiter meDeleteRateLimiter;
 
   @Test
   @DisplayName("201 Created - Registro exitoso sin exponer password")
@@ -75,6 +76,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "John",
             "Doe",
+            null,
+            null,
             null,
             null,
             null,
@@ -97,7 +100,10 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             true,
-            LocalDateTime.now());
+            LocalDateTime.now(),
+            null,
+            null,
+            null);
 
     when(userService.registerUser(any(UserRegistrationRequest.class))).thenReturn(mockResponse);
 
@@ -124,6 +130,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "John",
             "Doe",
+            null,
+            null,
             null,
             null,
             null,
@@ -159,6 +167,8 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     mockMvc
@@ -181,6 +191,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "Jane",
             "Doe",
+            null,
+            null,
             null,
             null,
             null,
@@ -220,6 +232,8 @@ class UserControllerRegisterWebMvcTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     when(userService.registerUser(any(UserRegistrationRequest.class)))
@@ -245,6 +259,8 @@ class UserControllerRegisterWebMvcTest {
             "StrongP@ssw0rd!2026",
             "Rate",
             "Limited",
+            null,
+            null,
             null,
             null,
             null,

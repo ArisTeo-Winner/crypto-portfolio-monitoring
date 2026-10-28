@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.user.application.service;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -9,18 +10,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.domain.exception.InvalidTokenException;
 import com.mx.cryptomonitor.user.domain.exception.SessionNotFoundException;
 import com.mx.cryptomonitor.user.domain.exception.UserNotFoundException;
 import com.mx.cryptomonitor.user.domain.model.AuditEventType;
-import com.mx.cryptomonitor.user.domain.model.RefreshToken;
 import com.mx.cryptomonitor.user.domain.model.Session;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.port.TokenIssuerPort;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -38,41 +39,27 @@ public class TokenService {
   private final RefreshTokenStoreService refreshTokenStoreService;
 
   @Transactional
-  public RefreshToken accessToken(User user, String ipAddress, String userAgent) {
-
+  public void accessToken(User user, String ipAddress, String userAgent) {
     String refreshTokenValue = tokenIssuerPort.generateRefreshToken(user.getEmail());
     Session session = new Session();
     session.setUser(user);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
-    session.setRefreshTokenId(null);
     sessionRepository.save(session);
 
     LocalDateTime refreshTokenExpiry =
         LocalDateTime.now().plusSeconds(tokenIssuerPort.getRefreshExpiration() / 1000);
-    RefreshTokenStoreService.StoredRefreshToken storedRefreshToken =
-        refreshTokenStoreService.store(
-            refreshTokenValue,
-            user.getId(),
-            session.getSessionId(),
-            refreshTokenExpiry,
-            ipAddress,
-            userAgent);
-
-    RefreshToken token = new RefreshToken();
-    token.setId(storedRefreshToken.tokenId());
-    token.setUser(user);
-    token.setRefreshToken("REDIS_HASHED");
-    token.setCreatedAt(LocalDateTime.now());
-    token.setExpiresAt(refreshTokenExpiry);
-    token.setIpAddress(ipAddress);
-    token.setUserAgent(userAgent);
-    token.setRevoked(false);
-    return token;
+    refreshTokenStoreService.store(
+        refreshTokenValue,
+        user.getId(),
+        session.getSessionId(),
+        refreshTokenExpiry,
+        ipAddress,
+        userAgent);
   }
 
   @Transactional
-  public JwtResponse refreshToken(String refreshTokenValue) {
+  public AuthResult refreshToken(String refreshTokenValue, HttpServletRequest request) {
     RefreshTokenStoreService.StoredRefreshToken storedRefreshToken =
         refreshTokenStoreService
             .findByRawToken(refreshTokenValue)
@@ -135,19 +122,31 @@ public class TokenService {
     session.setUser(user);
     session.setLoginTime(OffsetDateTime.now());
     session.setActive(true);
-    session.setRefreshTokenId(null);
     sessionRepository.save(session);
+
+    // Capturar IP y UA para el nuevo token rotado — obligatorio para audit trail
+    String ipAddress =
+        Optional.ofNullable(request.getHeader("X-Forwarded-For"))
+            .filter(s -> !s.isBlank())
+            .map(xff -> xff.split(",")[0].trim())
+            .orElseGet(request::getRemoteAddr);
+    String userAgent = Optional.ofNullable(request.getHeader("User-Agent")).orElse("");
 
     LocalDateTime refreshTokenExpiry =
         LocalDateTime.now().plusSeconds(tokenIssuerPort.getRefreshExpiration() / 1000);
     refreshTokenStoreService.store(
-        newRefreshToken, user.getId(), session.getSessionId(), refreshTokenExpiry, null, null);
+        newRefreshToken,
+        user.getId(),
+        session.getSessionId(),
+        refreshTokenExpiry,
+        ipAddress,
+        userAgent);
 
     String newAccessToken =
         tokenIssuerPort.generateAccessToken(user.getEmail(), session.getSessionId());
     auditLogService.log(
         AuditEventType.TOKEN_REFRESH_SUCCESS, "Token refresh completed", user.getId());
-    return new JwtResponse(newAccessToken, newRefreshToken);
+    return new AuthResult(newAccessToken, newRefreshToken);
   }
 
   @Transactional
@@ -166,6 +165,7 @@ public class TokenService {
                 });
 
     refreshTokenStoreService.markRevokedByRawToken(refreshTokenValue);
+    closeSession(storedToken.sessionId());
     auditLogService.log(
         AuditEventType.REFRESH_TOKEN_REVOKED, "Refresh token revoked", storedToken.userId());
   }

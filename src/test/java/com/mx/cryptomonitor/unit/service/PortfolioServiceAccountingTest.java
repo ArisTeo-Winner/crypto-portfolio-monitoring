@@ -23,7 +23,9 @@ import org.slf4j.LoggerFactory;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioTransactionCommand;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
 import com.mx.cryptomonitor.portfolio.application.service.PortfolioService;
@@ -43,6 +45,8 @@ class PortfolioServiceAccountingTest {
   @Mock private CryptoHistoricalPricePort cryptoHistoricalPricePort;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private TransactionHistoryPort transactionHistoryPort;
+  @Mock private FxRateHistoryPort fxRateHistoryPort;
+  @Mock private StockSplitPort stockSplitPort;
 
   @InjectMocks private PortfolioService portfolioService;
 

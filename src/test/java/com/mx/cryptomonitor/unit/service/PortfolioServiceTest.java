@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.unit.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -11,6 +12,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,7 +30,10 @@ import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePoint;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPriceSeries;
+import com.mx.cryptomonitor.marketdata.application.port.out.FxRateHistoryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
 import com.mx.cryptomonitor.portfolio.application.dto.response.PortfolioHoldingsPerformanceResponse;
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.application.port.out.TransactionHistoryPort;
@@ -44,6 +50,8 @@ class PortfolioServiceTest {
   @Mock private CryptoHistoricalPricePort cryptoHistoricalPricePort;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private TransactionHistoryPort transactionHistoryPort;
+  @Mock private FxRateHistoryPort fxRateHistoryPort;
+  @Mock private StockSplitPort stockSplitPort;
 
   @InjectMocks private PortfolioService portfolioService;
 
@@ -117,7 +125,7 @@ class PortfolioServiceTest {
                     new BigDecimal("2500.00"),
                     new BigDecimal("2500.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2026, 3, 26, 10, 0))));
+                    OffsetDateTime.of(2026, 3, 26, 10, 0, 0, 0, ZoneOffset.UTC))));
     when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of(entry));
     when(assetPricePort.getCryptoPriceAmount("ETH"))
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2500.00")));
@@ -171,7 +179,7 @@ class PortfolioServiceTest {
                     new BigDecimal("2500.00"),
                     new BigDecimal("2500.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2026, 3, 26, 10, 0))));
+                    OffsetDateTime.of(2026, 3, 26, 10, 0, 0, 0, ZoneOffset.UTC))));
     when(portfolioEntryRepository.findByUserId(userId))
         .thenReturn(List.of(staleEntry))
         .thenReturn(List.of(freshEntry))
@@ -251,7 +259,7 @@ class PortfolioServiceTest {
                     new BigDecimal("13.40"),
                     new BigDecimal("13.40"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2026, 4, 8, 18, 0))));
+                    OffsetDateTime.of(2026, 4, 8, 18, 0, 0, 0, ZoneOffset.UTC))));
     when(portfolioEntryRepository.findByUserId(userId))
         .thenReturn(List.of(staleEntry))
         .thenReturn(List.of(staleEntrySecondAttempt))
@@ -307,7 +315,7 @@ class PortfolioServiceTest {
                     new BigDecimal("1000.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 3, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 3, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -317,7 +325,7 @@ class PortfolioServiceTest {
                     new BigDecimal("500.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 10, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 10, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -327,7 +335,7 @@ class PortfolioServiceTest {
                     new BigDecimal("691.38"),
                     new BigDecimal("23.046"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 17, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 17, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -337,7 +345,7 @@ class PortfolioServiceTest {
                     new BigDecimal("800.00"),
                     new BigDecimal("20.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 24, 10, 0)),
+                    OffsetDateTime.of(2025, 3, 24, 10, 0, 0, 0, ZoneOffset.UTC)),
                 new PortfolioTransactionSnapshot(
                     "HYPE",
                     "CRYPTO",
@@ -347,7 +355,7 @@ class PortfolioServiceTest {
                     new BigDecimal("1750.00"),
                     new BigDecimal("35.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 3, 31, 10, 0))));
+                    OffsetDateTime.of(2025, 3, 31, 10, 0, 0, 0, ZoneOffset.UTC))));
     when(assetPricePort.getCryptoPriceAmount("HYPE"))
         .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("60.54244444")));
     when(assetCatalogQueryPort.findAssetIdBySymbol("HYPE")).thenReturn(Optional.empty());
@@ -361,6 +369,210 @@ class PortfolioServiceTest {
     assertThat(response.allTimeProfit()).isEqualByComparingTo("5807.44");
     assertThat(response.allTimeProfitPercent()).isEqualByComparingTo("265.01");
     assertThat(response.firstTransactionDate()).isEqualTo(LocalDate.of(2025, 3, 3));
+  }
+
+  @Test
+  void holdingsPerformanceConvertsMxnCostToUsdBaseUsingFxRate() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "MELIX",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("1"),
+                    new BigDecimal("31562.38"),
+                    new BigDecimal("31562.38"),
+                    new BigDecimal("78.90"),
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 0, ZoneOffset.UTC),
+                    "MXN")));
+    when(fxRateHistoryPort.usdMxnRateOn(any())).thenReturn(Optional.of(new BigDecimal("20")));
+    when(assetPricePort.getCryptoPriceAmount("MELIX"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("2000.00")));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("MELIX")).thenReturn(Optional.empty());
+
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "MELIX", "ALL");
+
+    // Costo MXN (31562.38 + 78.90 = 31641.28) normalizado a USD (/20) = 1582.06, NO el crudo en
+    // pesos. Antes de ADR-0006 el costo MXN se comparaba contra precio USD -> P&L falso.
+    assertThat(response.costBasis()).isEqualByComparingTo("1582.06");
+  }
+
+  @Test
+  void reconcileConvertsMxnCostToUsdBaseInPortfolioEntry() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "MELIX",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    BigDecimal.ONE,
+                    new BigDecimal("31562.38"),
+                    new BigDecimal("31562.38"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 0, ZoneOffset.UTC),
+                    "MXN")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(fxRateHistoryPort.usdMxnRateOn(any())).thenReturn(Optional.of(new BigDecimal("17.5147")));
+    when(assetPricePort.getCryptoPriceAmount("MELIX"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("1801.22")));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    // Costo MXN 31562.38 normalizado a USD (/17.5147) = 1802.05, NO el crudo en pesos.
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("1802.05084872");
+    // P&L ~ breakeven (1801.22 - 1802.05), NO el falso -29761.
+    assertThat(saved[0].getTotalProfitLoss()).isEqualByComparingTo("-0.83");
+  }
+
+  @Test
+  void reconcileAdjustsPreSplitQuantityByStockSplitFactor() {
+    UUID userId = UUID.randomUUID();
+    // WETO: compra 377.13248 @ $0.11 el 2026-07-31, PRE-split (reverse 100:1 el 2026-08-03).
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("377.13248"),
+                    new BigDecimal("41.46"),
+                    new BigDecimal("0.10993"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 7, 31, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(stockSplitPort.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    // Compra 07-31 < split 08-03 => cantidad × 0.01: 377.13248 -> 3.7713248. totalInvested intacto.
+    assertThat(saved[0].getTotalQuantity()).isEqualByComparingTo("3.7713248");
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("41.46");
+  }
+
+  @Test
+  void reconcileAdjustsOnlyPreSplitBuysWhenSameTickerHasBuysOnBothSides() {
+    UUID userId = UUID.randomUUID();
+    // Mismo ticker, ambas compras registradas HOY (meses despues del split); solo transaction_date
+    // decide: la pre-split se ajusta, la post-split no. WETO reverse 100:1 el 2026-08-03.
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("100"),
+                    new BigDecimal("50.00"),
+                    new BigDecimal("0.50"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 7, 31, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD"),
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("2"),
+                    new BigDecimal("100.00"),
+                    new BigDecimal("50.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 8, 10, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(stockSplitPort.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    // Pre: 100 × 0.01 = 1. Post (08-10 > 08-03): 2 sin ajustar. Total 3 titulos; invertido 150.
+    assertThat(saved[0].getTotalQuantity()).isEqualByComparingTo("3");
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("150.00");
+  }
+
+  @Test
+  void reconcileDoesNotAdjustBuyExecutedOnSplitExecutionDate() {
+    UUID userId = UUID.randomUUID();
+    // Frontera estricta (<, no <=): una compra ejecutada el mismo dia del split ya negocia
+    // post-split, asi que NO se ajusta.
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "WETO",
+                    "STOCK",
+                    "BUY",
+                    null,
+                    new BigDecimal("5"),
+                    new BigDecimal("50.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2026, 8, 3, 14, 30, 0, 0, ZoneOffset.UTC),
+                    "USD")));
+    when(portfolioEntryRepository.findByUserId(userId)).thenReturn(List.of());
+    when(stockSplitPort.splitsFor("WETO"))
+        .thenReturn(
+            List.of(new StockSplitData("WETO", LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+
+    PortfolioEntry[] saved = new PortfolioEntry[1];
+    when(portfolioEntryRepository.saveAll(anyList()))
+        .thenAnswer(
+            inv -> {
+              List<PortfolioEntry> list = inv.getArgument(0);
+              saved[0] = list.get(0);
+              return list;
+            });
+
+    portfolioService.reconcilePortfolio(userId);
+
+    assertThat(saved[0].getTotalQuantity()).isEqualByComparingTo("5");
+    assertThat(saved[0].getTotalInvested()).isEqualByComparingTo("50.00");
   }
 
   @Test
@@ -378,7 +590,7 @@ class PortfolioServiceTest {
                     new BigDecimal("20.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 4, 7, 0, 0))));
+                    OffsetDateTime.of(2025, 4, 7, 0, 0, 0, 0, ZoneOffset.UTC))));
     when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
     when(cryptoHistoricalPricePort.getHistoricalUsdPrices(
             org.mockito.ArgumentMatchers.eq("bitcoin"),
@@ -429,7 +641,7 @@ class PortfolioServiceTest {
                     new BigDecimal("20.00"),
                     new BigDecimal("10.00"),
                     BigDecimal.ZERO,
-                    LocalDateTime.of(2025, 4, 7, 0, 0))));
+                    OffsetDateTime.of(2025, 4, 7, 0, 0, 0, 0, ZoneOffset.UTC))));
     when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
     when(cryptoHistoricalPricePort.getHistoricalUsdPrices("bitcoin", 30))
         .thenReturn(
@@ -455,5 +667,64 @@ class PortfolioServiceTest {
             org.mockito.ArgumentMatchers.eq("bitcoin"),
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void totalReturnAddsNetDividendIncomeToCapitalGain() {
+    UUID userId = UUID.randomUUID();
+    when(transactionHistoryPort.getTransactionsByUser(userId))
+        .thenReturn(
+            List.of(
+                new PortfolioTransactionSnapshot(
+                    "BTC",
+                    "CRYPTO",
+                    "BUY",
+                    null,
+                    new BigDecimal("2"),
+                    new BigDecimal("20.00"),
+                    new BigDecimal("10.00"),
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2025, 4, 7, 0, 0, 0, 0, ZoneOffset.UTC)),
+                // Dividendo: bruto 4.00, retencion 1.00 -> neto 3.00 (no mueve cantidad ni costo).
+                new PortfolioTransactionSnapshot(
+                    "BTC",
+                    "CRYPTO",
+                    "DIVIDEND",
+                    null,
+                    BigDecimal.ZERO,
+                    new BigDecimal("4.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    OffsetDateTime.of(2025, 4, 8, 0, 0, 0, 0, ZoneOffset.UTC),
+                    "USD",
+                    new BigDecimal("1.00"))));
+    when(assetCatalogQueryPort.findAssetIdBySymbol("BTC")).thenReturn(Optional.of("bitcoin"));
+    when(cryptoHistoricalPricePort.getHistoricalUsdPrices(
+            org.mockito.ArgumentMatchers.eq("bitcoin"),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            reactor.core.publisher.Mono.just(
+                new CryptoHistoricalPriceSeries(
+                    "bitcoin",
+                    "usd",
+                    List.of(
+                        new CryptoHistoricalPricePoint(
+                            Instant.parse("2025-04-07T00:00:00Z"), new BigDecimal("10.00"))))));
+    when(assetPricePort.getCryptoPriceAmount("BTC"))
+        .thenReturn(reactor.core.publisher.Mono.just(new BigDecimal("13.00")));
+
+    PortfolioHoldingsPerformanceResponse response =
+        portfolioService.getHoldingsPerformanceByPortfolioId(userId, "BTC", "ALL");
+
+    // Plusvalia: 2 BTC a 13 = 26 de valor, costo 20 -> +6. Dividendo neto 3. Total Return 9.
+    assertThat(response.allTimeProfit()).isEqualByComparingTo("6.00");
+    assertThat(response.dividendIncome()).isEqualByComparingTo("3.00");
+    assertThat(response.totalReturn()).isEqualByComparingTo("9.00");
+    assertThat(response.totalReturnPercent()).isEqualByComparingTo("45.00"); // 9 / 20
+    // Desglose (coord. front): sin ventas -> realizado 0, no-realizado = plusvalia 6.
+    assertThat(response.realizedPnl()).isEqualByComparingTo("0.00");
+    assertThat(response.unrealizedPnl()).isEqualByComparingTo("6.00");
   }
 }

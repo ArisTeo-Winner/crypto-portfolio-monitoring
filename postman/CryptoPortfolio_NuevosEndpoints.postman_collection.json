@@ -1,0 +1,791 @@
+{
+  "info": {
+    "_postman_id": "c0ffee00-0000-4a00-8000-newendpoints01",
+    "name": "CryptoPortfolio - Nuevos Endpoints (Catalog/Transaction/BMV)",
+    "description": "Colección para probar manualmente los endpoints nuevos de los módulos transaction (PROMPT A), asset (PROMPT B) y marketdata (PROMPT C). Ejecutar primero la carpeta '0 - Auth' para poblar {{access_token}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 - Auth (setup)",
+      "item": [
+        {
+          "name": "0.1 Register",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Genera un email concreto y unico y lo persiste para que register y login coincidan.",
+                  "var email = 'test+' + Date.now() + '@example.com';",
+                  "pm.environment.set('user_email', email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser_{{$timestamp}}\",\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "register"]
+            }
+          }
+        },
+        {
+          "name": "0.2 Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 OK', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has accessToken', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('accessToken');",
+                  "  pm.expect(json.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json && json.accessToken) {",
+                  "  pm.environment.set('access_token', json.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 - Catalogo (PROMPT B, publico)",
+      "item": [
+        {
+          "name": "1.1 Search q=NVI -> NVDA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('items[0].symbol == NVDA', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.items).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json.items[0].symbol).to.eql('NVDA');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=NVI",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [{ "key": "q", "value": "NVI" }]
+            }
+          }
+        },
+        {
+          "name": "1.2 Search q=VOO -> ETF + logo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('items[0].assetType == ETF', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.items).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json.items[0].assetType).to.eql('ETF');",
+                  "});",
+                  "pm.test('items[0].logoUrl contains companieslogo.com', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.items[0].logoUrl).to.be.a('string');",
+                  "  pm.expect(json.items[0].logoUrl).to.include('companieslogo.com');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=VOO",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [{ "key": "q", "value": "VOO" }]
+            }
+          }
+        },
+        {
+          "name": "1.3 Search q=CETES -> GOVERNMENT_BOND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('some item is GOVERNMENT_BOND', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.items).to.be.an('array').that.is.not.empty;",
+                  "  var found = json.items.some(function (i) { return i.assetType === 'GOVERNMENT_BOND'; });",
+                  "  pm.expect(found, 'expected at least one GOVERNMENT_BOND item').to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=CETES",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [{ "key": "q", "value": "CETES" }]
+            }
+          }
+        },
+        {
+          "name": "1.4 Search q=GSPC -> supportedForTransactions false",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('items[0].supportedForTransactions == false', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.items).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(json.items[0].supportedForTransactions).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=GSPC",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [{ "key": "q", "value": "GSPC" }]
+            }
+          }
+        },
+        {
+          "name": "1.5 Search q=XYZNADA -> vacio (no 500)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 (no 500)', function () { pm.response.to.have.status(200); });",
+                  "pm.test('items is empty array', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.items).to.be.an('array').that.is.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=XYZNADA",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [{ "key": "q", "value": "XYZNADA" }]
+            }
+          }
+        },
+        {
+          "name": "1.6 Search q= (vacio) -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [{ "key": "q", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "1.7 Search limit=99 -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/search?q=NVI&limit=99",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "search"],
+              "query": [
+                { "key": "q", "value": "NVI" },
+                { "key": "limit", "value": "99" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.8 Popular assets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('has stocks/etfs/cryptos/governmentBonds keys', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('stocks');",
+                  "  pm.expect(json).to.have.property('etfs');",
+                  "  pm.expect(json).to.have.property('cryptos');",
+                  "  pm.expect(json).to.have.property('governmentBonds');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/assets/popular",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "assets", "popular"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Transacciones + Dividendos (PROMPT A)",
+      "item": [
+        {
+          "name": "2.1 Buy STOCK USA (CRCL / GBM)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('currency == USD', function () {",
+                  "  pm.expect(pm.response.json().currency).to.eql('USD');",
+                  "});",
+                  "pm.test('broker == GBM', function () {",
+                  "  pm.expect(pm.response.json().broker).to.eql('GBM');",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json && json.transactionId) {",
+                  "  pm.environment.set('buy_tx_id', json.transactionId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"CRCL\",\n  \"assetName\": \"Synthetic Test Holdings\",\n  \"assetType\": \"STOCK\",\n  \"quantity\": 1.0,\n  \"pricePerUnit\": 20.0,\n  \"fee\": 0.25,\n  \"exchange\": \"NYSE\",\n  \"broker\": \"GBM\",\n  \"currency\": \"USD\",\n  \"transactionDate\": \"2025-01-01T09:00:00-06:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/buy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "buy"]
+            }
+          }
+        },
+        {
+          "name": "2.2 Buy GOVERNMENT_BOND (CETES91 / cetesdirecto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('faceValue == 18524.32', function () {",
+                  "  pm.expect(pm.response.json().faceValue).to.eql(18524.32);",
+                  "});",
+                  "pm.test('autoReinvestment == true', function () {",
+                  "  pm.expect(pm.response.json().autoReinvestment).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"CETES91\",\n  \"assetType\": \"GOVERNMENT_BOND\",\n  \"quantity\": 180,\n  \"pricePerUnit\": 99.9485,\n  \"totalValue\": 17990.74,\n  \"faceValue\": 18524.32,\n  \"couponRate\": 11.38,\n  \"maturityDate\": \"2023-09-26\",\n  \"autoReinvestment\": true,\n  \"broker\": \"cetesdirecto\",\n  \"currency\": \"MXN\",\n  \"transactionDate\": \"2023-06-26T15:29:00-06:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/buy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "buy"]
+            }
+          }
+        },
+        {
+          "name": "2.3 Sell STOCK BMV (AAPL* / Bursanet)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('exchange == BMV', function () {",
+                  "  pm.expect(pm.response.json().exchange).to.eql('BMV');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"AAPL*\",\n  \"assetType\": \"STOCK\",\n  \"quantity\": 10,\n  \"pricePerUnit\": 4949.10,\n  \"fee\": 123.73,\n  \"exchange\": \"BMV\",\n  \"broker\": \"Bursanet\",\n  \"currency\": \"MXN\",\n  \"transactionDate\": \"2025-02-26T13:30:00-06:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/sell",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "sell"]
+            }
+          }
+        },
+        {
+          "name": "2.4 Dividend CASH (AAPL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('transactionType == DIVIDEND', function () {",
+                  "  pm.expect(pm.response.json().transactionType).to.eql('DIVIDEND');",
+                  "});",
+                  "pm.test('totalValue == 125.50', function () {",
+                  "  pm.expect(pm.response.json().totalValue).to.eql(125.50);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"AAPL\",\n  \"assetName\": \"Apple Inc.\",\n  \"assetType\": \"STOCK\",\n  \"amount\": 125.50,\n  \"transactionDate\": \"2026-06-10T00:00:00Z\",\n  \"exDividendDate\": \"2026-05-09\",\n  \"dividendType\": \"CASH\",\n  \"taxWithheld\": 37.65,\n  \"broker\": \"IBKR\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/dividend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "dividend"]
+            }
+          }
+        },
+        {
+          "name": "2.5 Dividend DRIP (KO, dividendType STOCK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"KO\",\n  \"assetType\": \"STOCK\",\n  \"amount\": 48.20,\n  \"transactionDate\": \"2026-06-10T00:00:00Z\",\n  \"dividendType\": \"STOCK\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/dividend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "dividend"]
+            }
+          }
+        },
+        {
+          "name": "2.6 Dividend amount negativo -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"AAPL\",\n  \"assetName\": \"Apple Inc.\",\n  \"assetType\": \"STOCK\",\n  \"amount\": -50,\n  \"transactionDate\": \"2026-06-10T00:00:00Z\",\n  \"dividendType\": \"CASH\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/dividend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "dividend"]
+            }
+          }
+        },
+        {
+          "name": "2.7 Dividend sin X-Idempotency-Key -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"AAPL\",\n  \"assetName\": \"Apple Inc.\",\n  \"assetType\": \"STOCK\",\n  \"amount\": 125.50,\n  \"transactionDate\": \"2026-06-10T00:00:00Z\",\n  \"dividendType\": \"CASH\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/dividend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "dividend"]
+            }
+          }
+        },
+        {
+          "name": "2.8 Buy idempotencia (misma key 2 veces)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Fija una key estable la primera vez; se reutiliza en la segunda ejecucion.",
+                  "if (!pm.environment.get('idem_key')) {",
+                  "  pm.environment.set('idem_key', 'fixed-idem-' + Date.now());",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "var prev = pm.environment.get('idem_tx_id');",
+                  "if (prev) {",
+                  "  pm.test('mismo transactionId que la primera llamada (idempotente)', function () {",
+                  "    pm.expect(json.transactionId).to.eql(prev);",
+                  "  });",
+                  "} else {",
+                  "  pm.environment.set('idem_tx_id', json.transactionId);",
+                  "  pm.test('primera llamada: transactionId guardado (re-ejecuta para verificar)', function () {",
+                  "    pm.expect(json.transactionId).to.be.ok;",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{idem_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"CRCL\",\n  \"assetName\": \"Synthetic Test Holdings\",\n  \"assetType\": \"STOCK\",\n  \"quantity\": 1.0,\n  \"pricePerUnit\": 20.0,\n  \"fee\": 0.25,\n  \"exchange\": \"NYSE\",\n  \"broker\": \"GBM\",\n  \"currency\": \"USD\",\n  \"transactionDate\": \"2025-01-01T09:00:00-06:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/buy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "buy"]
+            }
+          }
+        },
+        {
+          "name": "2.9 Buy AssetType legacy (BONOS) -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetSymbol\": \"CETES91\",\n  \"assetType\": \"BONOS\",\n  \"quantity\": 180,\n  \"pricePerUnit\": 99.9485,\n  \"broker\": \"cetesdirecto\",\n  \"currency\": \"MXN\",\n  \"transactionDate\": \"2023-06-26T15:29:00-06:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/transactions/buy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "me", "transactions", "buy"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Market Data MXN / DataBursatil (PROMPT C)",
+      "item": [
+        {
+          "name": "3.1 FX USD/MXN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('rate is a number > 0', function () {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('rate');",
+                  "  pm.expect(json.rate).to.be.a('number');",
+                  "  pm.expect(json.rate).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/marketdata/fx/usdmxn",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "marketdata", "fx", "usdmxn"]
+            }
+          }
+        },
+        {
+          "name": "3.2 BMV historical AAPL* (primera llamada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('respuesta es una serie no vacia', function () {",
+                  "  var json = pm.response.json();",
+                  "  var series = Array.isArray(json) ? json : (json.series || json.prices || json.data || json.items);",
+                  "  pm.expect(series, 'no se encontro arreglo de puntos en la respuesta').to.be.an('array').that.is.not.empty;",
+                  "  pm.environment.set('bmv_series_len', series.length);",
+                  "});",
+                  "// Sanity opcional: punto 2025-02-26 ~ 4905.57 si esta presente",
+                  "var json = pm.response.json();",
+                  "var series = Array.isArray(json) ? json : (json.series || json.prices || json.data || json.items) || [];",
+                  "var point = series.find(function (p) {",
+                  "  var d = p.date || p.fecha || p.timestamp;",
+                  "  return typeof d === 'string' && d.indexOf('2025-02-26') === 0;",
+                  "});",
+                  "if (point) {",
+                  "  var close = point.close != null ? point.close : (point.price != null ? point.price : point.precio);",
+                  "  pm.test('sanity 2025-02-26 close ~ 4905.57', function () {",
+                  "    pm.expect(Number(close)).to.be.within(4800, 5000);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/marketdata/bmv/historical/AAPL%2A?from=2025-02-01&to=2025-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "marketdata", "bmv", "historical", "AAPL%2A"],
+              "query": [
+                { "key": "from", "value": "2025-02-01" },
+                { "key": "to", "value": "2025-02-28" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.3 BMV historical AAPL* (segunda llamada - cache)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('mismo tamano de serie que 3.2 (cache consistente)', function () {",
+                  "  var json = pm.response.json();",
+                  "  var series = Array.isArray(json) ? json : (json.series || json.prices || json.data || json.items) || [];",
+                  "  var prevLen = pm.environment.get('bmv_series_len');",
+                  "  if (prevLen != null && prevLen !== '') {",
+                  "    pm.expect(series.length).to.eql(Number(prevLen));",
+                  "  } else {",
+                  "    pm.expect(series).to.be.an('array');",
+                  "  }",
+                  "});",
+                  "pm.test('respondio rapido (< 1500ms)', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(1500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/marketdata/bmv/historical/AAPL%2A?from=2025-02-01&to=2025-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "marketdata", "bmv", "historical", "AAPL%2A"],
+              "query": [
+                { "key": "from", "value": "2025-02-01" },
+                { "key": "to", "value": "2025-02-28" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

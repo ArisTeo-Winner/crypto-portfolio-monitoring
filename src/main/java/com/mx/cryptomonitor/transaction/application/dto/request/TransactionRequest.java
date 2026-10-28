@@ -1,7 +1,8 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 
@@ -16,10 +17,18 @@ public record TransactionRequest(
     @Positive(message = "La cantidad debe ser mayor que cero") BigDecimal quantity,
     @NotNull(message = "El precio por unidad no puede ser nulo") BigDecimal pricePerUnit,
     @NotNull(message = "El valor total no puede ser nulo") BigDecimal totalValue,
-    LocalDateTime transactionDate,
+    OffsetDateTime transactionDate,
     BigDecimal fee,
     String notes,
-    String transferType) {
+    String transferType,
+    String assetName,
+    String exchange,
+    String broker,
+    String currency,
+    BigDecimal faceValue,
+    LocalDate maturityDate,
+    BigDecimal couponRate,
+    Boolean autoReinvestment) {
 
   public TransactionRequest(
       String assetSymbol,
@@ -28,7 +37,7 @@ public record TransactionRequest(
       BigDecimal quantity,
       BigDecimal pricePerUnit,
       BigDecimal totalValue,
-      LocalDateTime transactionDate,
+      OffsetDateTime transactionDate,
       BigDecimal fee,
       String notes) {
     this(
@@ -41,6 +50,46 @@ public record TransactionRequest(
         transactionDate,
         fee,
         notes,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  public TransactionRequest(
+      String assetSymbol,
+      AssetType assetType,
+      String transactionType,
+      BigDecimal quantity,
+      BigDecimal pricePerUnit,
+      BigDecimal totalValue,
+      OffsetDateTime transactionDate,
+      BigDecimal fee,
+      String notes,
+      String transferType) {
+    this(
+        assetSymbol,
+        assetType,
+        transactionType,
+        quantity,
+        pricePerUnit,
+        totalValue,
+        transactionDate,
+        fee,
+        notes,
+        transferType,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null);
   }
 }

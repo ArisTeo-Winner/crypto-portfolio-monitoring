@@ -2,9 +2,9 @@ package com.mx.cryptomonitor.shared.infrastructure.inbound.rest;
 
 import java.time.Instant;
 
-import org.springframework.boot.actuate.health.HealthComponent;
-import org.springframework.boot.actuate.health.HealthEndpoint;
-import org.springframework.boot.actuate.health.Status;
+import org.springframework.boot.health.actuate.endpoint.HealthDescriptor;
+import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.health.contributor.Status;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,7 +31,8 @@ public class HealthController {
 
   @Operation(
       summary = "Public health check",
-      description = "Returns a sanitized health status suitable for load balancers and uptime checks.")
+      description =
+          "Returns a sanitized health status suitable for load balancers and uptime checks.")
   @ApiResponses(
       value = {
         @ApiResponse(
@@ -51,8 +52,9 @@ public class HealthController {
       })
   @GetMapping
   public ResponseEntity<HealthResponse> health() {
-    HealthComponent health = healthEndpoint.health();
-    HttpStatus httpStatus = Status.UP.equals(health.getStatus()) ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+    HealthDescriptor health = healthEndpoint.health();
+    HttpStatus httpStatus =
+        Status.UP.equals(health.getStatus()) ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
     return ResponseEntity.status(httpStatus)
         .body(new HealthResponse(health.getStatus().getCode(), SERVICE_NAME, Instant.now()));

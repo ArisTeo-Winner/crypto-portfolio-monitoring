@@ -11,9 +11,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -29,8 +31,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.TransactionOrigin;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.UpdateTransactionRequest;
@@ -41,10 +46,16 @@ import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjection
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionAuditPort;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistrationPort;
 import com.mx.cryptomonitor.transaction.application.service.TransactionIdempotencyService;
+import com.mx.cryptomonitor.transaction.application.service.TransactionRealizedPnlService;
 import com.mx.cryptomonitor.transaction.application.service.TransactionService;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionSide;
+import com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
+import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
+import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +70,10 @@ class TransactionServiceTest {
   @Mock private PortfolioProjectionSyncPort portfolioProjectionSyncPort;
   @Mock private TransactionIdempotencyService transactionIdempotencyService;
   @Mock private TransactionAuditPort transactionAuditPort;
+  @Mock private TransactionRealizedPnlService transactionRealizedPnlService;
+  @Mock private DividendDetailRepository dividendDetailRepository;
+  @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
+  @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
 
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
@@ -77,7 +92,16 @@ class TransactionServiceTest {
             portfolioProjectionSyncPort,
             transactionMapper,
             transactionIdempotencyService,
-            transactionAuditPort);
+            transactionAuditPort,
+            transactionRealizedPnlService,
+            dividendDetailRepository,
+            assetCatalogQueryPort,
+            new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator(),
+            assetCatalogRefreshPort);
+    lenient()
+        .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
+        .thenReturn(Optional.empty());
+    lenient().when(assetCatalogQueryPort.findLogosBySymbols(any())).thenReturn(Map.of());
     lenient()
         .doAnswer(invocation -> invocation.<Supplier<TransactionResponse>>getArgument(4).get())
         .when(transactionIdempotencyService)
@@ -100,11 +124,23 @@ class TransactionServiceTest {
             new BigDecimal("0.50"),
             new BigDecimal("95000.00"),
             new BigDecimal("47500.00"),
-            LocalDateTime.of(2026, 3, 10, 1, 0),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            null,
+            null,
+            null,
             new BigDecimal("10.00"),
             "buy btc",
-            LocalDateTime.of(2026, 3, 10, 1, 0),
-            LocalDateTime.of(2026, 3, 10, 1, 0));
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     transaction = new Transaction();
     transaction.setTransactionId(UUID.randomUUID());
     transaction.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
@@ -115,10 +151,10 @@ class TransactionServiceTest {
     transaction.setPricePerUnit(new BigDecimal("95000.00"));
     transaction.setTotalValue(new BigDecimal("47500.00"));
     transaction.setFee(new BigDecimal("10.00"));
-    transaction.setTransactionDate(LocalDateTime.of(2026, 3, 10, 1, 0));
+    transaction.setTransactionDate(OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
     transaction.setNotes("buy btc");
-    transaction.setCreatedAt(LocalDateTime.of(2026, 3, 10, 1, 0));
-    transaction.setUpdatedAt(LocalDateTime.of(2026, 3, 10, 1, 0));
+    transaction.setCreatedAt(OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
+    transaction.setUpdatedAt(OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC));
   }
 
   @Test
@@ -132,7 +168,7 @@ class TransactionServiceTest {
             BigDecimal.ONE,
             new BigDecimal("10"),
             new BigDecimal("10"),
-            LocalDateTime.now(),
+            OffsetDateTime.now(ZoneOffset.UTC),
             BigDecimal.ONE,
             "Notes");
 
@@ -147,6 +183,34 @@ class TransactionServiceTest {
   }
 
   @Test
+  @DisplayName(
+      "registerTransaction: reconciles portfolio after create so MXN cost is FX-normalized (not left"
+          + " crude)")
+  void registerTransactionReconcilesPortfolioAfterCreate() {
+    TransactionRequest request =
+        new TransactionRequest(
+            "MELI",
+            AssetType.STOCK,
+            "BUY",
+            BigDecimal.ONE,
+            new BigDecimal("31562.38"),
+            new BigDecimal("31562.38"),
+            OffsetDateTime.of(2026, 9, 17, 7, 18, 0, 0, ZoneOffset.UTC),
+            BigDecimal.ZERO,
+            "compra MXN");
+
+    when(transactionRegistrationPort.registerTransaction(userId, request))
+        .thenReturn(transactionResponse);
+
+    transactionService.registerTransaction(userId, request, IDEMPOTENCY_KEY);
+
+    // El registro incremental no normaliza FX; el reconcile (fuente de verdad) lo hace. Sin este
+    // reconcile, una compra MXN quedaba con el costo crudo en base USD (P&L falso).
+    verify(transactionRegistrationPort).registerTransaction(userId, request);
+    verify(portfolioProjectionSyncPort).reconcileUserPortfolio(userId);
+  }
+
+  @Test
   @DisplayName("registerBuyTransaction: computes gross amount in backend")
   void registerBuyTransactionComputesGrossAmount() {
     BuyTransactionRequest request =
@@ -156,8 +220,16 @@ class TransactionServiceTest {
             new BigDecimal("0.25"),
             new BigDecimal("89208.14"),
             new BigDecimal("0.50"),
-            LocalDateTime.of(2026, 1, 24, 17, 55),
-            "Compra manual");
+            OffsetDateTime.of(2026, 1, 24, 17, 55, 0, 0, ZoneOffset.UTC),
+            "Compra manual",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
         .thenReturn(transactionResponse);
@@ -184,8 +256,16 @@ class TransactionServiceTest {
             new BigDecimal("0.10"),
             new BigDecimal("70392.39"),
             new BigDecimal("1.25"),
-            LocalDateTime.of(2026, 3, 10, 2, 11),
-            "Venta parcial");
+            OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
+            "Venta parcial",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
         .thenReturn(transactionResponse);
@@ -210,7 +290,7 @@ class TransactionServiceTest {
             "TRANSFER_IN",
             new BigDecimal("0.25"),
             new BigDecimal("0.0002"),
-            LocalDateTime.of(2026, 3, 10, 2, 11),
+            OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
             "Transferencia desde Bitget");
 
     when(transactionRegistrationPort.registerTransaction(eq(userId), any(TransactionRequest.class)))
@@ -240,6 +320,91 @@ class TransactionServiceTest {
     assertThat(result.grossAmount()).isEqualByComparingTo("47500.00");
     assertThat(result.netAmount()).isEqualByComparingTo("47510.00");
     assertThat(result.transferType()).isNull();
+    assertThat(result.source()).isEqualTo("MANUAL");
+
+    assertThat(result.frictionBreakdown()).isNotNull();
+    assertThat(result.frictionBreakdown().grossAmount()).isEqualByComparingTo("47500.00");
+    assertThat(result.frictionBreakdown().totalFrictionCost()).isEqualByComparingTo("10.00");
+    assertThat(result.frictionBreakdown().finalNetCost()).isEqualByComparingTo("47510.00");
+    assertThat(result.frictionBreakdown().adjustedUnitPrice()).isEqualByComparingTo("95020.00");
+    assertThat(result.frictionBreakdown().brokerCommission()).isNull();
+    assertThat(result.frictionBreakdown().reviewStatus()).isNull();
+  }
+
+  @Test
+  @DisplayName("getTransactionDetails: exposes broker friction breakdown when present")
+  void getTransactionDetailsExposesFrictionBreakdown() {
+    FrictionBreakdown breakdown =
+        new GbmFrictionCalculator()
+            .driveWealth(
+                FrictionSide.BUY,
+                new BigDecimal("0.95368698"),
+                new BigDecimal("103.76"),
+                new BigDecimal("0.25"),
+                new BigDecimal("0.00"),
+                new BigDecimal("0.00"),
+                new BigDecimal("104.01"));
+    UUID txId = UUID.randomUUID();
+    Transaction tx =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("0.95368698"))
+            .pricePerUnit(new BigDecimal("108.7988"))
+            .totalValue(new BigDecimal("103.76"))
+            .build();
+    tx.applyFriction(breakdown);
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(tx));
+
+    TransactionDetailsResponse result = transactionService.getTransactionDetails(userId, txId);
+
+    assertThat(result.frictionBreakdown().brokerCommission()).isEqualByComparingTo("0.25");
+    assertThat(result.frictionBreakdown().brokerIva()).isEqualByComparingTo("0.00");
+    assertThat(result.frictionBreakdown().otherFees()).isEqualByComparingTo("0.00");
+    assertThat(result.frictionBreakdown().totalFrictionCost()).isEqualByComparingTo("0.25");
+    assertThat(result.frictionBreakdown().finalNetCost()).isEqualByComparingTo("104.01");
+    assertThat(result.frictionBreakdown().reviewStatus())
+        .isEqualTo(com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK);
+  }
+
+  @Test
+  @DisplayName("getTransactionDetails: returns real import source instead of hardcoded MANUAL")
+  void getTransactionDetailsReturnsRealImportSource() {
+    UUID txId = UUID.randomUUID();
+    Transaction tx =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("1"))
+            .pricePerUnit(new BigDecimal("100"))
+            .totalValue(new BigDecimal("100"))
+            .importSource(ImportSource.DRIVEWEALTH)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(tx));
+
+    TransactionDetailsResponse result = transactionService.getTransactionDetails(userId, txId);
+
+    assertThat(result.source()).isEqualTo("DRIVEWEALTH");
+  }
+
+  @Test
+  @DisplayName("tagImportSource: sets provenance on an existing transaction")
+  void tagImportSourceSetsProvenance() {
+    UUID txId = UUID.randomUUID();
+    Transaction tx = Transaction.builder().transactionId(txId).build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(tx));
+
+    transactionService.tagImportSource(userId, txId, TransactionOrigin.GBM_STATEMENT);
+
+    assertThat(tx.getImportSource()).isEqualTo(ImportSource.GBM_STATEMENT);
+    verify(transactionRepository).save(tx);
   }
 
   @Test
@@ -314,6 +479,8 @@ class TransactionServiceTest {
     transactionService.deleteTransactionById(userId, txId, IDEMPOTENCY_KEY);
 
     verify(transactionRepository).deleteById(transaction.getTransactionId());
+    verify(transactionIdempotencyService)
+        .forgetByResultTransactionId(transaction.getTransactionId());
     verify(portfolioProjectionSyncPort).reconcileUserPortfolio(userId);
   }
 
@@ -327,7 +494,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("1.25"),
             new BigDecimal("3200.50"),
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             new BigDecimal("1.10"),
             "updated tx",
             null);
@@ -358,7 +525,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.50"),
             null,
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated tx",
             null);
@@ -371,6 +538,85 @@ class TransactionServiceTest {
         .isInstanceOf(
             com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException.class)
         .hasMessageContaining("precio por unidad");
+  }
+
+  @Test
+  @DisplayName("updateTransaction: rejects financial edit on imported transaction (notes only)")
+  void updateTransactionRejectsFinancialEditOnImported() {
+    UUID txId = UUID.randomUUID();
+    Transaction imported =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("0.95368698"))
+            .pricePerUnit(new BigDecimal("108.7988"))
+            .totalValue(new BigDecimal("103.76"))
+            .fee(new BigDecimal("0.25"))
+            .transactionDate(OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC))
+            .importSource(ImportSource.DRIVEWEALTH)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(imported));
+
+    UpdateTransactionRequest changePrice =
+        new UpdateTransactionRequest(
+            "CRCL",
+            "STOCK",
+            new BigDecimal("0.95368698"),
+            new BigDecimal("200.00"),
+            OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("0.25"),
+            "nota",
+            null);
+
+    assertThatThrownBy(
+            () -> transactionService.updateTransaction(userId, txId, changePrice, IDEMPOTENCY_KEY))
+        .isInstanceOf(
+            com.mx.cryptomonitor.transaction.domain.exception
+                .ImportedTransactionNotEditableException.class);
+    verify(transactionRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("updateTransaction: allows notes-only edit on imported transaction")
+  void updateTransactionAllowsNotesOnlyOnImported() {
+    UUID txId = UUID.randomUUID();
+    Transaction imported =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("CRCL")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("0.95368698"))
+            .pricePerUnit(new BigDecimal("108.7988"))
+            .totalValue(new BigDecimal("103.76"))
+            .fee(new BigDecimal("0.25"))
+            .transactionDate(OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC))
+            .importSource(ImportSource.DRIVEWEALTH)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(imported));
+    when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    UpdateTransactionRequest notesOnly =
+        new UpdateTransactionRequest(
+            "CRCL",
+            "STOCK",
+            new BigDecimal("0.95368698"),
+            new BigDecimal("108.7988"),
+            OffsetDateTime.of(2025, 6, 11, 0, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("0.25"),
+            "nueva anotacion",
+            null);
+
+    transactionService.updateTransaction(userId, txId, notesOnly, IDEMPOTENCY_KEY);
+
+    assertThat(imported.getNotes()).isEqualTo("nueva anotacion");
+    verify(transactionRepository).save(imported);
+    verify(portfolioProjectionSyncPort, never()).reconcileUserPortfolio(any());
+    verify(transactionRealizedPnlService, never()).rebuildUserRealizedPnl(any());
   }
 
   @Test
@@ -387,7 +633,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.75"),
             null,
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             new BigDecimal("0.0002"),
             "updated transfer",
             "transfer_out");
@@ -421,7 +667,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.50"),
             null,
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated transfer",
             null);
@@ -449,7 +695,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("0.50"),
             new BigDecimal("95000.00"),
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated tx",
             null);
@@ -472,7 +718,7 @@ class TransactionServiceTest {
             "CRYPTO",
             new BigDecimal("1.00"),
             new BigDecimal("2500.00"),
-            LocalDateTime.of(2026, 3, 12, 8, 45),
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
             BigDecimal.ZERO,
             "updated tx",
             null);

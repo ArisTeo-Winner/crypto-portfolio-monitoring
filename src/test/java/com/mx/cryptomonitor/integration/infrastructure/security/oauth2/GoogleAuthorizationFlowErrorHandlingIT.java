@@ -9,8 +9,8 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -26,7 +26,10 @@ class GoogleAuthorizationFlowErrorHandlingIT {
   @Test
   void authorizationEndpointShouldCreateSessionForGoogleFlow() throws Exception {
     MvcResult start =
-        mockMvc.perform(get("/oauth2/authorization/google")).andExpect(status().is3xxRedirection()).andReturn();
+        mockMvc
+            .perform(get("/oauth2/authorization/google"))
+            .andExpect(status().is3xxRedirection())
+            .andReturn();
 
     assertThat(start.getRequest().getSession(false)).isNotNull();
     assertThat(start.getResponse().getHeader("Location"))
@@ -36,7 +39,10 @@ class GoogleAuthorizationFlowErrorHandlingIT {
   @Test
   void callbackWithoutAuthorizationSessionShouldRedirectWithUsefulErrorCode() throws Exception {
     MvcResult start =
-        mockMvc.perform(get("/oauth2/authorization/google")).andExpect(status().is3xxRedirection()).andReturn();
+        mockMvc
+            .perform(get("/oauth2/authorization/google"))
+            .andExpect(status().is3xxRedirection())
+            .andReturn();
 
     String location = start.getResponse().getHeader("Location");
     assertThat(location).isNotBlank();

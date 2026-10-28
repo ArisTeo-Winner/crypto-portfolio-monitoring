@@ -11,14 +11,15 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.user.application.dto.request.LoginRequest;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
+import com.mx.cryptomonitor.user.infrastructure.security.RefreshTokenCookieHelper;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.*;
@@ -37,6 +38,7 @@ public class AuthController {
 
   @Autowired private AuthService authService;
   @Autowired private LoginRateLimiter loginRateLimiter;
+  @Autowired private RefreshTokenCookieHelper cookieHelper;
 
   @Operation(
       summary = "Iniciar sesión",
@@ -68,12 +70,16 @@ public class AuthController {
       @Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request) {
 
     loginRateLimiter.validateOrThrow(request);
-    JwtResponse token = authService.login(loginRequest, request);
+    AuthResult result = authService.login(loginRequest, request);
 
+    // El refresh token viaja como HttpOnly cookie — JS nunca puede leerlo.
+    // El access token va en el body JSON — el frontend lo guarda en memoria (no localStorage).
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .header(HttpHeaders.PRAGMA, "no-cache")
-        .body(token);
+        .header(
+            cookieHelper.headerName(), cookieHelper.buildSetCookieHeader(result.rawRefreshToken()))
+        .body(result.toJwtResponse());
   }
 
   /*
@@ -90,10 +96,19 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "Error interno del servidor")
       })
   @PostMapping("/logout")
-  public ResponseEntity<String> logout(@RequestHeader("X-Refresh-Token") String refreshToken) {
+  public ResponseEntity<String> logout(HttpServletRequest request) {
 
+    // El refresh token llega en la cookie HttpOnly, no en un header legible por JS.
+    String refreshToken = cookieHelper.extractFromRequest(request);
+    if (refreshToken == null || refreshToken.isBlank()) {
+      return ResponseEntity.badRequest().body("Cookie de sesión no encontrada");
+    }
     authService.logout(refreshToken);
-    return ResponseEntity.ok("Sesión cerrada exitosamente");
+
+    // Borrar la cookie en el cliente (maxAge=0).
+    return ResponseEntity.ok()
+        .header(cookieHelper.headerName(), cookieHelper.buildClearCookieHeader())
+        .body("Sesión cerrada exitosamente");
   }
 
   @Operation(

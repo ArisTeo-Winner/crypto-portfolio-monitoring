@@ -8,7 +8,6 @@ import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,9 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -40,8 +38,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -53,14 +49,16 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import tools.jackson.databind.ObjectMapper;
+
 /**
  * Integration test: OAuth2 Authorization Code + OIDC (Google) using WireMock (no real Google
  * calls).
  *
  * <p>Validates: - /oauth2/authorization/google produces an auth redirect with state -
  * /login/oauth2/code/google exchanges the code, validates ID token signature, persists user/link,
- * and emits internal JWT tokens (access + refresh) in JSON body. - issued access token can call
- * /api/v1/users/me (API-first verification of persistence).
+ * and emits internal JWT tokens (access token redirect fragment + refresh token HttpOnly cookie). -
+ * issued access token can call /api/v1/users/me (API-first verification of persistence).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -98,8 +96,7 @@ class GoogleAuthorizationCodeOidcIT {
     r.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     r.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add("spring.flyway.enabled", () -> "false");
 
     logger.info("datasource.url: {}", postgres.getJdbcUrl());
@@ -244,17 +241,18 @@ class GoogleAuthorizationCodeOidcIT {
                     .session(session)
                     .param("code", "test-code")
                     .param("state", state))
-            .andExpect(status().isOk())
-            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(jsonPath("$.accessToken").isNotEmpty())
-            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(status().is3xxRedirection())
             .andReturn();
 
-    Map<String, String> json =
-        objectMapper.readValue(
-            callback.getResponse().getContentAsString(),
-            new TypeReference<Map<String, String>>() {});
-    String accessToken = json.get("accessToken");
+    String callbackLocation = callback.getResponse().getHeader("Location");
+    assertThat(callbackLocation).startsWith("http://localhost:3000/auth/callback#accessToken=");
+    assertThat(callback.getResponse().getHeader("Set-Cookie"))
+        .contains("refresh_token=")
+        .contains("HttpOnly");
+    String accessToken =
+        URLDecoder.decode(
+            callbackLocation.substring(callbackLocation.indexOf("#accessToken=") + 13),
+            StandardCharsets.UTF_8);
     assertThat(accessToken).isNotBlank();
 
     // 3) API-first verification: internal JWT can call /api/v1/users/me
@@ -264,7 +262,6 @@ class GoogleAuthorizationCodeOidcIT {
                     "/api/v1/users/me")
                 .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.email").value(email));
 
     // Broken access control check: OAuth2-created user must not have ADMIN by default
@@ -326,7 +323,7 @@ class GoogleAuthorizationCodeOidcIT {
     // wrong state -> should fail before invoking success handler
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(session)
                 .param("code", "test-code")
@@ -382,7 +379,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -407,7 +404,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -432,7 +429,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")
@@ -460,7 +457,7 @@ class GoogleAuthorizationCodeOidcIT {
 
     mockMvc
         .perform(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                     "/login/oauth2/code/google")
                 .session(start.session)
                 .param("code", "test-code")

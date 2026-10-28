@@ -23,6 +23,11 @@ public interface TransactionRepository
 
   List<Transaction> findByUserIdAndAssetSymbol(UUID userId, String assetSymbol, Sort sort);
 
+  List<Transaction> findByUserIdAndAssetSymbolOrderByTransactionDateAscCreatedAtAsc(
+      UUID userId, String assetSymbol);
+
+  List<Transaction> findByAssetSymbolOrderByTransactionDateAscCreatedAtAsc(String assetSymbol);
+
   List<Transaction> findByUserIdAndAssetType(UUID userId, AssetType assetType, Sort sort);
 
   List<Transaction> findByUserIdAndTransactionType(UUID userId, String transactionType, Sort sort);
@@ -36,4 +41,7 @@ public interface TransactionRepository
       @Param("assetSymbol") String assetSymbol,
       @Param("assetType") AssetType assetType,
       @Param("transactionType") String transactionType);
+
+  @Query("SELECT DISTINCT t.assetSymbol FROM Transaction t WHERE t.currency = 'MXN'")
+  List<String> findDistinctMxnSymbols();
 }

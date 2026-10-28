@@ -1,20 +1,33 @@
 package com.mx.cryptomonitor.transaction.application.service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort.AssetDisplay;
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.ImportedStockTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.request.TransactionOrigin;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransferTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.UpdateTransactionRequest;
+import com.mx.cryptomonitor.transaction.application.dto.response.FrictionBreakdownView;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionDetailsResponse;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
@@ -23,10 +36,19 @@ import com.mx.cryptomonitor.transaction.application.port.in.TransactionQueryUseC
 import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjectionSyncPort;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionAuditPort;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistrationPort;
+import com.mx.cryptomonitor.transaction.domain.exception.ImportedTransactionNotEditableException;
 import com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException;
 import com.mx.cryptomonitor.transaction.domain.exception.TransactionNotFoundException;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionSide;
+import com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
+import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
+import com.mx.cryptomonitor.transaction.domain.model.DividendType;
+import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
+import com.mx.cryptomonitor.transaction.domain.model.OperationTimestamps;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
+import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -50,6 +72,14 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final TransactionMapper transactionMapper;
   private final TransactionIdempotencyService transactionIdempotencyService;
   private final TransactionAuditPort transactionAuditPort;
+  private final TransactionRealizedPnlService transactionRealizedPnlService;
+  private final DividendDetailRepository dividendDetailRepository;
+  private final AssetCatalogQueryPort assetCatalogQueryPort;
+  private final GbmFrictionCalculator frictionCalculator;
+  private final AssetCatalogRefreshPort assetCatalogRefreshPort;
+
+  @Value("${catalog.icon.pull-once.enabled:true}")
+  private boolean iconPullOnceEnabled;
 
   @Override
   public TransactionResponse registerTransaction(
@@ -61,23 +91,284 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   @Override
   public TransactionResponse registerBuyTransaction(
       UUID userId, BuyTransactionRequest request, String idempotencyKey) {
-    return registerWithIdempotency(
+    TransactionResponse response =
+        registerWithIdempotency(
+            userId,
+            CREATE_BUY_SCOPE,
+            toLegacyRequest(request),
+            idempotencyKey,
+            "Create buy transaction");
+    applyManualFriction(
         userId,
-        CREATE_BUY_SCOPE,
-        toLegacyRequest(request),
-        idempotencyKey,
-        "Create buy transaction");
+        response,
+        manualBreakdown(
+            FrictionSide.BUY,
+            request.quantity(),
+            request.pricePerUnit(),
+            request.brokerCommission(),
+            request.brokerIva(),
+            request.otherFees()));
+    return response;
   }
 
   @Override
   public TransactionResponse registerSellTransaction(
       UUID userId, SellTransactionRequest request, String idempotencyKey) {
-    return registerWithIdempotency(
+    TransactionResponse response =
+        registerWithIdempotency(
+            userId,
+            CREATE_SELL_SCOPE,
+            toLegacyRequest(request),
+            idempotencyKey,
+            "Create sell transaction");
+    applyManualFriction(
         userId,
-        CREATE_SELL_SCOPE,
-        toLegacyRequest(request),
+        response,
+        manualBreakdown(
+            FrictionSide.SELL,
+            request.quantity(),
+            request.pricePerUnit(),
+            request.brokerCommission(),
+            request.brokerIva(),
+            request.otherFees()));
+    return response;
+  }
+
+  private FrictionBreakdown manualBreakdown(
+      FrictionSide side,
+      BigDecimal quantity,
+      BigDecimal unitPrice,
+      BigDecimal commission,
+      BigDecimal iva,
+      BigDecimal otherFees) {
+    if (commission == null && iva == null && otherFees == null) {
+      return null;
+    }
+    return frictionCalculator.manual(side, quantity, unitPrice, commission, iva, otherFees, null);
+  }
+
+  private void applyManualFriction(
+      UUID userId, TransactionResponse response, FrictionBreakdown breakdown) {
+    if (breakdown == null) {
+      return;
+    }
+    transactionRepository
+        .findByTransactionIdAndUserId(response.transactionId(), userId)
+        .ifPresent(
+            transaction -> {
+              transaction.applyFriction(breakdown);
+              transactionRepository.save(transaction);
+            });
+  }
+
+  private BigDecimal resolveManualFee(
+      BigDecimal fee, BigDecimal commission, BigDecimal iva, BigDecimal otherFees) {
+    if (commission == null && iva == null && otherFees == null) {
+      return normalizedFee(fee);
+    }
+    return normalizedFee(commission).add(normalizedFee(iva)).add(normalizedFee(otherFees));
+  }
+
+  private static boolean isImported(ImportSource source) {
+    return source != null && source != ImportSource.MANUAL;
+  }
+
+  private void guardImportedFinancialFieldsUnchanged(
+      Transaction stored, UpdateTransactionRequest request) {
+    boolean financialChange =
+        !stored.getAssetSymbol().equalsIgnoreCase(request.assetSymbol().trim())
+            || stored.getAssetType() != normalizedAssetType(request.assetType())
+            || numberChanged(stored.getQuantity(), request.quantity())
+            || numberChanged(stored.getPricePerUnit(), request.pricePerUnit())
+            || instantChanged(stored.getTransactionDate(), request.transactionDate())
+            || numberChanged(stored.getFee(), request.fee());
+    if (financialChange) {
+      throw new ImportedTransactionNotEditableException(
+          "La transaccion fue importada de "
+              + stored.getImportSource().name()
+              + " y es un registro de solo lectura del broker: solo se pueden editar las notas.");
+    }
+  }
+
+  private static boolean numberChanged(BigDecimal stored, BigDecimal requested) {
+    if (requested == null) {
+      return false;
+    }
+    BigDecimal current = stored != null ? stored : BigDecimal.ZERO;
+    return current.compareTo(requested) != 0;
+  }
+
+  private static boolean instantChanged(OffsetDateTime stored, OffsetDateTime requested) {
+    if (stored == null || requested == null) {
+      return stored != requested;
+    }
+    return !stored.toInstant().equals(requested.toInstant());
+  }
+
+  @Override
+  public TransactionResponse registerImportedStockTransaction(
+      UUID userId, ImportedStockTransactionRequest request, String idempotencyKey) {
+    FrictionSide side = request.buy() ? FrictionSide.BUY : FrictionSide.SELL;
+    FrictionBreakdown breakdown =
+        switch (request.brokerKind()) {
+          case GBM_MX_EQUITY -> frictionCalculator.mexicanEquity(
+              side, request.quantity(), request.pricePerUnit(), request.netAmount());
+          case DRIVEWEALTH -> frictionCalculator.driveWealth(
+              side,
+              request.quantity(),
+              request.principalAmount(),
+              request.commission(),
+              request.transactionFee(),
+              request.otherFees(),
+              request.netAmount());
+        };
+
+    String assetName =
+        (request.assetName() == null || request.assetName().isBlank())
+            ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+            : request.assetName();
+
+    TransactionRequest legacy =
+        new TransactionRequest(
+            request.assetSymbol().toUpperCase(Locale.ROOT),
+            AssetType.STOCK,
+            request.buy() ? "BUY" : "SELL",
+            request.quantity(),
+            request.pricePerUnit(),
+            calculateGrossAmount(request.quantity(), request.pricePerUnit()),
+            request.transactionDate(),
+            breakdown.fee(),
+            request.notes(),
+            null,
+            assetName,
+            request.exchange(),
+            request.broker(),
+            request.currency(),
+            null,
+            null,
+            null,
+            Boolean.FALSE);
+
+    String scope = request.buy() ? CREATE_BUY_SCOPE : CREATE_SELL_SCOPE;
+    TransactionResponse response =
+        registerWithIdempotency(
+            userId, scope, legacy, idempotencyKey, "Create imported stock transaction");
+
+    ImportSource source =
+        switch (request.brokerKind()) {
+          case DRIVEWEALTH -> ImportSource.DRIVEWEALTH;
+          case GBM_MX_EQUITY -> ImportSource.GBM_EQUITY;
+        };
+    transactionRepository
+        .findByTransactionIdAndUserId(response.transactionId(), userId)
+        .ifPresent(
+            transaction -> {
+              transaction.applyFriction(breakdown);
+              transaction.setImportSource(source);
+              // ADR-0013: fija el binomio de operacion (wall-clock + zona IANA) desde el import y
+              // recalcula executed_at_utc. Si el import no lo trae, se deja para la migracion/F2b.
+              if (request.localExecutionTime() != null && request.executionZoneId() != null) {
+                OperationTimestamps.apply(
+                    transaction, request.localExecutionTime(), request.executionZoneId());
+              }
+              transactionRepository.save(transaction);
+            });
+
+    return response;
+  }
+
+  @Override
+  public void tagImportSource(UUID userId, UUID transactionId, TransactionOrigin origin) {
+    ImportSource source = toImportSource(origin);
+    transactionRepository
+        .findByTransactionIdAndUserId(transactionId, userId)
+        .ifPresent(
+            transaction -> {
+              transaction.setImportSource(source);
+              transactionRepository.save(transaction);
+            });
+  }
+
+  private ImportSource toImportSource(TransactionOrigin origin) {
+    return switch (origin) {
+      case MANUAL -> ImportSource.MANUAL;
+      case DRIVEWEALTH -> ImportSource.DRIVEWEALTH;
+      case GBM_STATEMENT -> ImportSource.GBM_STATEMENT;
+      case GBM_EQUITY -> ImportSource.GBM_EQUITY;
+    };
+  }
+
+  @Override
+  @Transactional
+  public TransactionResponse registerDividendTransaction(
+      UUID userId, DividendTransactionRequest request, String idempotencyKey) {
+    return transactionIdempotencyService.executeForTransactionResponse(
+        userId,
+        "transactions:dividend",
         idempotencyKey,
-        "Create sell transaction");
+        request,
+        () -> {
+          try {
+            String resolvedAssetName =
+                (request.assetName() == null || request.assetName().isBlank())
+                    ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+                    : request.assetName();
+
+            TransactionRequest txRequest =
+                new TransactionRequest(
+                    request.assetSymbol().toUpperCase(),
+                    normalizedAssetType(request.assetType()),
+                    "DIVIDEND",
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    request.amount(),
+                    request.transactionDate(),
+                    BigDecimal.ZERO,
+                    null,
+                    null,
+                    resolvedAssetName,
+                    request.exchange(),
+                    request.broker(),
+                    request.currency(),
+                    null,
+                    null,
+                    null,
+                    null);
+
+            TransactionResponse response =
+                transactionRegistrationPort.registerTransaction(userId, txRequest);
+
+            DividendType dtype = resolveDividendType(request.dividendType());
+
+            Transaction savedTx =
+                transactionRepository
+                    .findByTransactionIdAndUserId(response.transactionId(), userId)
+                    .orElseThrow(() -> new RuntimeException("Dividend transaction not found"));
+
+            DividendDetail detail =
+                DividendDetail.builder()
+                    .transaction(savedTx)
+                    .exDividendDate(request.exDividendDate())
+                    .dividendType(dtype)
+                    .taxWithheld(request.taxWithheld())
+                    .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
+                    .build();
+            dividendDetailRepository.save(detail);
+
+            transactionAuditPort.logCreateSuccess(
+                userId, describeSuccessfulMutation("Create dividend transaction", response));
+            return response;
+          } catch (RuntimeException ex) {
+            log.error(
+                "Error creating dividend transaction for user {}: {}", userId, ex.getMessage(), ex);
+            transactionAuditPort.logCreateFailure(
+                userId,
+                String.format(
+                    "Create dividend transaction failed asset=%s reason=%s",
+                    request.assetSymbol(), ex.getMessage()));
+            throw ex;
+          }
+        });
   }
 
   @Override
@@ -111,6 +402,20 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             String transactionType = normalizeTransactionType(transaction.getTransactionType());
             validateUpdateRequest(transactionType, request);
 
+            if (isImported(transaction.getImportSource())) {
+              // Importado (DriveWealth/GBM): registro autoritativo del broker. Solo Notas es
+              // editable; cualquier cambio financiero se rechaza (ver ADR-0007).
+              guardImportedFinancialFieldsUnchanged(transaction, request);
+              transaction.setNotes(request.notes());
+              transaction.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+              TransactionResponse notesOnly =
+                  transactionMapper.toResponse(transactionRepository.save(transaction));
+              transactionAuditPort.logUpdateSuccess(
+                  userId,
+                  describeSuccessfulMutation("Updated imported transaction notes", notesOnly));
+              return notesOnly;
+            }
+
             transaction.setAssetSymbol(request.assetSymbol().trim().toUpperCase(Locale.ROOT));
             transaction.setAssetType(normalizedAssetType(request.assetType()));
             transaction.setQuantity(request.quantity());
@@ -124,10 +429,12 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             transaction.setNotes(request.notes());
             transaction.setTransferType(
                 resolveTransferType(transactionType, request.transferType()));
-            transaction.setUpdatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
 
             Transaction saved = transactionRepository.save(transaction);
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
+            transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
+            portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             portfolioProjectionSyncPort
                 .resolvePortfolioEntryId(userId, saved.getAssetSymbol())
                 .ifPresent(saved::setPortfolioEntryId);
@@ -173,6 +480,13 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     } else if ("SELL".equalsIgnoreCase(transaction.getTransactionType())) {
       netAmount = grossAmount.subtract(fee);
       amountLabel = "Total Received";
+    } else if ("REDEEM".equalsIgnoreCase(transaction.getTransactionType())) {
+      // faceValue persisted in totalValue at redemption time
+      netAmount = grossAmount;
+      amountLabel = "Amount Redeemed";
+    } else if ("DIVIDEND".equalsIgnoreCase(transaction.getTransactionType())) {
+      netAmount = grossAmount.subtract(fee);
+      amountLabel = "Dividend Received";
     }
 
     return new TransactionDetailsResponse(
@@ -190,23 +504,42 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         netAmount,
         amountLabel,
         transaction.getNotes(),
-        "MANUAL",
+        transaction.getImportSource() != null ? transaction.getImportSource().name() : "MANUAL",
         null,
-        "COMPLETED");
+        "COMPLETED",
+        buildFrictionBreakdown(transaction, grossAmount, fee, netAmount));
+  }
+
+  private FrictionBreakdownView buildFrictionBreakdown(
+      Transaction transaction, BigDecimal grossAmount, BigDecimal fee, BigDecimal netAmount) {
+    BigDecimal quantity = transaction.getQuantity();
+    BigDecimal adjustedUnitPrice =
+        (netAmount != null && quantity != null && quantity.compareTo(BigDecimal.ZERO) > 0)
+            ? netAmount.divide(quantity, 8, RoundingMode.HALF_UP)
+            : null;
+    BigDecimal perUnitFriction =
+        (fee != null && quantity != null && quantity.compareTo(BigDecimal.ZERO) > 0)
+            ? fee.divide(quantity, 8, RoundingMode.HALF_UP)
+            : null;
+    return new FrictionBreakdownView(
+        grossAmount,
+        transaction.getBrokerCommission(),
+        transaction.getBrokerIva(),
+        transaction.getOtherFees(),
+        fee,
+        netAmount,
+        adjustedUnitPrice,
+        perUnitFriction,
+        transaction.getReviewStatus());
   }
 
   public List<TransactionResponse> getTransactionsByUser(UUID userId) {
-    return transactionRepository.findByUserId(userId, RECENT_FIRST_SORT).stream()
-        .map(transactionMapper::toResponse)
-        .toList();
+    return toResponsesWithLogos(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT));
   }
 
   public List<TransactionResponse> getTransactionsByUserAndSymbol(UUID userId, String assetSymbol) {
-    return transactionRepository
-        .findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT)
-        .stream()
-        .map(transactionMapper::toResponse)
-        .toList();
+    return toResponsesWithLogos(
+        transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT));
   }
 
   @Override
@@ -225,38 +558,105 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
     if (assetSymbol != null && assetType != null && transactionType != null) {
       AssetType normalizedAssetType = normalizedAssetType(assetType);
-      return transactionRepository
-          .findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
-              userId, assetSymbol, normalizedAssetType, transactionType)
-          .stream()
-          .map(transactionMapper::toResponse)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
+              userId, assetSymbol, normalizedAssetType, transactionType));
     }
     if (assetSymbol != null) {
-      return transactionRepository
-          .findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT)
-          .stream()
-          .map(transactionMapper::toResponse)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT));
     }
     if (assetType != null) {
-      return transactionRepository
-          .findByUserIdAndAssetType(userId, normalizedAssetType(assetType), RECENT_FIRST_SORT)
-          .stream()
-          .map(transactionMapper::toResponse)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndAssetType(
+              userId, normalizedAssetType(assetType), RECENT_FIRST_SORT));
     }
 
     if (transactionType != null) {
-      return transactionRepository
-          .findByUserIdAndTransactionType(userId, transactionType, RECENT_FIRST_SORT)
-          .stream()
-          .map(transactionMapper::toResponse)
-          .toList();
+      return toResponsesWithLogos(
+          transactionRepository.findByUserIdAndTransactionType(
+              userId, transactionType, RECENT_FIRST_SORT));
     }
-    return transactionRepository.findByUserId(userId, RECENT_FIRST_SORT).stream()
-        .map(transactionMapper::toResponse)
+    return toResponsesWithLogos(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT));
+  }
+
+  /**
+   * Resuelve los logos en batch para los símbolos distintos de la página, desde el catálogo
+   * cacheado (Redis), y los aplica a cada fila. Reemplaza la resolución per-row vía proveedor
+   * externo: N lookups por fila (con Finnhub inline, STOCK-only) → 1 lookup por símbolo distinto
+   * desde el catálogo (crypto y stock), sin proveedores externos en el hot path.
+   */
+  private List<TransactionResponse> toResponsesWithLogos(List<Transaction> transactions) {
+    if (iconPullOnceEnabled) {
+      Map<String, String> candidates = distinctSymbolTypes(transactions);
+      if (!candidates.isEmpty()) {
+        // Resuelve/actualiza en el catálogo (name + logo) los símbolos faltantes o provisionales:
+        // símbolos nuevos se resuelven una vez; iconos provisionales (fallback determinista) se
+        // auto-actualizan al logo autoritativo. Con caché y throttle en el catálogo, no golpean al
+        // proveedor en cada lectura.
+        assetCatalogRefreshPort.resolveMissingIcons(candidates);
+      }
+    }
+    // ADR-0008: el catálogo es la única fuente de verdad de name + logo; se leen tras la
+    // resolución,
+    // en lugar de un valor denormalizado y congelado en la transacción.
+    Map<String, AssetDisplay> display =
+        new HashMap<>(
+            assetCatalogQueryPort.findDisplayBySymbols(
+                transactions.stream()
+                    .map(Transaction::getAssetSymbol)
+                    .collect(Collectors.toSet())));
+    return transactions.stream()
+        .map(transaction -> toResponseWithDisplay(transaction, display))
         .toList();
+  }
+
+  /** Símbolos distintos vistos en la página, mapeados a su tipo (deduplicados). */
+  private Map<String, String> distinctSymbolTypes(List<Transaction> transactions) {
+    return transactions.stream()
+        .filter(t -> t.getAssetSymbol() != null && !t.getAssetSymbol().isBlank())
+        .collect(
+            Collectors.toMap(
+                t -> t.getAssetSymbol().toUpperCase(Locale.ROOT),
+                t -> t.getAssetType() == null ? "" : t.getAssetType().name(),
+                (a, b) -> a));
+  }
+
+  private TransactionResponse toResponseWithDisplay(
+      Transaction transaction, Map<String, AssetDisplay> display) {
+    TransactionResponse response = transactionMapper.toResponse(transaction);
+    String symbol = transaction.getAssetSymbol();
+    AssetDisplay d = symbol == null ? null : display.get(symbol.toUpperCase(Locale.ROOT));
+    String logoUrl = d != null ? d.logoUrl() : null;
+    // El nombre viene del catálogo (fuente de verdad); si aún no está resuelto ahí, se cae al
+    // snapshot persistido en la transacción (p.ej. el nombre reportado por el broker en el alta).
+    String assetName =
+        (d != null && d.name() != null && !d.name().isBlank()) ? d.name() : response.assetName();
+    return new TransactionResponse(
+        response.transactionId(),
+        response.assetSymbol(),
+        response.assetType(),
+        response.transactionType(),
+        response.quantity(),
+        response.pricePerUnit(),
+        response.totalValue(),
+        response.transactionDate(),
+        response.localExecutionTime(),
+        response.executionZoneId(),
+        response.executedAtUtc(),
+        response.fee(),
+        response.notes(),
+        response.createdAt(),
+        response.updatedAt(),
+        logoUrl,
+        assetName,
+        response.exchange(),
+        response.broker(),
+        response.currency(),
+        response.faceValue(),
+        response.maturityDate(),
+        response.couponRate(),
+        response.autoReinvestment());
   }
 
   @Override
@@ -275,7 +675,11 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                         () -> new TransactionNotFoundException("Transaction no encontrada"));
 
             transactionRepository.deleteById(transaction.getTransactionId());
+            transactionIdempotencyService.forgetByResultTransactionId(
+                transaction.getTransactionId());
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
+            transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
+            portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             transactionAuditPort.logDeleteSuccess(userId, describeDeletedTransaction(transaction));
           } catch (RuntimeException ex) {
             log.error(
@@ -310,8 +714,20 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
           try {
             TransactionResponse response =
                 transactionRegistrationPort.registerTransaction(userId, request);
+            // El registro incremental (applyTransaction) no normaliza FX: reconciliamos la
+            // proyeccion desde las transacciones (fuente de verdad) para que el costo MXN quede
+            // convertido a base USD con el FX de la fecha (ADR-0009), igual que en
+            // updateTransaction.
+            portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
+            transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
+            portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
             transactionAuditPort.logCreateSuccess(
                 userId, describeSuccessfulMutation(actionLabel, response));
+            // Pull-once: cataloga el icono del activo si aun no esta (background, no bloquea).
+            if (iconPullOnceEnabled) {
+              assetCatalogRefreshPort.ensureIconCatalogued(
+                  response.assetSymbol(), response.assetType());
+            }
             return response;
           } catch (RuntimeException ex) {
             log.error("Error creating transaction for user {}: {}", userId, ex.getMessage(), ex);
@@ -343,6 +759,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   }
 
   private TransactionRequest toLegacyRequest(BuyTransactionRequest request) {
+    String assetName =
+        (request.assetName() == null || request.assetName().isBlank())
+            ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+            : request.assetName();
     return new TransactionRequest(
         request.assetSymbol().toUpperCase(),
         normalizedAssetType(request.assetType()),
@@ -351,11 +771,25 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         request.pricePerUnit(),
         calculateGrossAmount(request.quantity(), request.pricePerUnit()),
         request.transactionDate(),
-        normalizedFee(request.fee()),
-        request.notes());
+        resolveManualFee(
+            request.fee(), request.brokerCommission(), request.brokerIva(), request.otherFees()),
+        request.notes(),
+        null,
+        assetName,
+        request.exchange(),
+        request.broker(),
+        request.currency(),
+        request.faceValue(),
+        request.maturityDate(),
+        request.couponRate(),
+        request.autoReinvestment());
   }
 
   private TransactionRequest toLegacyRequest(SellTransactionRequest request) {
+    String assetName =
+        (request.assetName() == null || request.assetName().isBlank())
+            ? assetCatalogQueryPort.findNameBySymbol(request.assetSymbol()).orElse(null)
+            : request.assetName();
     return new TransactionRequest(
         request.assetSymbol().toUpperCase(),
         normalizedAssetType(request.assetType()),
@@ -364,8 +798,18 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         request.pricePerUnit(),
         calculateGrossAmount(request.quantity(), request.pricePerUnit()),
         request.transactionDate(),
-        normalizedFee(request.fee()),
-        request.notes());
+        resolveManualFee(
+            request.fee(), request.brokerCommission(), request.brokerIva(), request.otherFees()),
+        request.notes(),
+        null,
+        assetName,
+        request.exchange(),
+        request.broker(),
+        request.currency(),
+        request.faceValue(),
+        request.maturityDate(),
+        request.couponRate(),
+        request.autoReinvestment());
   }
 
   private TransactionRequest toLegacyRequest(TransferTransactionRequest request) {
@@ -400,6 +844,20 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
   private AssetType normalizedAssetType(String assetType) {
     return AssetType.valueOf(assetType.trim().toUpperCase());
+  }
+
+  private DividendType resolveDividendType(String dividendType) {
+    if (dividendType == null) {
+      return DividendType.CASH;
+    }
+    if (dividendType.isBlank()) {
+      throw new InvalidTransactionException("dividendType no puede estar en blanco");
+    }
+    try {
+      return DividendType.valueOf(dividendType.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException e) {
+      throw new InvalidTransactionException("dividendType invalido: " + dividendType);
+    }
   }
 
   private String normalizeTransactionType(String transactionType) {

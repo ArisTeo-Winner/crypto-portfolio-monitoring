@@ -1,0 +1,91 @@
+package com.mx.cryptomonitor.asset.domain.model;
+
+import java.time.OffsetDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "asset_catalog")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AssetCatalogEntity {
+
+  @Id
+  @Column(name = "symbol", length = 20)
+  private String symbol;
+
+  // Nullable: NULL = nombre aun no resuelto (ADR-0008). No se persiste el simbolo como placeholder;
+  // el frontend muestra el simbolo cuando name es NULL.
+  @Column(name = "name")
+  private String name;
+
+  @Column(name = "asset_type", length = 20, nullable = false)
+  private String assetType;
+
+  @Column(name = "logo_url", length = 500)
+  private String logoUrl;
+
+  @Column(name = "exchange", length = 20)
+  private String exchange;
+
+  @Column(name = "currency", length = 3)
+  private String currency;
+
+  // ADR-0014 (security master): identificadores universales gratis para resolver corporate actions
+  // de forma estable (no por ticker). composite_figi = futura llave canonica; share_class_figi une
+  // cross-border; cik = emisor SEC; isin opcional. NO se guarda CUSIP (licenciado).
+  @Column(name = "composite_figi", length = 12)
+  private String compositeFigi;
+
+  @Column(name = "share_class_figi", length = 12)
+  private String shareClassFigi;
+
+  @Column(name = "cik", length = 10)
+  private String cik;
+
+  @Column(name = "isin", length = 12)
+  private String isin;
+
+  // ADR-0014 F6a (sucesion): identidad a traves de cambios de seguridad (merger / de-SPAC /
+  // delisting). predecessor_symbol/figi apuntan a la seguridad de la que esta es sucesora;
+  // market_status marca su estado en plaza (ACTIVE por defecto; MUTED_BY_MERGER al ser absorbida).
+  @Column(name = "predecessor_symbol", length = 20)
+  private String predecessorSymbol;
+
+  @Column(name = "predecessor_figi", length = 12)
+  private String predecessorFigi;
+
+  // Default a nivel Java (ademas del DEFAULT en DB): las filas del catalogo se crean por builder
+  // sin
+  // fijarlo, y la columna es NOT NULL -> nunca debe insertarse null.
+  @Builder.Default
+  @Column(name = "market_status", length = 20, nullable = false)
+  private String marketStatus = "ACTIVE";
+
+  @Column(name = "market_cap")
+  private Long marketCap;
+
+  // Field named 'popular'; Lombok @Data generates isPopular() getter for boolean fields.
+  @Column(name = "is_popular", nullable = false)
+  private boolean popular;
+
+  // Estado de resolucion del logo: RESOLVED (hay URL) | NONE (confirmado sin logo) | PENDING.
+  // NONE actua como cache de negativos: el pull-once no vuelve a intentar resolverlo.
+  @Column(name = "logo_status", length = 20)
+  private String logoStatus;
+
+  @Column(name = "logo_checked_at")
+  private OffsetDateTime logoCheckedAt;
+
+  @Column(name = "updated_at", nullable = false)
+  private OffsetDateTime updatedAt;
+}

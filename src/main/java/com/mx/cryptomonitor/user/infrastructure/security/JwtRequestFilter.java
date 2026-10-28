@@ -26,6 +26,7 @@ import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,10 +62,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
           "/api/v1/users/register",
           "/api/v1/users/password/reset",
           "/api/v1/users/email/verify",
-          "/api/v1/users/public/test-get",
-          "/api/v1/users/public/test-post",
           "/api/v1/marketdata/**",
           "/api/v1/crypto/**",
+          "/api/v1/assets",
           "/api/v1/assets/search",
           "/api/v1/health",
           "/actuator/health/**",
@@ -103,15 +103,24 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     String jwt = null;
 
     if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-      jwt = authorizationHeader.substring(7); // Extrae el token después de "Bearer "
+      jwt = authorizationHeader.substring(7);
       try {
         username = jwtTokenUtil.getUsernameFromToken(jwt);
+      } catch (ExpiredJwtException e) {
+        logger.warn("Token expirado para ruta: {}", requestURI);
+      } catch (JwtException e) {
+        // Cubre UnsupportedJwtException (HS256 vs RS256), MalformedJwtException,
+        // SignatureException.
+        // No re-lanzar: username queda null y Spring Security emite 401 limpio.
+        logger.warn("Token JWT inválido para ruta {}: {}", requestURI, e.getMessage());
       } catch (IllegalArgumentException e) {
         logger.error("No se pudo obtener el nombre de usuario del token", e);
-      } catch (ExpiredJwtException e) {
-        logger.warn("El token ha expirado", e);
       }
     } else {
+      // Sin header Authorization: no hay credenciales que procesar.
+      // Con SessionCreationPolicy.STATELESS no existe sesión que pueda autenticar
+      // este request. Spring Security evaluará la regla hasRole('USER') y emitirá
+      // el 401 vía JwtAuthenticationEntryPoint al no encontrar autenticación en el contexto.
       logger.warn(
           "El encabezado Authorization no contiene un token JWT válido para la ruta: {}",
           requestURI);

@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.integration.user.infrastructure.inbound.rest;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -8,15 +9,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -24,6 +26,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.mx.cryptomonitor.user.application.dto.response.UserResponse;
@@ -47,6 +50,7 @@ import com.mx.cryptomonitor.user.infrastructure.security.JwtRequestFilter;
 import com.mx.cryptomonitor.user.infrastructure.security.JwtTokenUtil;
 import com.mx.cryptomonitor.user.infrastructure.security.LoginRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.security.SecurityConfig;
+import com.mx.cryptomonitor.user.infrastructure.security.handler.CustomOAuth2FailureHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.handler.OAuth2AuthenticationSuccessHandler;
 import com.mx.cryptomonitor.user.infrastructure.security.oauth.CustomOAuth2UserService;
 import com.mx.cryptomonitor.user.infrastructure.security.oidc.CustomOidcUserService;
@@ -96,23 +100,24 @@ class UserControllerAccessControlSecurityIT {
 
   @Autowired private MockMvc mockMvc;
 
-  @MockBean private UserService userService;
-  @MockBean private AuthService authService;
-  @MockBean private LoginRateLimiter loginRateLimiter;
-  @MockBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
-  @MockBean private PasswordResetRateLimiter passwordResetRateLimiter;
-  @MockBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
-  @MockBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
-  @MockBean private MeReadRateLimiter meReadRateLimiter;
-  @MockBean private MeWriteRateLimiter meWriteRateLimiter;
-  @MockBean private MeDeleteRateLimiter meDeleteRateLimiter;
+  @MockitoBean private UserService userService;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private LoginRateLimiter loginRateLimiter;
+  @MockitoBean private UserRegistrationRateLimiter userRegistrationRateLimiter;
+  @MockitoBean private PasswordResetRateLimiter passwordResetRateLimiter;
+  @MockitoBean private PasswordChangeRateLimiter passwordChangeRateLimiter;
+  @MockitoBean private EmailVerifyRateLimiter emailVerifyRateLimiter;
+  @MockitoBean private MeReadRateLimiter meReadRateLimiter;
+  @MockitoBean private MeWriteRateLimiter meWriteRateLimiter;
+  @MockitoBean private MeDeleteRateLimiter meDeleteRateLimiter;
 
   // SecurityConfig required dependencies (mocked to avoid scanning unrelated infrastructure).
-  @MockBean private JwtUserDetailsService jwtUserDetailsService;
-  @MockBean private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-  @MockBean private CustomOAuth2UserService customOAuth2UserService;
-  @MockBean private CustomOidcUserService customOidcUserService;
-  @MockBean private PasswordEncoder passwordEncoder;
+  @MockitoBean private JwtUserDetailsService jwtUserDetailsService;
+  @MockitoBean private CustomOAuth2FailureHandler customOAuth2FailureHandler;
+  @MockitoBean private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+  @MockitoBean private CustomOAuth2UserService customOAuth2UserService;
+  @MockitoBean private CustomOidcUserService customOidcUserService;
+  @MockitoBean private PasswordEncoder passwordEncoder;
 
   @Test
   void getAllUsersWithoutAuthShouldReturn401ProblemDetails() throws Exception {
@@ -154,11 +159,72 @@ class UserControllerAccessControlSecurityIT {
                     null,
                     null,
                     true,
-                    LocalDateTime.now())));
+                    LocalDateTime.now(),
+                    null,
+                    null,
+                    null)));
 
     mockMvc
         .perform(get("/api/v1/users").accept(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].email").value("admin@test.com"));
+  }
+
+  // --- Regresión IDOR / clase Saberes MX: borrar y leer usuarios ajenos exige ADMIN ---
+
+  @Test
+  @WithMockUser(username = "user@test.com", roles = "USER")
+  void deleteUserWithUserRoleShouldReturn403() throws Exception {
+    mockMvc
+        .perform(delete("/api/v1/users/{id}", UUID.randomUUID()).accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+  }
+
+  @Test
+  @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+  void deleteUserWithAdminRoleShouldReturn200() throws Exception {
+    mockMvc.perform(delete("/api/v1/users/{id}", UUID.randomUUID())).andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser(username = "user@test.com", roles = "USER")
+  void getUserByEmailWithUserRoleShouldReturn403() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/users/{email}", "victim@test.com").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+  }
+
+  @Test
+  @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+  void getUserByEmailWithAdminRoleShouldReturn200() throws Exception {
+    when(userService.findByEmail("target@test.com"))
+        .thenReturn(
+            Optional.of(
+                new UserResponse(
+                    "target_user",
+                    "target@test.com",
+                    "Target",
+                    "User",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    true,
+                    LocalDateTime.now(),
+                    null,
+                    null,
+                    null)));
+
+    mockMvc
+        .perform(get("/api/v1/users/{email}", "target@test.com").accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value("target@test.com"));
   }
 }

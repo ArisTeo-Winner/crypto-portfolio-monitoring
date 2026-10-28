@@ -1,11 +1,16 @@
 package com.mx.cryptomonitor.transaction.domain.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mx.cryptomonitor.transaction.domain.friction.FrictionBreakdown;
+import com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus;
 import com.mx.cryptomonitor.user.domain.model.User;
 
 import jakarta.persistence.Column;
@@ -62,26 +67,92 @@ public class Transaction {
   @Column(name = "price_per_unit", nullable = false, precision = 18, scale = 8)
   private BigDecimal pricePerUnit;
 
-  @Column(name = "total_value", nullable = false, precision = 18, scale = 2)
+  @Column(name = "total_value", nullable = false, precision = 18, scale = 8)
   private BigDecimal totalValue;
 
   @Column(name = "transaction_date")
-  private LocalDateTime transactionDate = LocalDateTime.now();
+  private OffsetDateTime transactionDate = OffsetDateTime.now(ZoneOffset.UTC);
 
-  @Column(name = "fee", precision = 18, scale = 2)
+  // ADR-0013: binomio inmutable del evento de operacion bursatil (wall-clock de la plaza + nombre
+  // IANA de la zona). Es la fuente de verdad; executedAtUtc es el instante derivado para orden.
+  @Column(name = "local_execution_time")
+  private LocalDateTime localExecutionTime;
+
+  @Column(name = "execution_zone_id", length = 64)
+  private String executionZoneId;
+
+  @Column(name = "executed_at_utc")
+  private OffsetDateTime executedAtUtc;
+
+  @Column(name = "fee", precision = 18, scale = 8)
   private BigDecimal fee = BigDecimal.ZERO;
+
+  @Column(name = "broker_commission", precision = 18, scale = 8)
+  private BigDecimal brokerCommission;
+
+  @Column(name = "broker_iva", precision = 18, scale = 8)
+  private BigDecimal brokerIva;
+
+  @Column(name = "other_fees", precision = 18, scale = 8)
+  private BigDecimal otherFees;
+
+  @Column(name = "review_status", length = 20)
+  @Enumerated(EnumType.STRING)
+  private ReviewStatus reviewStatus;
+
+  @Builder.Default
+  @Column(name = "import_source", length = 20, nullable = false)
+  @Enumerated(EnumType.STRING)
+  private ImportSource importSource = ImportSource.MANUAL;
+
+  @Builder.Default
+  @Column(name = "realized_pnl", precision = 18, scale = 8)
+  private BigDecimal realizedPnl = BigDecimal.ZERO;
+
+  @Column(name = "asset_name", length = 255)
+  private String assetName;
+
+  @Column(name = "exchange", length = 20)
+  private String exchange;
+
+  @Column(name = "broker", length = 50)
+  private String broker;
+
+  @Column(name = "currency", length = 3)
+  private String currency;
+
+  @Column(name = "face_value", precision = 18, scale = 8)
+  private BigDecimal faceValue;
+
+  @Column(name = "maturity_date")
+  private LocalDate maturityDate;
+
+  @Column(name = "coupon_rate", precision = 8, scale = 4)
+  private BigDecimal couponRate;
+
+  @Column(name = "auto_reinvestment", nullable = false)
+  private boolean autoReinvestment;
 
   @Column(name = "notes")
   private String notes;
 
   @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt = LocalDateTime.now();
+  private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
 
   @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt = LocalDateTime.now();
+  private OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
 
   @JsonCreator
-  public Transaction(@JsonProperty("transactionDate") LocalDateTime transactionDate) {
-    this.transactionDate = (transactionDate != null) ? transactionDate : LocalDateTime.now();
+  public Transaction(@JsonProperty("transactionDate") OffsetDateTime transactionDate) {
+    this.transactionDate =
+        (transactionDate != null) ? transactionDate : OffsetDateTime.now(ZoneOffset.UTC);
+  }
+
+  public void applyFriction(FrictionBreakdown breakdown) {
+    this.fee = breakdown.totalFrictionCost();
+    this.brokerCommission = breakdown.brokerCommission();
+    this.brokerIva = breakdown.brokerIva();
+    this.otherFees = breakdown.otherFees();
+    this.reviewStatus = breakdown.reviewStatus();
   }
 }

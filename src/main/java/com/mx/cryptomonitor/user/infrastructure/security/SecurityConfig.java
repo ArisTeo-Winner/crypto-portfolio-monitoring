@@ -11,6 +11,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -33,11 +34,16 @@ import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
+// Activa @PreAuthorize; sin esto todas las anotaciones de seguridad de metodo se ignoran en
+// silencio.
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+  // 'unsafe-inline' eliminado de script-src — un API REST no debe ejecutar scripts inline.
+  // Si el flujo OAuth2 requiere HTML mínimo, hacerlo sin inline scripts.
   private static final String API_CONTENT_SECURITY_POLICY =
       "default-src 'self'; "
-          + "script-src 'self' 'unsafe-inline'; "
+          + "script-src 'self'; "
           + "style-src 'self' 'unsafe-inline'; "
           + "img-src 'self' data: https:; "
           + "font-src 'self' data:; "
@@ -100,7 +106,6 @@ public class SecurityConfig {
               authorizeRequests
                   .requestMatchers(
                       "/api/v1/auth/login",
-                      "/api/v1/users/{id}/test",
                       "/api/v1/users/register",
                       "/api/v1/users/password/reset",
                       "/api/v1/users/email/verify",
@@ -108,11 +113,13 @@ public class SecurityConfig {
                       "/api/v1/marketdata/**",
                       "/api/v1/marketdata/stock/historical/{symbol}/{date}",
                       "/api/v1/auth/logout",
-                      "/api/v1/users/public/test-get",
-                      "/api/v1/users/public/test-post",
                       "/oauth/authorize/**",
                       "/oauth/callback/**",
+                      "/api/v1/assets",
                       "/api/v1/assets/search",
+                      "/api/v1/assets/popular",
+                      "/api/v1/market/status",
+                      "/api/v1/market/dividends/*/growth",
                       "/api/v1/health",
                       "/api/v1/oauth2/**",
                       "/actuator/health/**",
@@ -130,14 +137,17 @@ public class SecurityConfig {
               authorizeRequests
                   .requestMatchers(HttpMethod.GET, "/api/v1/me/transactions/{userId}/{assetSymbol}")
                   .hasRole("USER");
+              authorizeRequests
+                  .requestMatchers("/api/v1/admin/corporate-actions/**")
+                  .hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/roles/**").hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/users").hasRole("ADMIN");
               authorizeRequests.requestMatchers("/api/v1/users/me").hasRole("USER");
-              authorizeRequests
-                  .requestMatchers("/api/v1/users/{id:\\d+}")
-                  .hasAuthority("USER:DELETE");
               authorizeRequests.requestMatchers("/api/v1/me/portfolio/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/transactions/**").hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/me/sessions/**").hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/me/broker/**").hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/portfolio/cetes/**").hasRole("USER");
               authorizeRequests
                   .requestMatchers(
                       HttpMethod.DELETE,
@@ -171,8 +181,11 @@ public class SecurityConfig {
                 exception
                     .accessDeniedHandler(customAccessDeniedHandler)
                     .authenticationEntryPoint(jwtAuthenticationEntryPoint))
+        // STATELESS: la API autentica exclusivamente por JWT en cada request.
+        // IF_REQUIRED permitía que Spring creara una sesión HTTP en el primer login y que
+        // requests posteriores sin token pasaran autenticados vía cookie JSESSIONID.
         .sessionManagement(
-            session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
     http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -184,6 +197,7 @@ public class SecurityConfig {
     CorsConfiguration configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(List.of(frontendBaseUrl));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    // X-Refresh-Token eliminado: el refresh token ya viaja exclusivamente como cookie HttpOnly.
     configuration.setAllowedHeaders(
         List.of(
             "Authorization",
@@ -191,7 +205,6 @@ public class SecurityConfig {
             "Accept",
             "Origin",
             "X-Idempotency-Key",
-            "X-Refresh-Token",
             "X-Request-Id"));
     configuration.setExposedHeaders(List.of("Location", "X-Request-Id"));
     configuration.setAllowCredentials(true);
@@ -202,14 +215,22 @@ public class SecurityConfig {
     return source;
   }
 
+  /**
+   * HttpFirewall con configuración conservadora.
+   *
+   * <p>Solo se habilita {@code allowUrlEncodedSlash} porque algunos símbolos de activos (p.ej.
+   * {@code BTC%2FUSDT}) viajan codificados en path variables. El resto de caracteres peligrosos
+   * (backslash, semicolon, double-encoded percent) se mantienen bloqueados para prevenir ataques de
+   * path traversal y parameter pollution.
+   */
   @Bean
   public HttpFirewall allowUrlEncodedSlashHttpFirewall() {
     StrictHttpFirewall firewall = new StrictHttpFirewall();
-    firewall.setAllowUrlEncodedSlash(true);
-    firewall.setAllowUrlEncodedPercent(true);
-    firewall.setAllowSemicolon(true);
-    firewall.setAllowBackSlash(true);
-    firewall.setAllowUrlEncodedPeriod(true);
+    firewall.setAllowUrlEncodedSlash(true); // necesario para símbolos con '/' en path vars
+    // setAllowUrlEncodedPercent(false)  — default, previene double-encoding
+    // setAllowSemicolon(false)          — default, previene parameter pollution
+    // setAllowBackSlash(false)          — default, previene path traversal en Windows
+    // setAllowUrlEncodedPeriod(false)   — default, previene traversal con %2E
     return firewall;
   }
 }

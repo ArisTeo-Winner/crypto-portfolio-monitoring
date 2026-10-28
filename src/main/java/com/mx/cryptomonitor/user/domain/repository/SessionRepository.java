@@ -13,8 +13,6 @@ import com.mx.cryptomonitor.user.domain.model.Session;
 public interface SessionRepository extends JpaRepository<Session, UUID> {
   Optional<Session> findBySessionId(UUID sessionId);
 
-  Optional<Session> findByRefreshTokenId(UUID refreshTokenId);
-
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query("delete from Session s where s.user.id = :userId")
   int deleteAllByUserId(@Param("userId") UUID userId);

@@ -40,15 +40,23 @@ public class PriceUpdateService {
   public void updatePrices() {
 
     for (PortfolioEntry entry : portfolioEntryRepository.findAll()) {
-      Optional<BigDecimal> priceOpt = resolveCurrentAssetPrice(entry);
-      if (priceOpt.isPresent()) {
-        BigDecimal currentPrice = priceOpt.get();
-        BigDecimal currentValue = entry.getTotalQuantity().multiply(currentPrice);
-        BigDecimal totalProfitLoss = currentValue.subtract(entry.getTotalInvested());
-        entry.setCurrentValue(currentValue);
-        entry.setTotalProfitLoss(totalProfitLoss);
-        entry.setLastUpdated(LocalDateTime.now());
-        portfolioEntryRepository.save(entry);
+      try {
+        Optional<BigDecimal> priceOpt = resolveCurrentAssetPrice(entry);
+        if (priceOpt.isPresent()) {
+          BigDecimal currentPrice = priceOpt.get();
+          BigDecimal currentValue = entry.getTotalQuantity().multiply(currentPrice);
+          BigDecimal totalProfitLoss = currentValue.subtract(entry.getTotalInvested());
+          entry.setCurrentValue(currentValue);
+          entry.setTotalProfitLoss(totalProfitLoss);
+          entry.setLastUpdated(LocalDateTime.now());
+          portfolioEntryRepository.save(entry);
+        }
+      } catch (RuntimeException ex) {
+        logger.warn(
+            "No se pudo actualizar el precio de {} (entry {}), se conserva el valor previo: {}",
+            entry.getAssetSymbol(),
+            entry.getPortfolioEntryId(),
+            ex.getMessage());
       }
     }
   }

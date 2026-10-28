@@ -1,5 +1,8 @@
 package com.mx.cryptomonitor.shared.infrastructure.config;
 
+import java.util.List;
+import java.util.Set;
+
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +31,37 @@ public class SwaggerConfig {
   private static final String PROBLEM_SCHEMA_REF = "#/components/schemas/UserApiProblemDetail";
   private static final String BEARER_AUTH_SCHEME = "bearerAuth";
 
+  // Endpoints publicos (permitAll en SecurityConfig). Todo lo demas se documenta como protegido con
+  // bearerAuth por defecto, para que el doc no se desincronice con la seguridad real al agregar
+  // endpoints nuevos.
+  private static final Set<String> PUBLIC_EXACT_PATHS =
+      Set.of(
+          "/api/v1/auth/login",
+          "/api/v1/auth/logout",
+          "/api/v1/users/register",
+          "/api/v1/users/password/reset",
+          "/api/v1/users/email/verify",
+          "/api/v1/users/public/test-get",
+          "/api/v1/users/public/test-post",
+          "/api/v1/users/{id}/test",
+          "/api/v1/assets",
+          "/api/v1/assets/search",
+          "/api/v1/assets/popular",
+          "/api/v1/crypto/{symbol}/price",
+          "/api/v1/health",
+          "/api/v1/tokens/revoke",
+          "/api/v1/tokens/refresh",
+          "/error");
+
+  private static final List<String> PUBLIC_PREFIXES =
+      List.of(
+          "/api/v1/marketdata/",
+          "/api/v1/oauth2/",
+          "/oauth/",
+          "/actuator/",
+          "/swagger-ui",
+          "/v3/api-docs");
+
   @Bean
   public OpenAPI customOpenAPI() {
     return new OpenAPI()
@@ -50,7 +84,7 @@ public class SwaggerConfig {
                 .addResponses("ProblemInternalError", problemResponse("Internal server error")))
         .info(
             new Info()
-                .title("Crypto portfolio monitorig API")
+                .title("Crypto portfolio monitoring API")
                 .version("1.0")
                 .description(
                     "Documentation for the crypto portfolio monitoring API with RFC 9457 problem responses.")
@@ -87,7 +121,7 @@ public class SwaggerConfig {
                           addProblemResponse(responses, "429", "Rate limit exceeded");
                           addProblemResponse(responses, "500", "Internal server error");
 
-                          if (requiresBearerAuth(pathEntry.getKey())) {
+                          if (!isPublicPath(pathEntry.getKey())) {
                             operation.addSecurityItem(
                                 new SecurityRequirement().addList(BEARER_AUTH_SCHEME));
                           }
@@ -96,10 +130,11 @@ public class SwaggerConfig {
     };
   }
 
-  private boolean requiresBearerAuth(String path) {
-    return path.startsWith("/api/v1/me/")
-        || path.startsWith("/api/v1/users/me")
-        || path.startsWith("/api/v1/tokens/revoke");
+  private boolean isPublicPath(String path) {
+    if (PUBLIC_EXACT_PATHS.contains(path)) {
+      return true;
+    }
+    return PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
   }
 
   private void addProblemResponse(ApiResponses responses, String code, String description) {

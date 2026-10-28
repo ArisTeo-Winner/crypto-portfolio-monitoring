@@ -153,7 +153,7 @@ class UserExceptionHandlerTest {
             new TooManyMeWriteRequestsException(), request("/api/v1/me"));
 
     assertProblem(read.getBody(), HttpStatus.TOO_MANY_REQUESTS, "ME_READ_RATE_LIMIT_EXCEEDED");
-    assertThat(read.getHeaders().containsKey(HttpHeaders.RETRY_AFTER)).isFalse();
+    assertThat(read.getHeaders().containsHeader(HttpHeaders.RETRY_AFTER)).isFalse();
     assertProblem(write.getBody(), HttpStatus.TOO_MANY_REQUESTS, "ME_WRITE_RATE_LIMIT_EXCEEDED");
   }
 

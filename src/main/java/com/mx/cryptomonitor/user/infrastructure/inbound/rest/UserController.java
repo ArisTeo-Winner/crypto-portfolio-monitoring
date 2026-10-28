@@ -1,10 +1,8 @@
 package com.mx.cryptomonitor.user.infrastructure.inbound.rest;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mx.cryptomonitor.user.application.dto.request.EmailVerifyRequest;
@@ -25,7 +22,6 @@ import com.mx.cryptomonitor.user.application.dto.request.UserMeUpdateRequest;
 import com.mx.cryptomonitor.user.application.dto.request.UserRegistrationRequest;
 import com.mx.cryptomonitor.user.application.dto.response.UserResponse;
 import com.mx.cryptomonitor.user.application.service.UserService;
-import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.EmailVerifyRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.MeDeleteRateLimiter;
 import com.mx.cryptomonitor.user.infrastructure.inbound.rest.security.MeReadRateLimiter;
@@ -48,7 +44,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserController {
 
-  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(UserController.class);
   private final UserService userService;
   private final UserRegistrationRateLimiter userRegistrationRateLimiter;
   private final PasswordResetRateLimiter passwordResetRateLimiter;
@@ -230,6 +225,7 @@ public class UserController {
         @ApiResponse(responseCode = "404", description = "Usuario no encontrado")
       })
   @GetMapping("/{email}")
+  @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<UserResponse> getUserByEmail(@PathVariable String email) {
     return userService
         .findByEmail(email)
@@ -259,6 +255,7 @@ public class UserController {
         @ApiResponse(responseCode = "500", description = "Error interno del servidor")
       })
   @DeleteMapping("/{id}")
+  @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<String> deleteUser(@PathVariable UUID id) {
     try {
       userService.deleteUserById(id);
@@ -268,84 +265,5 @@ public class UserController {
     } catch (Exception e) {
       return ResponseEntity.status(500).body("Error interno del servidor.");
     }
-  }
-
-  @Operation(summary = "Actualizar perfil", description = "Actualiza datos del usuario por email")
-  @ApiResponses(
-      value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "Perfil actualizado correctamente",
-            content =
-                @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = User.class))),
-        @ApiResponse(responseCode = "400", description = "Solicitud invalida"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-      })
-  @PutMapping("/profile")
-  public ResponseEntity<User> updateUserProfile(
-      @RequestParam String email, @RequestBody User updatedUser) {
-    try {
-      if (email == null || email.isBlank()) {
-        return ResponseEntity.badRequest().body(null);
-      }
-      if (updatedUser == null) {
-        return ResponseEntity.badRequest().body(null);
-      }
-
-      User updatedProfile = userService.updateUser(email, updatedUser);
-      return ResponseEntity.ok(updatedProfile);
-    } catch (IllegalArgumentException e) {
-      logger.error("Error de validacion: {}", e.getMessage());
-      return ResponseEntity.badRequest().body(null);
-    } catch (RuntimeException e) {
-      logger.error("Error en el servicio: {}", e.getMessage());
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-    }
-  }
-
-  @Operation(
-      summary = "Probar busqueda por id",
-      description = "Endpoint tecnico para validar busqueda por id")
-  @ApiResponses(
-      value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "Usuario encontrado",
-            content =
-                @Content(
-                    mediaType = "application/json",
-                    schema = @Schema(implementation = User.class))),
-        @ApiResponse(responseCode = "404", description = "Usuario no encontrado")
-      })
-  @GetMapping("/{id}/test")
-  public ResponseEntity<User> testFindById(@PathVariable UUID id) {
-    Optional<User> user = userService.findById(id);
-    if (user.isPresent()) {
-      return ResponseEntity.ok(user.get());
-    }
-    logger.warn("Usuario con ID {} no encontrado", id);
-    return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-  }
-
-  @Operation(
-      summary = "Health check publico GET",
-      description = "Valida disponibilidad del endpoint publico GET")
-  @ApiResponses(
-      value = {@ApiResponse(responseCode = "200", description = "Endpoint publico disponible")})
-  @GetMapping("/public/test-get")
-  public ResponseEntity<String> testPublicEndpoint() {
-    return ResponseEntity.ok("Endpoint publico GET funcionando");
-  }
-
-  @Operation(
-      summary = "Health check publico POST",
-      description = "Valida disponibilidad del endpoint publico POST")
-  @ApiResponses(
-      value = {@ApiResponse(responseCode = "200", description = "Endpoint publico disponible")})
-  @PostMapping("/public/test-post")
-  public ResponseEntity<String> testPublicPost() {
-    return ResponseEntity.ok("Endpoint publico POST funcionando");
   }
 }

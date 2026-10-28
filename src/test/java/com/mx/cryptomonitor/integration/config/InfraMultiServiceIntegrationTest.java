@@ -9,10 +9,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -26,6 +27,7 @@ import com.mx.cryptomonitor.user.domain.repository.UserRepository;
 import okhttp3.mockwebserver.MockWebServer;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @Testcontainers
 @TestPropertySource(
     properties = {
@@ -86,10 +88,8 @@ class InfraMultiServiceIntegrationTest {
     r.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     r.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     r.add("spring.flyway.enabled", () -> "false");
-
   }
 
   @Test

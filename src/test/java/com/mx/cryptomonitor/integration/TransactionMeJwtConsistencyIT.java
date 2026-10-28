@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,12 +21,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -53,8 +55,8 @@ class TransactionMeJwtConsistencyIT {
   @Autowired private RoleRepository roleRepository;
   @Autowired private PasswordEncoder passwordEncoder;
 
-  @MockBean private TransactionService transactionService;
-  @MockBean private RefreshTokenStoreService refreshTokenStoreService;
+  @MockitoBean private TransactionService transactionService;
+  @MockitoBean private RefreshTokenStoreService refreshTokenStoreService;
 
   @BeforeEach
   void setUpMocks() {
@@ -176,11 +178,23 @@ class TransactionMeJwtConsistencyIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("47500.00"),
-        LocalDateTime.of(2026, 3, 6, 12, 0),
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
+        null,
+        null,
+        null,
         new BigDecimal("10.00"),
         "buy btc",
-        LocalDateTime.of(2026, 3, 6, 12, 0),
-        LocalDateTime.of(2026, 3, 6, 12, 0));
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
+        OffsetDateTime.of(2026, 3, 6, 12, 0, 0, 0, ZoneOffset.UTC),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private String validTransactionRequest() {
@@ -192,7 +206,7 @@ class TransactionMeJwtConsistencyIT {
           "quantity": 0.50,
           "pricePerUnit": 95000.00,
           "totalValue": 47500.00,
-          "transactionDate": "2026-03-06T12:00:00",
+          "transactionDate": "2026-03-06T12:00:00Z",
           "fee": 10.00,
           "notes": "buy btc"
         }

@@ -98,4 +98,79 @@ class PortfolioModuleArchitectureTest {
   @ArchTest
   static final ArchRule portfolio_module_packages_should_be_cycle_free =
       slices().matching("com.mx.cryptomonitor.portfolio.(*)..").should().beFreeOfCycles();
+
+  // -------------------------------------------------------------------------
+  // Historical engine domain purity — enforces the "Historical engine fully
+  // validated" structural contract required before frontend integration.
+  // -------------------------------------------------------------------------
+
+  /**
+   * The history use-case service must never reach across the hexagonal boundary and import
+   * infrastructure adapter classes directly. All external data must flow through the ports defined
+   * in application.port.out.
+   */
+  @ArchTest
+  static final ArchRule history_service_must_not_depend_on_outbound_adapters =
+      noClasses()
+          .that()
+          .haveSimpleName("GetPortfolioTotalHistoryService")
+          .should()
+          .dependOnClassesThat()
+          .resideInAnyPackage("..portfolio.infrastructure.outbound..");
+
+  /**
+   * The history use-case service must never depend on controllers or inbound infrastructure. This
+   * would invert the dependency direction.
+   */
+  @ArchTest
+  static final ArchRule history_service_must_not_depend_on_controllers =
+      noClasses()
+          .that()
+          .haveSimpleName("GetPortfolioTotalHistoryService")
+          .should()
+          .dependOnClassesThat()
+          .resideInAnyPackage("..portfolio.infrastructure.inbound..");
+
+  /**
+   * The history use-case service must not import WebClient or any reactive HTTP client directly.
+   * All HTTP communication is delegated to adapters via ports.
+   */
+  @ArchTest
+  static final ArchRule history_service_must_not_use_webclient_directly =
+      noClasses()
+          .that()
+          .haveSimpleName("GetPortfolioTotalHistoryService")
+          .should()
+          .dependOnClassesThat()
+          .haveFullyQualifiedName("org.springframework.web.reactive.function.client.WebClient");
+
+  /**
+   * Domain engines (pure computation) must be isolated from all infrastructure, market-data module
+   * internals, and shared Spring components. They must depend only on the portfolio domain model.
+   */
+  @ArchTest
+  static final ArchRule portfolio_domain_engines_must_be_pure =
+      noClasses()
+          .that()
+          .resideInAPackage("..portfolio.domain.engine..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAnyPackage(
+              "..portfolio.infrastructure..",
+              "..portfolio.application.service..",
+              "..marketdata..",
+              "org.springframework.web..");
+
+  /**
+   * Application-layer classes must not bypass the port abstraction and import infrastructure
+   * adapter classes from the market-data module.
+   */
+  @ArchTest
+  static final ArchRule portfolio_application_must_not_reach_marketdata_infrastructure =
+      noClasses()
+          .that()
+          .resideInAPackage("..portfolio.application..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAnyPackage("..marketdata.infrastructure..");
 }

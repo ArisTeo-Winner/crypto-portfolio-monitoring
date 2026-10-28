@@ -15,23 +15,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.SellTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
@@ -46,6 +46,8 @@ import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.infrastructure.security.oauth.AuthenticatedUserPrincipal;
 
+import tools.jackson.databind.ObjectMapper;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -54,7 +56,7 @@ class TransactionControllerCreateTransactionIT {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
 
-  @MockBean private TransactionService transactionService;
+  @MockitoBean private TransactionService transactionService;
 
   @Test
   void createTransactionReturns201WhenAuthenticatedUserPrincipalIsPresent() throws Exception {
@@ -152,7 +154,7 @@ class TransactionControllerCreateTransactionIT {
                 AssetType.CRYPTO,
                 "BUY",
                 null,
-                LocalDateTime.of(2026, 1, 24, 17, 55),
+                OffsetDateTime.of(2026, 1, 24, 17, 55, 0, 0, ZoneOffset.UTC),
                 new BigDecimal("0.25"),
                 new BigDecimal("89208.14"),
                 new BigDecimal("22302.04"),
@@ -163,7 +165,17 @@ class TransactionControllerCreateTransactionIT {
                 "Compra manual",
                 "MANUAL",
                 null,
-                "COMPLETED"));
+                "COMPLETED",
+                new com.mx.cryptomonitor.transaction.application.dto.response.FrictionBreakdownView(
+                    new BigDecimal("22302.04"),
+                    new BigDecimal("0.40"),
+                    new BigDecimal("0.06"),
+                    new BigDecimal("0.04"),
+                    new BigDecimal("0.50"),
+                    new BigDecimal("22302.54"),
+                    new BigDecimal("89210.16"),
+                    new BigDecimal("2.00000000"),
+                    com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK)));
 
     mockMvc
         .perform(
@@ -172,7 +184,10 @@ class TransactionControllerCreateTransactionIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(transactionId.toString()))
         .andExpect(jsonPath("$.amountLabel").value("Total Spent"))
-        .andExpect(jsonPath("$.netAmount").value(22302.54));
+        .andExpect(jsonPath("$.netAmount").value(22302.54))
+        .andExpect(jsonPath("$.frictionBreakdown.brokerCommission").value(0.40))
+        .andExpect(jsonPath("$.frictionBreakdown.finalNetCost").value(22302.54))
+        .andExpect(jsonPath("$.frictionBreakdown.reviewStatus").value("OK"));
   }
 
   @Test
@@ -381,7 +396,22 @@ class TransactionControllerCreateTransactionIT {
   @Test
   void createTransactionReturns400WhenPayloadIsInvalid() throws Exception {
     BuyTransactionRequest invalidRequest =
-        new BuyTransactionRequest("", "", new BigDecimal("-1"), null, null, null, null);
+        new BuyTransactionRequest(
+            "",
+            "",
+            new BigDecimal("-1"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     mockMvc
         .perform(
@@ -404,7 +434,7 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("47500.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
         new BigDecimal("10.00"),
         "buy btc");
   }
@@ -416,8 +446,16 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("10.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
-        "buy btc");
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        "buy btc",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private SellTransactionRequest validSellRequest() {
@@ -427,8 +465,16 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("10.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
-        "sell btc");
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        "sell btc",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private TransferTransactionRequest validTransferRequest() {
@@ -438,7 +484,7 @@ class TransactionControllerCreateTransactionIT {
         "TRANSFER_IN",
         new BigDecimal("0.25"),
         new BigDecimal("0.0002"),
-        LocalDateTime.of(2026, 3, 10, 2, 11),
+        OffsetDateTime.of(2026, 3, 10, 2, 11, 0, 0, ZoneOffset.UTC),
         "transfer btc");
   }
 
@@ -448,7 +494,7 @@ class TransactionControllerCreateTransactionIT {
         "CRYPTO",
         new BigDecimal("0.75"),
         new BigDecimal("91000.00"),
-        LocalDateTime.of(2026, 3, 8, 9, 0),
+        OffsetDateTime.of(2026, 3, 8, 9, 0, 0, 0, ZoneOffset.UTC),
         new BigDecimal("15.00"),
         "edited btc",
         null);
@@ -463,11 +509,23 @@ class TransactionControllerCreateTransactionIT {
         new BigDecimal("0.50"),
         new BigDecimal("95000.00"),
         new BigDecimal("47500.00"),
-        LocalDateTime.of(2026, 3, 6, 10, 0),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        null,
+        null,
+        null,
         new BigDecimal("10.00"),
         transferType == null ? "buy btc" : "transfer btc",
-        LocalDateTime.of(2026, 3, 6, 10, 0),
-        LocalDateTime.of(2026, 3, 6, 10, 0));
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        OffsetDateTime.of(2026, 3, 6, 10, 0, 0, 0, ZoneOffset.UTC),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private TestingAuthenticationToken userAuthentication(UUID userId, String role) {

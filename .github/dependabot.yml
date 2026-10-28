@@ -1,0 +1,71 @@
+# =============================================================================
+# Dependabot — Capa 0 del SCA: prevencion en el ORIGEN.
+# -----------------------------------------------------------------------------
+# Complementa al resto de la arquitectura:
+#   - Dependabot        -> abre PRs de actualizacion + alertas nativas (previene).
+#   - Dependency-Check  -> gate en el build (detecta CVSS >= 7).
+#   - Trivy             -> escanea la imagen Docker.
+#   - Dependency-Track  -> monitoreo continuo del SBOM.
+#
+# NOTA: este archivo controla las "version updates" (PRs de actualizacion).
+# Las "security updates" y las alertas de vulnerabilidad se habilitan en:
+#   Settings -> Advanced Security -> Dependabot alerts / security updates.
+# =============================================================================
+version: 2
+updates:
+
+  # --- Dependencias Maven (pom.xml) ---
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Mexico_City"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Agrupa minor/patch en un solo PR para reducir ruido; los major van sueltos.
+    groups:
+      maven-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Spring Boot lo gobierna el parent BOM; evita bumps sueltos que rompan el BOM.
+      - dependency-name: "org.springframework.boot:*"
+        update-types: ["version-update:semver-major"]
+
+  # --- Imagenes base de Docker (dockerfile y Dockerfile.secure) ---
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Mexico_City"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+
+  # --- GitHub Actions (.github/workflows/*.yml) ---
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Mexico_City"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"

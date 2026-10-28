@@ -24,15 +24,25 @@ public record UserRegistrationRequest(
             message =
                 "Password must be strong (use uppercase, lowercase, numbers, and special characters)")
         String password,
-    String firstName,
-    String lastName,
+    @Size(max = 60, message = "First name must be at most 60 characters")
+        @Pattern(
+            regexp = "^[\\p{L}\\p{M}' .\\-]{1,60}$",
+            message = "First name contains invalid characters")
+        String firstName,
+    @Size(max = 60, message = "Last name must be at most 60 characters")
+        @Pattern(
+            regexp = "^[\\p{L}\\p{M}' .\\-]{1,60}$",
+            message = "Last name contains invalid characters")
+        String lastName,
     String phoneNumber,
     String address,
     String city,
     String state,
     String postalCode,
     String country,
-    LocalDate dateOfBirth) {
+    LocalDate dateOfBirth,
+    String preferredCurrency,
+    String timezone) {
 
   /**
    * Avoid leaking secrets via logs. Some Spring components may log request objects using {@code

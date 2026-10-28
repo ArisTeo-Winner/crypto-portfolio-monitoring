@@ -7,15 +7,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
+import org.springframework.boot.micrometer.tracing.test.autoconfigure.AutoConfigureTracing;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@AutoConfigureObservability
+@AutoConfigureMetrics
+@AutoConfigureTracing
 @ActiveProfiles("test")
 class PrometheusObservabilityIT {
 

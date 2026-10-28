@@ -1,7 +1,8 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,5 +20,59 @@ public record SellTransactionRequest(
         @Positive(message = "El precio por unidad debe ser mayor que cero")
         BigDecimal pricePerUnit,
     @PositiveOrZero(message = "La comision no puede ser negativa") BigDecimal fee,
-    @NotNull(message = "La fecha de transaccion no puede ser nula") LocalDateTime transactionDate,
-    @Size(max = 255, message = "Las notas no pueden exceder 255 caracteres") String notes) {}
+    @NotNull(message = "La fecha de transaccion no puede ser nula") OffsetDateTime transactionDate,
+    @Size(max = 255, message = "Las notas no pueden exceder 255 caracteres") String notes,
+    String assetName,
+    String exchange,
+    String broker,
+    String currency,
+    BigDecimal faceValue,
+    LocalDate maturityDate,
+    BigDecimal couponRate,
+    Boolean autoReinvestment,
+    @PositiveOrZero(message = "La comision no puede ser negativa") BigDecimal brokerCommission,
+    @PositiveOrZero(message = "El IVA no puede ser negativo") BigDecimal brokerIva,
+    @PositiveOrZero(message = "Otros cargos no pueden ser negativos") BigDecimal otherFees) {
+
+  /**
+   * Constructor de compatibilidad: alta sin desglose de comision/IVA (import GBM legado, tests). El
+   * split queda en {@code null} y el desglose de friccion cae a la vista gruesa ({@code
+   * totalFrictionCost == fee}).
+   */
+  public SellTransactionRequest(
+      String assetSymbol,
+      String assetType,
+      BigDecimal quantity,
+      BigDecimal pricePerUnit,
+      BigDecimal fee,
+      OffsetDateTime transactionDate,
+      String notes,
+      String assetName,
+      String exchange,
+      String broker,
+      String currency,
+      BigDecimal faceValue,
+      LocalDate maturityDate,
+      BigDecimal couponRate,
+      Boolean autoReinvestment) {
+    this(
+        assetSymbol,
+        assetType,
+        quantity,
+        pricePerUnit,
+        fee,
+        transactionDate,
+        notes,
+        assetName,
+        exchange,
+        broker,
+        currency,
+        faceValue,
+        maturityDate,
+        couponRate,
+        autoReinvestment,
+        null,
+        null,
+        null);
+  }
+}

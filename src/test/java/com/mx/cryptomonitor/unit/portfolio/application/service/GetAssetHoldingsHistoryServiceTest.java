@@ -1,0 +1,222 @@
+package com.mx.cryptomonitor.unit.portfolio.application.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData;
+import com.mx.cryptomonitor.marketdata.application.port.out.StockSplitPort;
+import com.mx.cryptomonitor.portfolio.application.dto.response.AssetHoldingsHistoryResponse;
+import com.mx.cryptomonitor.portfolio.application.port.out.AssetTransactionHistoryPort;
+import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
+import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
+import com.mx.cryptomonitor.portfolio.application.service.GetAssetHoldingsHistoryService;
+import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
+import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
+import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
+import com.mx.cryptomonitor.portfolio.domain.model.TimeValuePoint;
+
+class GetAssetHoldingsHistoryServiceTest {
+
+  private final MarketPriceHistoryPort marketPriceHistoryPort =
+      Mockito.mock(MarketPriceHistoryPort.class);
+  private final AssetTransactionHistoryPort assetTransactionHistoryPort =
+      Mockito.mock(AssetTransactionHistoryPort.class);
+  private final GetAssetHoldingsHistoryService service =
+      new GetAssetHoldingsHistoryService(marketPriceHistoryPort, assetTransactionHistoryPort);
+
+  @Test
+  void shouldBuildHoldingsSeriesAndMarkersFromTransactionsAndPriceHistory() {
+    UUID userId = UUID.randomUUID();
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(
+            List.of(
+                snapshot("BUY", "1.0", "100.00", "2026-01-01T00:00:00"),
+                snapshot("BUY", "0.5", "110.00", "2026-01-02T00:00:00"),
+                snapshot("SELL", "0.75", "120.00", "2026-01-03T00:00:00")));
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "1M"))
+        .thenReturn(
+            List.of(
+                new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("100.00")),
+                new PricePoint(Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("110.00")),
+                new PricePoint(Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("120.00")),
+                new PricePoint(Instant.parse("2026-01-04T00:00:00Z"), new BigDecimal("130.00"))));
+
+    AssetHoldingsHistoryResponse response = service.getAssetHoldingsHistory(userId, "BTC", "30d");
+
+    assertThat(response.series())
+        .containsExactly(
+            new TimeValuePoint(1767225600L, new BigDecimal("100.00")),
+            new TimeValuePoint(1767312000L, new BigDecimal("165.00")),
+            new TimeValuePoint(1767398400L, new BigDecimal("90.00")),
+            new TimeValuePoint(1767484800L, new BigDecimal("97.50")));
+    assertThat(response.markers()).hasSize(3);
+    assertThat(response.markers().getFirst().type()).isEqualTo("BUY");
+    verify(marketPriceHistoryPort).getPriceHistory(AssetType.CRYPTO, "BTC", "1M");
+  }
+
+  @Test
+  void shouldReturnEmptyResponseWhenUserHasNoTransactionsForAsset() {
+    UUID userId = UUID.randomUUID();
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(List.of());
+
+    AssetHoldingsHistoryResponse response = service.getAssetHoldingsHistory(userId, "BTC", "30d");
+
+    assertThat(response.series()).isEmpty();
+    assertThat(response.markers()).isEmpty();
+  }
+
+  @Test
+  void shouldReturnDeterministicResponseForRepeatedCalls() {
+    UUID userId = UUID.randomUUID();
+    List<PortfolioTransactionSnapshot> snapshots =
+        List.of(
+            snapshot("BUY", "2", "10.00", "2026-01-01T00:00:00"),
+            snapshot("SELL", "1", "12.00", "2026-01-02T00:00:00"));
+    List<PricePoint> prices =
+        List.of(
+            new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.00")),
+            new PricePoint(Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("12.00")));
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(snapshots);
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "1M")).thenReturn(prices);
+
+    assertThat(service.getAssetHoldingsHistory(userId, "BTC", "30d"))
+        .isEqualTo(service.getAssetHoldingsHistory(userId, "BTC", "30d"));
+  }
+
+  @Test
+  void shouldProduceDeterministicResultWhenConstructedWithFixedClock() {
+    Clock fixedClock = Clock.fixed(Instant.parse("2026-05-19T12:00:00Z"), ZoneOffset.UTC);
+    GetAssetHoldingsHistoryService serviceWithClock =
+        new GetAssetHoldingsHistoryService(
+            marketPriceHistoryPort, assetTransactionHistoryPort, fixedClock);
+
+    UUID userId = UUID.randomUUID();
+    List<PortfolioTransactionSnapshot> snapshots =
+        List.of(snapshot("BUY", "1", "100.00", "2026-01-01T00:00:00"));
+    List<PricePoint> prices =
+        List.of(new PricePoint(Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("100.00")));
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(snapshots);
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.CRYPTO, "BTC", "1M")).thenReturn(prices);
+
+    AssetHoldingsHistoryResponse first =
+        serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
+    AssetHoldingsHistoryResponse second =
+        serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "30d");
+
+    assertThat(first).isEqualTo(second);
+  }
+
+  @Test
+  void allRangeUsesFirstInvestmentDateAndDynamicProviderResolution() {
+    Clock fixedClock = Clock.fixed(Instant.parse("2026-05-20T12:00:00Z"), ZoneOffset.UTC);
+    GetAssetHoldingsHistoryService serviceWithClock =
+        new GetAssetHoldingsHistoryService(
+            marketPriceHistoryPort, assetTransactionHistoryPort, fixedClock);
+
+    UUID userId = UUID.randomUUID();
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "BTC"))
+        .thenReturn(List.of(snapshot("BUY", "1", "100.00", "2026-05-17T08:45:00")));
+    when(marketPriceHistoryPort.getPriceHistory(
+            eq(AssetType.CRYPTO), eq("BTC"), any(ChartResolution.class)))
+        .thenReturn(
+            List.of(
+                new PricePoint(Instant.parse("2026-05-17T00:00:00Z"), new BigDecimal("100.00")),
+                new PricePoint(Instant.parse("2026-05-18T00:00:00Z"), new BigDecimal("110.00"))));
+
+    AssetHoldingsHistoryResponse response =
+        serviceWithClock.getAssetHoldingsHistory(userId, "BTC", "ALL");
+
+    assertThat(response.series()).hasSize(2);
+    ArgumentCaptor<ChartResolution> resolutionCaptor =
+        ArgumentCaptor.forClass(ChartResolution.class);
+    verify(marketPriceHistoryPort)
+        .getPriceHistory(eq(AssetType.CRYPTO), eq("BTC"), resolutionCaptor.capture());
+    verify(marketPriceHistoryPort, never()).getPriceHistory(AssetType.CRYPTO, "BTC", "all");
+    assertThat(resolutionCaptor.getValue().start())
+        .isEqualTo(Instant.parse("2026-05-17T00:00:00Z"));
+    assertThat(resolutionCaptor.getValue().end()).isEqualTo(Instant.parse("2026-05-20T12:00:00Z"));
+  }
+
+  @Test
+  void adjustsPreSplitQuantityInSeriesAndMarkersForReverseSplit() {
+    StockSplitPort splits = Mockito.mock(StockSplitPort.class);
+    when(splits.splitsFor("WETO"))
+        .thenReturn(
+            List.of(
+                new StockSplitData(
+                    "WETO", java.time.LocalDate.of(2026, 8, 3), new BigDecimal("0.01"))));
+    GetAssetHoldingsHistoryService serviceWithSplits =
+        new GetAssetHoldingsHistoryService(
+            marketPriceHistoryPort, assetTransactionHistoryPort, splits);
+
+    UUID userId = UUID.randomUUID();
+    when(assetTransactionHistoryPort.getTransactionsByUserAndSymbol(userId, "WETO"))
+        .thenReturn(List.of(stockSnapshot("BUY", "100", "0.50", "2026-07-31T14:30:00")));
+    // Feed historico ya ajustado (adjusted=true): precios en terminos post-split.
+    when(marketPriceHistoryPort.getPriceHistory(AssetType.STOCK, "WETO", "1M"))
+        .thenReturn(
+            List.of(
+                new PricePoint(Instant.parse("2026-07-31T00:00:00Z"), new BigDecimal("50.00")),
+                new PricePoint(Instant.parse("2026-08-05T00:00:00Z"), new BigDecimal("45.00"))));
+
+    AssetHoldingsHistoryResponse response =
+        serviceWithSplits.getAssetHoldingsHistory(userId, "WETO", "30d");
+
+    // Cantidad post-split 100 x 0.01 = 1 => valores 50 y 45, NO el pico ~5000 (qty cruda).
+    assertThat(response.series()).hasSize(2);
+    assertThat(response.series().get(0).value()).isEqualByComparingTo("50.00");
+    assertThat(response.series().get(1).value()).isEqualByComparingTo("45.00");
+    assertThat(response.series())
+        .allSatisfy(point -> assertThat(point.value()).isLessThan(new BigDecimal("1000")));
+    assertThat(response.markers()).hasSize(1);
+    assertThat(response.markers().getFirst().quantity()).isEqualByComparingTo("1");
+    assertThat(response.markers().getFirst().price()).isEqualByComparingTo("50");
+  }
+
+  private PortfolioTransactionSnapshot snapshot(
+      String type, String quantity, String pricePerUnit, String transactionDate) {
+    return new PortfolioTransactionSnapshot(
+        "BTC",
+        "CRYPTO",
+        type,
+        null,
+        new BigDecimal(quantity),
+        new BigDecimal(quantity).multiply(new BigDecimal(pricePerUnit)),
+        new BigDecimal(pricePerUnit),
+        BigDecimal.ZERO,
+        OffsetDateTime.parse(transactionDate + "Z").withOffsetSameInstant(ZoneOffset.UTC));
+  }
+
+  private PortfolioTransactionSnapshot stockSnapshot(
+      String type, String quantity, String pricePerUnit, String transactionDate) {
+    return new PortfolioTransactionSnapshot(
+        "WETO",
+        "STOCK",
+        type,
+        null,
+        new BigDecimal(quantity),
+        new BigDecimal(quantity).multiply(new BigDecimal(pricePerUnit)),
+        new BigDecimal(pricePerUnit),
+        BigDecimal.ZERO,
+        OffsetDateTime.parse(transactionDate + "Z").withOffsetSameInstant(ZoneOffset.UTC));
+  }
+}

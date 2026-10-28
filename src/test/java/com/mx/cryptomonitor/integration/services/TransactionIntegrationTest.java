@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -16,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
 import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
@@ -27,6 +28,8 @@ import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
+
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -110,11 +113,11 @@ class TransactionIntegrationTest {
     ethBuy.setQuantity(BigDecimal.valueOf(0.2));
     ethBuy.setPricePerUnit(BigDecimal.valueOf(1596));
     ethBuy.setTotalValue(BigDecimal.valueOf(319));
-    ethBuy.setTransactionDate(LocalDateTime.now());
+    ethBuy.setTransactionDate(OffsetDateTime.now(ZoneOffset.UTC));
     ethBuy.setFee(BigDecimal.valueOf(1.0));
     ethBuy.setNotes("Test ETH BUY ");
-    ethBuy.setCreatedAt(LocalDateTime.now());
-    ethBuy.setUpdatedAt(LocalDateTime.now());
+    ethBuy.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+    ethBuy.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
     transactionRepository.save(ethBuy);
 
     Transaction ethSell = new Transaction();
@@ -126,11 +129,11 @@ class TransactionIntegrationTest {
     ethSell.setQuantity(BigDecimal.valueOf(0.1));
     ethSell.setPricePerUnit(BigDecimal.valueOf(798));
     ethSell.setTotalValue(BigDecimal.valueOf(159.5));
-    ethSell.setTransactionDate(LocalDateTime.now());
+    ethSell.setTransactionDate(OffsetDateTime.now(ZoneOffset.UTC));
     ethSell.setFee(BigDecimal.valueOf(1.0));
     ethSell.setNotes("Test ETH SELL ");
-    ethSell.setCreatedAt(LocalDateTime.now());
-    ethSell.setUpdatedAt(LocalDateTime.now());
+    ethSell.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+    ethSell.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
     transactionRepository.save(ethSell);
   }
 

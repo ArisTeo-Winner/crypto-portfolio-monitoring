@@ -14,8 +14,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
 import com.mx.cryptomonitor.transaction.domain.exception.IdempotencyConflictException;
@@ -26,6 +24,8 @@ import com.mx.cryptomonitor.transaction.domain.repository.TransactionIdempotency
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -79,6 +79,16 @@ public class TransactionIdempotencyService {
     record.setStatus(TransactionIdempotencyStatus.COMPLETED);
     record.setCompletedAt(OffsetDateTime.now());
     idempotencyRecordRepository.save(record);
+  }
+
+  /**
+   * Olvida el registro de idempotencia que produjo una transacción, para que al eliminarla se pueda
+   * volver a importar/registrar el mismo documento (misma clave) sin chocar con el registro
+   * huérfano.
+   */
+  @Transactional
+  public void forgetByResultTransactionId(UUID transactionId) {
+    idempotencyRecordRepository.deleteByResultTransactionId(transactionId);
   }
 
   private TransactionIdempotencyRecord claimRecord(
@@ -208,7 +218,7 @@ public class TransactionIdempotencyService {
       digest.update(operationScope.getBytes(StandardCharsets.UTF_8));
       digest.update((byte) '\n');
       return HexFormat.of().formatHex(digest.digest(payloadBytes));
-    } catch (JsonProcessingException ex) {
+    } catch (JacksonException ex) {
       throw new InvalidTransactionException(
           "No se pudo serializar la solicitud para calcular la idempotencia", ex);
     } catch (NoSuchAlgorithmException ex) {

@@ -1,0 +1,93 @@
+# =============================================================================
+# OWASP Dependency-Track — Capa 3: monitoreo continuo + dashboard
+# -----------------------------------------------------------------------------
+# Stack INDEPENDIENTE de la app. Se levanta aparte para no chocar con el puerto
+# 8080 de java_app:
+#     docker compose -f docker-compose.dependency-track.yml --env-file .env.dtrack up -d
+#
+# Puertos en el HOST (deviacion deliberada del prompt para evitar colision con
+# la app en 8080):
+#     - API server : http://localhost:8081   (contenedor 8080)
+#     - Frontend   : http://localhost:8082   (contenedor 8080)
+#
+# Requisitos:
+#   - Crear un .env.dtrack con DTRACK_DB_PASSWORD (ver README-SEGURIDAD.md).
+#   - El apiserver necesita >= 4 GB de RAM disponibles para Docker.
+# =============================================================================
+
+services:
+  dtrack-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dtrack
+      POSTGRES_PASSWORD: ${DTRACK_DB_PASSWORD:?DTRACK_DB_PASSWORD is required}
+      POSTGRES_DB: dtrack
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - dtrack_network
+    volumes:
+      - dtrack_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtrack -d dtrack || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  dtrack-apiserver:
+    image: dependencytrack/apiserver:4.12.7
+    restart: unless-stopped
+    depends_on:
+      dtrack-postgres:
+        condition: service_healthy
+    environment:
+      # Base de datos externa (PostgreSQL, no el H2 embebido).
+      ALPINE_DATABASE_MODE: external
+      ALPINE_DATABASE_URL: jdbc:postgresql://dtrack-postgres:5432/dtrack
+      ALPINE_DATABASE_DRIVER: org.postgresql.Driver
+      ALPINE_DATABASE_USERNAME: dtrack
+      ALPINE_DATABASE_PASSWORD: ${DTRACK_DB_PASSWORD:?DTRACK_DB_PASSWORD is required}
+      # El apiserver es intensivo en memoria; minimo recomendado 4 GB.
+      EXTRA_JAVA_OPTIONS: "-Xmx4g"
+    ports:
+      - "8081:8080"
+    networks:
+      - dtrack_network
+    volumes:
+      - dtrack_data:/data
+    healthcheck:
+      # bash + /dev/tcp: liveness TCP sin depender de curl/wget en la imagen.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
+  dtrack-frontend:
+    image: dependencytrack/frontend:4.12.7
+    restart: unless-stopped
+    depends_on:
+      dtrack-apiserver:
+        condition: service_started
+    environment:
+      # URL del API tal como la alcanza el NAVEGADOR (host), no la red interna.
+      API_BASE_URL: "http://localhost:8081"
+    ports:
+      - "8082:8080"
+    networks:
+      - dtrack_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+networks:
+  dtrack_network:
+    driver: bridge
+
+volumes:
+  dtrack_pg_data:
+  dtrack_data:

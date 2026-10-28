@@ -38,6 +38,8 @@ class SensitiveRequestToStringRedactionUnitTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
 
     String rendered = request.toString();

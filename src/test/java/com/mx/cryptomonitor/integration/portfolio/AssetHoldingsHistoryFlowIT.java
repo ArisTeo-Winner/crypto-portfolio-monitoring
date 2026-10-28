@@ -1,0 +1,169 @@
+package com.mx.cryptomonitor.integration.portfolio;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import com.jayway.jsonpath.JsonPath;
+import com.mx.cryptomonitor.integration.support.InfraIntegrationTest;
+import com.mx.cryptomonitor.transaction.domain.model.Transaction;
+import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
+import com.mx.cryptomonitor.user.domain.model.User;
+import com.mx.cryptomonitor.user.domain.repository.UserRepository;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class AssetHoldingsHistoryFlowIT extends InfraIntegrationTest {
+
+  private static final WireMockServer coinGecko =
+      new WireMockServer(WireMockConfiguration.options().dynamicPort());
+
+  @Autowired private MockMvc mockMvc;
+  @Autowired private UserRepository userRepository;
+  @Autowired private TransactionRepository transactionRepository;
+
+  @DynamicPropertySource
+  static void registerHistoryProperties(DynamicPropertyRegistry registry) {
+    if (!coinGecko.isRunning()) {
+      coinGecko.start();
+    }
+    registry.add("external.providers.coingecko.base-url", coinGecko::baseUrl);
+    registry.add("external.providers.coingecko.enabled", () -> "true");
+    // Forzar CoinGecko (stubeado) como ÚNICO proveedor CRYPTO: apagar los de spot/futuros en vivo
+    // (@Order 0,1,2), que si no golpean Binance real y hacen el test dependiente de precios en
+    // vivo.
+    registry.add("external.providers.binance.enabled", () -> "false");
+    registry.add("external.providers.bybit.enabled", () -> "false");
+    registry.add("external.providers.binance.futures.enabled", () -> "false");
+    registry.add("security.portfolio-history-rate-limit.enabled", () -> "false");
+  }
+
+  @BeforeEach
+  void setUp() {
+    coinGecko.resetAll();
+    transactionRepository.deleteAll();
+    userRepository.deleteAll();
+
+    // El CoinGeckoMarketPriceHistoryAdapter llama /coins/{id}/market_chart/range?vs_currency=usd&
+    // from=..&to.. (id = símbolo resuelto, "BTC"). Se matchea path + vs_currency e ignoran from/to
+    // (relativos a now) para que el stub sea determinista sin importar la fecha del reloj.
+    coinGecko.stubFor(
+        get(urlPathEqualTo("/coins/BTC/market_chart/range"))
+            .withQueryParam("vs_currency", equalTo("usd"))
+            .willReturn(
+                aResponse()
+                    .withHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                    .withBody(
+                        """
+                        {
+                          "prices": [
+                            [1767225600000, 100.00],
+                            [1767312000000, 110.00],
+                            [1767398400000, 120.00]
+                          ]
+                        }
+                        """)));
+  }
+
+  @Test
+  void shouldReconstructHoldingsFromTransactionsAndReuseSharedRedisPriceCurveAcrossUsers()
+      throws Exception {
+    User firstUser = user("history-user-1");
+    User secondUser = user("history-user-2");
+
+    transactionRepository.saveAndFlush(
+        transaction(firstUser, "BTC", "BUY", new BigDecimal("1"), "2026-01-01T00:00:00"));
+    transactionRepository.saveAndFlush(
+        transaction(secondUser, "BTC", "BUY", new BigDecimal("2"), "2026-01-01T00:00:00"));
+
+    String firstBody =
+        mockMvc
+            .perform(
+                get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
+                    .param("range", "30d")
+                    .with(authentication(userAuthentication(firstUser))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    String secondBody =
+        mockMvc
+            .perform(
+                get("/api/v1/me/portfolio/assets/{symbol}/history", "BTC")
+                    .param("range", "30d")
+                    .with(authentication(userAuthentication(secondUser))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Number firstValue = JsonPath.read(firstBody, "$[0].value");
+    Number secondValue = JsonPath.read(secondBody, "$[0].value");
+    assertThat(firstValue.doubleValue()).isPositive();
+    assertThat(secondValue.doubleValue()).isCloseTo(firstValue.doubleValue() * 2, offset(0.01));
+  }
+
+  private User user(String username) {
+    return userRepository.saveAndFlush(
+        User.builder()
+            .username(username)
+            .email(username + "@example.com")
+            .passwordHash("hash")
+            .build());
+  }
+
+  private TestingAuthenticationToken userAuthentication(User user) {
+    TestingAuthenticationToken authentication =
+        new TestingAuthenticationToken(user.getEmail(), null, "ROLE_USER");
+    authentication.setAuthenticated(true);
+    return authentication;
+  }
+
+  private Transaction transaction(
+      User user, String symbol, String type, BigDecimal quantity, String transactionDate) {
+    OffsetDateTime timestamp =
+        OffsetDateTime.parse(transactionDate + "Z").withOffsetSameInstant(ZoneOffset.UTC);
+    BigDecimal price = new BigDecimal("100.00");
+    return Transaction.builder()
+        .user(user)
+        .portfolioEntryId(UUID.randomUUID())
+        .assetSymbol(symbol)
+        .assetType(com.mx.cryptomonitor.transaction.domain.model.AssetType.CRYPTO)
+        .transactionType(type)
+        .quantity(quantity)
+        .pricePerUnit(price)
+        .totalValue(quantity.multiply(price))
+        .transactionDate(timestamp)
+        .fee(BigDecimal.ZERO)
+        .createdAt(timestamp)
+        .updatedAt(timestamp)
+        .build();
+  }
+}

@@ -1,11 +1,15 @@
 package com.mx.cryptomonitor.transaction.infrastructure.outbound.portfolio;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.MarketZoneQueryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioEntryPort;
 import com.mx.cryptomonitor.portfolio.application.port.in.PortfolioTransactionCommand;
 import com.mx.cryptomonitor.transaction.application.dto.request.TransactionRequest;
@@ -13,6 +17,8 @@ import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResp
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
 import com.mx.cryptomonitor.transaction.application.port.out.TransactionRegistrationPort;
 import com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException;
+import com.mx.cryptomonitor.transaction.domain.model.AssetType;
+import com.mx.cryptomonitor.transaction.domain.model.OperationTimestamps;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 import com.mx.cryptomonitor.user.domain.exception.UserNotFoundException;
@@ -31,6 +37,7 @@ public class PortfolioTransactionRegistrationAdapter implements TransactionRegis
   private final PortfolioEntryPort portfolioEntryPort;
   private final TransactionRepository transactionRepository;
   private final TransactionMapper transactionMapper;
+  private final MarketZoneQueryPort marketZoneQuery;
 
   @Override
   @Transactional
@@ -53,12 +60,20 @@ public class PortfolioTransactionRegistrationAdapter implements TransactionRegis
   }
 
   private void validateTransactionRequest(TransactionRequest request) {
-    if (request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+    boolean isDividend = "DIVIDEND".equalsIgnoreCase(request.transactionType());
+    if (!isDividend
+        && request.assetType() != null
+        && com.mx.cryptomonitor.transaction.domain.model.AssetType.INDEX == request.assetType()) {
+      throw new InvalidTransactionException(
+          "El tipo de activo INDEX no puede ser transaccionado directamente");
+    }
+    if (!isDividend && request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
       throw new InvalidTransactionException("La cantidad debe ser mayor que cero");
     }
     if (!"BUY".equalsIgnoreCase(request.transactionType())
         && !"SELL".equalsIgnoreCase(request.transactionType())
-        && !"TRANSFER".equalsIgnoreCase(request.transactionType())) {
+        && !"TRANSFER".equalsIgnoreCase(request.transactionType())
+        && !isDividend) {
       throw new InvalidTransactionException(
           "Tipo de transaccion invalido: " + request.transactionType());
     }
@@ -91,6 +106,26 @@ public class PortfolioTransactionRegistrationAdapter implements TransactionRegis
     transaction.setTransactionDate(request.transactionDate());
     transaction.setTotalValue(request.totalValue());
     transaction.setTransferType(request.transferType());
+    applyOperationBinomial(transaction, request);
     return transaction;
+  }
+
+  /**
+   * ADR-0013: fija el binomio de operacion (wall-clock + zona IANA) para altas manuales y
+   * statements (crypto -> UTC; lo demas por mercado del activo). El path importado
+   * DriveWealth/GBM-equity lo sobreescribe despues con la hora de ejecucion real del comprobante.
+   */
+  private void applyOperationBinomial(Transaction transaction, TransactionRequest request) {
+    OffsetDateTime transactionDate = request.transactionDate();
+    if (transactionDate == null) {
+      return;
+    }
+    String zoneId =
+        request.assetType() == AssetType.CRYPTO
+            ? "UTC"
+            : marketZoneQuery.zoneIdFor(request.currency(), request.exchange()).orElse("UTC");
+    LocalDateTime localExecutionTime =
+        transactionDate.atZoneSameInstant(ZoneId.of(zoneId)).toLocalDateTime();
+    OperationTimestamps.apply(transaction, localExecutionTime, zoneId);
   }
 }

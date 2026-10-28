@@ -138,7 +138,7 @@
 		</logger>
 	</springProfile>
 
-	<springProfile name="!test,!dev,!prod">
+	<springProfile name="!test &amp; !dev &amp; !prod">
 		<root level="INFO">
 			<appender-ref ref="CONSOLE_PLAIN" />
 			<appender-ref ref="FILE_PLAIN" />

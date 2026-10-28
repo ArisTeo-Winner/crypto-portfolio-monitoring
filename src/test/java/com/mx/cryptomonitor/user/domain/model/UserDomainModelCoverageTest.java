@@ -2,7 +2,6 @@ package com.mx.cryptomonitor.user.domain.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -111,32 +110,6 @@ class UserDomainModelCoverageTest {
   }
 
   @Test
-  void refreshTokenEqualsAndHashCodeShouldCoverBranches() {
-    RefreshToken filled = createFilledRefreshToken();
-    assertEqualsHashCodeAndMutations(
-        filled,
-        UserDomainModelCoverageTest::copyRefreshToken,
-        List.of(
-            t -> t.setId(UUID.randomUUID()),
-            t -> t.setUser(createMinimalUser("u2", "u2@example.com")),
-            t -> t.setRefreshToken("token-2"),
-            t -> t.setCreatedAt(LocalDateTime.of(2023, 1, 1, 1, 0)),
-            t -> t.setExpiresAt(LocalDateTime.of(2023, 1, 2, 1, 0)),
-            t -> t.setLastUsedAt(LocalDateTime.of(2023, 1, 3, 1, 0)),
-            t -> t.setRevoked(true),
-            t -> t.setIpAddress("10.0.0.2"),
-            t -> t.setUserAgent("OtherAgent"),
-            t -> t.setRevokedAt(Instant.parse("2025-01-01T00:00:00Z"))));
-
-    RefreshToken allNullA = new RefreshToken();
-    RefreshToken allNullB = copyRefreshToken(allNullA);
-    assertThat(allNullA).isEqualTo(allNullB);
-    assertThat(allNullA.hashCode()).isEqualTo(allNullB.hashCode());
-    assertThat(allNullA).isNotEqualTo(filled);
-    assertThat(filled).isNotEqualTo(allNullA);
-  }
-
-  @Test
   void userAuthProviderEqualsAndHashCodeShouldCoverBranches() {
     UserAuthProvider filled = createFilledUserAuthProvider();
     assertEqualsHashCodeAndMutations(
@@ -202,7 +175,6 @@ class UserDomainModelCoverageTest {
         List.of(
             s -> s.setSessionId(UUID.randomUUID()),
             s -> s.setUser(createMinimalUser("u4", "u4@example.com")),
-            s -> s.setRefreshTokenId(UUID.randomUUID()),
             s -> s.setLoginTime(OffsetDateTime.parse("2024-02-01T10:30:00Z")),
             s -> s.setLogoutTime(OffsetDateTime.parse("2024-02-01T11:30:00Z")),
             s -> s.setActive(false)));
@@ -331,36 +303,6 @@ class UserDomainModelCoverageTest {
     return copy;
   }
 
-  private static RefreshToken createFilledRefreshToken() {
-    RefreshToken token = new RefreshToken();
-    token.setId(UUID.fromString("00000000-0000-0000-0000-000000000010"));
-    token.setUser(createMinimalUser("token-user", "token-user@example.com"));
-    token.setRefreshToken("token-1");
-    token.setCreatedAt(LocalDateTime.of(2024, 1, 1, 0, 0));
-    token.setExpiresAt(LocalDateTime.of(2024, 1, 2, 0, 0));
-    token.setLastUsedAt(LocalDateTime.of(2024, 1, 1, 12, 0));
-    token.setRevoked(false);
-    token.setIpAddress("10.0.0.1");
-    token.setUserAgent("JUnit");
-    token.setRevokedAt(null);
-    return token;
-  }
-
-  private static RefreshToken copyRefreshToken(RefreshToken original) {
-    RefreshToken copy = new RefreshToken();
-    copy.setId(original.getId());
-    copy.setUser(original.getUser());
-    copy.setRefreshToken(original.getRefreshToken());
-    copy.setCreatedAt(original.getCreatedAt());
-    copy.setExpiresAt(original.getExpiresAt());
-    copy.setLastUsedAt(original.getLastUsedAt());
-    copy.setRevoked(original.isRevoked());
-    copy.setIpAddress(original.getIpAddress());
-    copy.setUserAgent(original.getUserAgent());
-    copy.setRevokedAt(original.getRevokedAt());
-    return copy;
-  }
-
   private static UserAuthProvider createFilledUserAuthProvider() {
     UserAuthProvider provider = new UserAuthProvider();
     provider.setId(UUID.fromString("00000000-0000-0000-0000-000000000020"));
@@ -389,7 +331,6 @@ class UserDomainModelCoverageTest {
     Session session = new Session();
     session.setSessionId(UUID.fromString("00000000-0000-0000-0000-000000000030"));
     session.setUser(createMinimalUser("session-user", "session-user@example.com"));
-    session.setRefreshTokenId(UUID.fromString("00000000-0000-0000-0000-000000000031"));
     session.setLoginTime(OffsetDateTime.parse("2024-01-01T10:00:00Z"));
     session.setLogoutTime(OffsetDateTime.parse("2024-01-01T11:00:00Z"));
     session.setActive(true);
@@ -400,7 +341,6 @@ class UserDomainModelCoverageTest {
     Session copy = new Session();
     copy.setSessionId(original.getSessionId());
     copy.setUser(original.getUser());
-    copy.setRefreshTokenId(original.getRefreshTokenId());
     copy.setLoginTime(original.getLoginTime());
     copy.setLogoutTime(original.getLogoutTime());
     copy.setActive(original.isActive());

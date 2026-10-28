@@ -13,11 +13,11 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.mx.cryptomonitor.marketdata.application.service.StockDataService;
@@ -37,14 +37,14 @@ class StockDataControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
-  @MockBean private StockDataService stockDataService;
-  @MockBean private AuthenticationManager authenticationManager;
-  @MockBean private JwtTokenUtil jwtTokenUtil;
-  @MockBean private JwtUserDetailsService jwtUserDetailsService;
-  @MockBean private AuthenticationService authenticationService;
-  @MockBean private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-  @MockBean private UserRepository userRepository;
-  @MockBean private SessionRepository sessionRepository;
+  @MockitoBean private StockDataService stockDataService;
+  @MockitoBean private AuthenticationManager authenticationManager;
+  @MockitoBean private JwtTokenUtil jwtTokenUtil;
+  @MockitoBean private JwtUserDetailsService jwtUserDetailsService;
+  @MockitoBean private AuthenticationService authenticationService;
+  @MockitoBean private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+  @MockitoBean private UserRepository userRepository;
+  @MockitoBean private SessionRepository sessionRepository;
 
   @Test
   void getStockPriceShouldReturnOkWhenQuoteExists() throws Exception {

@@ -5,10 +5,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Set;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -18,20 +22,26 @@ import org.springframework.test.web.servlet.MockMvc;
 class AssetSearchContractIT {
 
   @Autowired private MockMvc mockMvc;
+  @Autowired private StringRedisTemplate redisTemplate;
+
+  @BeforeEach
+  void clearCatalog() {
+    Set<String> keys = redisTemplate.keys("catalog:*");
+    if (keys != null && !keys.isEmpty()) {
+      redisTemplate.delete(keys);
+    }
+  }
 
   @Test
-  void shouldReturnAssetsForSelector() throws Exception {
+  void shouldReturnEmptyResultsWhenCatalogNotLoaded() throws Exception {
+    // CatalogWarmUpRunner seeds static fallback data at context startup; clearCatalog()
+    // above removes it so this test exercises the genuinely-empty-catalog path.
     mockMvc
         .perform(get("/api/v1/assets/search").param("q", "btc"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.query").value("btc"))
-        .andExpect(jsonPath("$.total").value(1))
-        .andExpect(jsonPath("$.items[0].assetId").value("bitcoin"))
-        .andExpect(jsonPath("$.items[0].symbol").value("BTC"))
-        .andExpect(jsonPath("$.items[0].name").value("Bitcoin"))
-        .andExpect(jsonPath("$.items[0].assetType").value("CRYPTO"))
-        .andExpect(jsonPath("$.items[0].logoUrl").isEmpty())
-        .andExpect(jsonPath("$.items[0].supportedForTransactions").value(true));
+        .andExpect(jsonPath("$.total").value(0))
+        .andExpect(jsonPath("$.items").isEmpty());
   }
 
   @Test

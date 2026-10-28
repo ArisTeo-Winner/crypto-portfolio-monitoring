@@ -1,12 +1,15 @@
 package com.mx.cryptomonitor.user.infrastructure.security;
 
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
-
-import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,16 +19,25 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 
+/**
+ * Emisor y validador de JWT firmados con RS256 (RSA 2048).
+ *
+ * <p>Clave privada: PKCS8 DER codificado en Base64 → {@code JWT_PRIVATE_KEY_BASE64}. Clave pública:
+ * X.509 DER codificado en Base64 → {@code JWT_PUBLIC_KEY_BASE64}.
+ *
+ * <p>La clave privada solo firma; la pública solo verifica. Un leak de la clave pública (que puede
+ * publicarse libremente) no permite forjar tokens — a diferencia de HS256.
+ */
 @Component
 public class JwtTokenUtil {
 
-  private SecretKey secret;
+  @Value("${jwt.private-key-base64}")
+  private String privateKeyBase64;
 
-  @Value("${jwt.secret-base64}")
-  private String jwtSecretBase64;
+  @Value("${jwt.public-key-base64}")
+  private String publicKeyBase64;
 
   @Value("${jwt.access-token-expiration}")
   private long accessTokenExpiration;
@@ -33,14 +45,26 @@ public class JwtTokenUtil {
   @Value("${jwt.refresh-token-expiration}")
   private long refreshTokenExpiration;
 
+  private PrivateKey privateKey;
+  private PublicKey publicKey;
+
   @PostConstruct
   public void init() {
-    byte[] keyBytes = Decoders.BASE64.decode(jwtSecretBase64);
-    if (keyBytes.length < 32) {
+    try {
+      KeyFactory kf = KeyFactory.getInstance("RSA");
+
+      byte[] privBytes = Decoders.BASE64.decode(privateKeyBase64);
+      this.privateKey = kf.generatePrivate(new PKCS8EncodedKeySpec(privBytes));
+
+      byte[] pubBytes = Decoders.BASE64.decode(publicKeyBase64);
+      this.publicKey = kf.generatePublic(new X509EncodedKeySpec(pubBytes));
+
+    } catch (Exception e) {
       throw new IllegalStateException(
-          "jwt.secret-base64 debe decodificar a >= 32 bytes (256 bits)");
+          "No se pudo inicializar JwtTokenUtil: verifica JWT_PRIVATE_KEY_BASE64 y"
+              + " JWT_PUBLIC_KEY_BASE64",
+          e);
     }
-    this.secret = Keys.hmacShaKeyFor(keyBytes);
   }
 
   public String extractUsername(String token) {
@@ -48,48 +72,56 @@ public class JwtTokenUtil {
   }
 
   private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-    // TODO Auto-generated method stub
-    final Claims claims = extractAllClaims(token);
-    return claimsResolver.apply(claims);
+    return claimsResolver.apply(extractAllClaims(token));
   }
 
   private Claims extractAllClaims(String token) {
-    // TODO Auto-generated method stub
-    return Jwts.parserBuilder().setSigningKey(secret).build().parseClaimsJws(token).getBody();
+    return Jwts.parserBuilder().setSigningKey(publicKey).build().parseClaimsJws(token).getBody();
   }
 
   public Boolean isTokenExpired(String token) {
-    Date exp = extractClaim(token, Claims::getExpiration);
-    return exp.before(new Date());
+    return extractClaim(token, Claims::getExpiration).before(new Date());
   }
 
   public boolean validateToken(String token, UserDetails userDetails) {
-    // TODO Auto-generated method stub
     final String username = extractUsername(token);
     return username.equalsIgnoreCase(userDetails.getUsername()) && !isTokenExpired(token);
   }
 
+  /**
+   * Genera un access token RS256.
+   *
+   * <p>Claims incluidos: {@code sub} (email), {@code session_id}, {@code jti} (UUID único), {@code
+   * iat}, {@code exp}.
+   */
   public String generateAccessToken(String email, UUID sessionId) {
-
     Map<String, Object> claims = new HashMap<>();
     claims.put("session_id", sessionId.toString());
 
     return Jwts.builder()
         .setClaims(claims)
+        .setId(UUID.randomUUID().toString()) // jti — identificador único por token
         .setSubject(email)
         .setIssuedAt(new Date())
         .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
-        .signWith(secret, SignatureAlgorithm.HS256)
+        .signWith(
+            privateKey, SignatureAlgorithm.RS256) // asimétrico: privada firma, pública verifica
         .compact();
   }
 
+  /**
+   * Genera un refresh token RS256.
+   *
+   * <p>El refresh token se almacena hasheado en Redis; este JWT es la representación en wire
+   * format. El {@code jti} permite identificar el token individualmente en logs de auditoría.
+   */
   public String generateRefreshToken(String email) {
     return Jwts.builder()
         .setId(UUID.randomUUID().toString())
         .setSubject(email)
         .setIssuedAt(new Date())
         .setExpiration(new Date(System.currentTimeMillis() + refreshTokenExpiration))
-        .signWith(secret, SignatureAlgorithm.HS256)
+        .signWith(privateKey, SignatureAlgorithm.RS256)
         .compact();
   }
 
@@ -97,12 +129,10 @@ public class JwtTokenUtil {
     return extractUsername(token);
   }
 
-  // Obtener los claims del token
   public Claims getClaimsFromToken(String token) {
     return extractAllClaims(token);
   }
 
-  // Obtener el email (subject) del token
   public String getEmailFromToken(String token) {
     return getClaimsFromToken(token).getSubject();
   }

@@ -37,6 +37,6 @@ public class OAuth2AuthController {
       OAuth2AuthenticationToken authenticatio) {
     log.info("OAuth2 callback triggered: {}", authenticatio.getName());
 
-    return new JwtResponse("", "");
+    return new JwtResponse("");
   }
 }

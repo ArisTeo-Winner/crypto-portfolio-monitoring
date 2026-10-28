@@ -2,6 +2,7 @@ package com.mx.cryptomonitor.integration.support;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -12,6 +13,7 @@ import org.testcontainers.utility.DockerImageName;
 import com.redis.testcontainers.RedisContainer;
 
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public abstract class InfraIntegrationTest {
 
   @Container @ServiceConnection
@@ -24,11 +26,9 @@ public abstract class InfraIntegrationTest {
   @DynamicPropertySource
   static void registerInfrastructureProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+    registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add(
-        "spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-    registry.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add("spring.flyway.enabled", () -> "false");
   }
 

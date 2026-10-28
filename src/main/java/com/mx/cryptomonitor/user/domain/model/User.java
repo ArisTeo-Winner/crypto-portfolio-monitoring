@@ -69,6 +69,14 @@ public class User {
 
   private String bio;
 
+  @Builder.Default
+  @Column(name = "preferred_currency", nullable = false, length = 3)
+  private String preferredCurrency = "USD";
+
+  @Builder.Default
+  @Column(name = "timezone", nullable = false, length = 50)
+  private String timezone = "America/Mexico_City";
+
   @Builder.Default private boolean active = true;
 
   @Builder.Default
@@ -86,7 +94,8 @@ public class User {
       name = "user_roles",
       joinColumns = @JoinColumn(name = "user_id"),
       inverseJoinColumns = @JoinColumn(name = "role_id"))
-  @Builder.Default private List<Role> roles = new ArrayList<>();
+  @Builder.Default
+  private List<Role> roles = new ArrayList<>();
 
   public User(String string, String string2) {
     // TODO Auto-generated constructor stub

@@ -10,27 +10,31 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.CryptoHistoricalPricePort;
+import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
+import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
@@ -51,8 +55,9 @@ class PortfolioControllerIntegrationTest {
   @Autowired private UserRepository userRepository;
   @Autowired private PortfolioEntryRepository portfolioEntryRepository;
   @Autowired private TransactionRepository transactionRepository;
-  @MockBean private AssetPricePort assetPricePort;
-  @MockBean private CryptoHistoricalPricePort cryptoHistoricalPricePort;
+  @MockitoBean private AssetPricePort assetPricePort;
+  @MockitoBean private CryptoHistoricalPricePort cryptoHistoricalPricePort;
+  @MockitoBean private MarketPriceHistoryPort marketPriceHistoryPort;
 
   private User testUser;
 
@@ -251,7 +256,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("100"),
             new BigDecimal("10.00"),
             new BigDecimal("1000.00"),
-            LocalDateTime.of(2025, 3, 3, 10, 0)));
+            OffsetDateTime.of(2025, 3, 3, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -260,7 +265,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("50"),
             new BigDecimal("10.00"),
             new BigDecimal("500.00"),
-            LocalDateTime.of(2025, 3, 10, 10, 0)));
+            OffsetDateTime.of(2025, 3, 10, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -269,7 +274,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("30"),
             new BigDecimal("23.04600000"),
             new BigDecimal("691.38"),
-            LocalDateTime.of(2025, 3, 17, 10, 0)));
+            OffsetDateTime.of(2025, 3, 17, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -278,7 +283,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("40"),
             new BigDecimal("20.00"),
             new BigDecimal("800.00"),
-            LocalDateTime.of(2025, 3, 24, 10, 0)));
+            OffsetDateTime.of(2025, 3, 24, 10, 0, 0, 0, ZoneOffset.UTC)));
     transactionRepository.saveAndFlush(
         transaction(
             testUser,
@@ -287,7 +292,7 @@ class PortfolioControllerIntegrationTest {
             new BigDecimal("50"),
             new BigDecimal("35.00"),
             new BigDecimal("1750.00"),
-            LocalDateTime.of(2025, 3, 31, 10, 0)));
+            OffsetDateTime.of(2025, 3, 31, 10, 0, 0, 0, ZoneOffset.UTC)));
 
     mockMvc
         .perform(
@@ -304,6 +309,280 @@ class PortfolioControllerIntegrationTest {
         .andExpect(jsonPath("$.series", Matchers.hasSize(Matchers.greaterThanOrEqualTo(6))));
   }
 
+  @Test
+  void chartMarkersAndRealizedPnlReturnOnlyAuthenticatedUsersTransactions() throws Exception {
+    OffsetDateTime transactionDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(2);
+    Transaction buy =
+        transaction(
+            testUser,
+            "SOL",
+            "BUY",
+            new BigDecimal("2.0"),
+            new BigDecimal("100.00"),
+            new BigDecimal("200.00"),
+            transactionDate);
+    Transaction sell =
+        transaction(
+            testUser,
+            "SOL",
+            "SELL",
+            new BigDecimal("1.0"),
+            new BigDecimal("125.00"),
+            new BigDecimal("125.00"),
+            transactionDate.plusHours(2));
+    sell.setRealizedPnl(new BigDecimal("24.50"));
+    transactionRepository.saveAndFlush(buy);
+    transactionRepository.saveAndFlush(sell);
+
+    User otherUser =
+        userRepository.saveAndFlush(
+            User.builder()
+                .username("chart-other-" + UUID.randomUUID())
+                .email("chart-other-" + UUID.randomUUID() + "@example.com")
+                .passwordHash("hash")
+                .build());
+    Transaction otherSell =
+        transaction(
+            otherUser,
+            "BTC",
+            "SELL",
+            new BigDecimal("1.0"),
+            new BigDecimal("90000.00"),
+            new BigDecimal("90000.00"),
+            transactionDate);
+    otherSell.setRealizedPnl(new BigDecimal("1000.00"));
+    transactionRepository.saveAndFlush(otherSell);
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/equity/markers")
+                .param("range", "30")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", Matchers.hasSize(2)))
+        .andExpect(jsonPath("$[0].position").value("belowBar"))
+        .andExpect(jsonPath("$[0].color").value("#22c55e"))
+        .andExpect(jsonPath("$[0].shape").value("arrowUp"))
+        .andExpect(jsonPath("$[0].text").value("BUY 2 SOL"))
+        .andExpect(jsonPath("$[1].position").value("aboveBar"))
+        .andExpect(jsonPath("$[1].color").value("#ef4444"))
+        .andExpect(jsonPath("$[1].shape").value("arrowDown"))
+        .andExpect(jsonPath("$[1].text").value("SELL 1 SOL"));
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/realized")
+                .param("range", "30")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", Matchers.hasSize(1)))
+        .andExpect(jsonPath("$[0].value").value(24.50));
+  }
+
+  @Test
+  void chartHistoryRejectsInvalidRange() throws Exception {
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/history")
+                .param("range", "999")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("PORTFOLIO_INVALID_REQUEST"));
+  }
+
+  @Test
+  void getAssetHoldingsHistoryReturnsUnixSecondSeries() throws Exception {
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    OffsetDateTime sellDate = OffsetDateTime.of(2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC);
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "SOL",
+            "BUY",
+            new BigDecimal("2"),
+            new BigDecimal("10.00"),
+            new BigDecimal("20.00"),
+            buyDate));
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "SOL",
+            "SELL",
+            new BigDecimal("1"),
+            new BigDecimal("12.00"),
+            new BigDecimal("12.00"),
+            sellDate));
+
+    org.mockito.Mockito.when(
+            marketPriceHistoryPort.getPriceHistory(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("SOL"),
+                org.mockito.ArgumentMatchers.eq("6M")))
+        .thenReturn(
+            java.util.List.of(
+                new PricePoint(
+                    java.time.Instant.parse("2026-01-01T00:00:00Z"), new BigDecimal("10.50")),
+                new PricePoint(
+                    java.time.Instant.parse("2026-01-02T00:00:00Z"), new BigDecimal("11.00")),
+                new PricePoint(
+                    java.time.Instant.parse("2026-01-03T00:00:00Z"), new BigDecimal("12.00"))));
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/assets/{symbol}/history", "SOL")
+                .param("range", "180d")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", Matchers.hasSize(3)))
+        .andExpect(jsonPath("$[0].time").value(1767225600L))
+        .andExpect(jsonPath("$[0].value").value(21.00))
+        .andExpect(jsonPath("$[2].value").value(12.00));
+  }
+
+  @Test
+  void getAssetHoldingsHistoryAllUsesDynamicResolutionInsteadOfLiteralAllRange() throws Exception {
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 5, 17, 0, 0, 0, 0, ZoneOffset.UTC);
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "HYPE",
+            "BUY",
+            new BigDecimal("1"),
+            new BigDecimal("20.00"),
+            new BigDecimal("20.00"),
+            buyDate));
+
+    org.mockito.Mockito.when(
+            marketPriceHistoryPort.getPriceHistory(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("HYPE"),
+                org.mockito.ArgumentMatchers.any(
+                    com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class)))
+        .thenReturn(
+            java.util.List.of(
+                new PricePoint(
+                    java.time.Instant.parse("2026-05-17T00:00:00Z"), new BigDecimal("20.00")),
+                new PricePoint(
+                    java.time.Instant.parse("2026-05-18T00:00:00Z"), new BigDecimal("21.00"))));
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/assets/{symbol}/history", "HYPE")
+                .param("range", "ALL")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", Matchers.hasSize(2)))
+        .andExpect(jsonPath("$[0].value").value(20.00));
+
+    org.mockito.Mockito.verify(marketPriceHistoryPort)
+        .getPriceHistory(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.eq("HYPE"),
+            org.mockito.ArgumentMatchers.any(
+                com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class));
+    org.mockito.Mockito.verify(marketPriceHistoryPort, org.mockito.Mockito.never())
+        .getPriceHistory(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.eq("HYPE"),
+            org.mockito.ArgumentMatchers.eq("all"));
+  }
+
+  @Test
+  void getPortfolioTotalHistoryAggregatesAssetsAndKeepsUsersIsolated() throws Exception {
+    OffsetDateTime buyDate = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "SOL",
+            "BUY",
+            new BigDecimal("2"),
+            new BigDecimal("10.00"),
+            new BigDecimal("20.00"),
+            buyDate));
+    transactionRepository.saveAndFlush(
+        transaction(
+            testUser,
+            "ETH",
+            "BUY",
+            new BigDecimal("1"),
+            new BigDecimal("100.00"),
+            new BigDecimal("100.00"),
+            buyDate));
+
+    User otherUser =
+        userRepository.saveAndFlush(
+            User.builder()
+                .username("portfolio-total-other-" + UUID.randomUUID())
+                .email("portfolio-total-other-" + UUID.randomUUID() + "@example.com")
+                .passwordHash("hash")
+                .build());
+    transactionRepository.saveAndFlush(
+        transaction(
+            otherUser,
+            "SOL",
+            "BUY",
+            new BigDecimal("10"),
+            new BigDecimal("10.00"),
+            new BigDecimal("100.00"),
+            buyDate));
+
+    org.mockito.Mockito.when(
+            marketPriceHistoryPort.getPriceHistory(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("SOL"),
+                org.mockito.ArgumentMatchers.any(
+                    com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              com.mx.cryptomonitor.portfolio.domain.model.ChartResolution cr = inv.getArgument(2);
+              return java.util.List.of(
+                  new PricePoint(cr.start(), new BigDecimal("10.00")),
+                  new PricePoint(cr.start().plusSeconds(2 * 86400L), new BigDecimal("12.00")));
+            });
+    org.mockito.Mockito.when(
+            marketPriceHistoryPort.getPriceHistory(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("ETH"),
+                org.mockito.ArgumentMatchers.any(
+                    com.mx.cryptomonitor.portfolio.domain.model.ChartResolution.class)))
+        .thenAnswer(
+            inv -> {
+              com.mx.cryptomonitor.portfolio.domain.model.ChartResolution cr = inv.getArgument(2);
+              return java.util.List.of(
+                  new PricePoint(cr.start().plusSeconds(86400L), new BigDecimal("100.00")));
+            });
+
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/history")
+                .param("range", "30d")
+                .param("assetTypes", "CRYPTO")
+                .with(authentication(userAuthentication())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.meta.range").value("1M"))
+        .andExpect(jsonPath("$.meta.resolution").value("INTRADAY"))
+        .andExpect(jsonPath("$.meta.currency").value("USD"))
+        .andExpect(jsonPath("$.meta.points").value(3))
+        .andExpect(jsonPath("$.series", Matchers.hasSize(3)))
+        .andExpect(jsonPath("$.series[0].value").value(20.00))
+        .andExpect(jsonPath("$.series[1].value").value(120.00))
+        .andExpect(jsonPath("$.series[2].value").value(124.00));
+  }
+
+  @Test
+  void getPortfolioTotalHistoryRejectsPrincipalWithoutUserRole() throws Exception {
+    TestingAuthenticationToken authentication =
+        new TestingAuthenticationToken(testUser.getEmail(), null, "ROLE_ADMIN");
+    authentication.setAuthenticated(true);
+    mockMvc
+        .perform(
+            get("/api/v1/me/portfolio/history")
+                .param("range", "30d")
+                .with(authentication(authentication)))
+        .andExpect(status().isForbidden())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+  }
+
   private Transaction transaction(
       User user,
       String assetSymbol,
@@ -311,7 +590,7 @@ class PortfolioControllerIntegrationTest {
       BigDecimal quantity,
       BigDecimal pricePerUnit,
       BigDecimal totalValue,
-      LocalDateTime transactionDate) {
+      OffsetDateTime transactionDate) {
     return Transaction.builder()
         .user(user)
         .portfolioEntryId(UUID.randomUUID())
@@ -332,7 +611,13 @@ class PortfolioControllerIntegrationTest {
       User user, String assetSymbol, BigDecimal quantity, BigDecimal pricePerUnit) {
     BigDecimal totalValue = quantity.multiply(pricePerUnit).setScale(2, RoundingMode.HALF_UP);
     return transaction(
-        user, assetSymbol, "BUY", quantity, pricePerUnit, totalValue, LocalDateTime.now());
+        user,
+        assetSymbol,
+        "BUY",
+        quantity,
+        pricePerUnit,
+        totalValue,
+        OffsetDateTime.now(ZoneOffset.UTC));
   }
 
   private TestingAuthenticationToken userAuthentication() {

@@ -54,4 +54,14 @@ public class CurrentUserResolverAdapter implements CurrentUserPort {
     throw new AuthenticationCredentialsNotFoundException(
         "Authenticated principal is not supported");
   }
+
+  @Override
+  public String resolvePreferredCurrency(Authentication authentication) {
+    UUID userId = resolveUserId(authentication);
+    return userRepository
+        .findById(userId)
+        .map(user -> user.getPreferredCurrency())
+        .filter(currency -> currency != null && !currency.isBlank())
+        .orElse("USD");
+  }
 }

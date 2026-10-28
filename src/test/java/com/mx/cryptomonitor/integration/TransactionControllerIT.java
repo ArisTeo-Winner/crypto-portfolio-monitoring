@@ -9,14 +9,13 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mx.cryptomonitor.portfolio.domain.model.PortfolioEntry;
 import com.mx.cryptomonitor.portfolio.domain.repository.PortfolioEntryRepository;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
@@ -24,6 +23,8 @@ import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
+
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,6 +48,7 @@ class TransactionControllerIT {
     user.setEmail("test@gmail.com");
     user.setPasswordHash("password123");
     user.setFirstName("test");
+    user.setActive(true);
 
     userRepository.save(user);
 
@@ -70,11 +72,12 @@ class TransactionControllerIT {
   }
 
   @Test
-  @WithMockUser(roles = "USER")
+  @WithMockUser(username = "test@gmail.com", roles = "USER")
   void testGetTransactionsByUserAndSymbol() throws Exception {
     mockMvc
         .perform(
-            get("/api/v1/transactions/{userId}/{assetSymbol}", user.getId(), assetSymbol)
+            get("/api/v1/me/transactions")
+                .param("assetSymbol", assetSymbol)
                 .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(1))

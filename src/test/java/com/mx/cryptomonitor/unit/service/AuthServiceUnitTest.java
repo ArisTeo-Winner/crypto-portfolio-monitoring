@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuditLogService;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.application.service.AuthenticationService;
@@ -62,10 +62,10 @@ class AuthServiceUnitTest {
     when(req.getRemoteAddr()).thenReturn("127.0.0.1");
     when(req.getHeader("User-Agent")).thenReturn("JUnit");
 
-    JwtResponse resp = svc.issueTokensForUser(u, req);
+    AuthResult resp = svc.issueTokensForUser(u, req);
 
     assertThat(resp.accessToken()).isEqualTo("ACCESS_Y");
-    assertThat(resp.refreshToken()).isEqualTo("REFRESH_X");
+    assertThat(resp.rawRefreshToken()).isEqualTo("REFRESH_X");
     verify(refreshTokenStoreService)
         .store(eq("REFRESH_X"), any(), any(), any(), eq("127.0.0.1"), eq("JUnit"));
     verify(sessionRepository).save(any());

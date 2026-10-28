@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -12,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -88,8 +90,8 @@ class PortfolioServiceIntegrationTest extends InfraIntegrationTest {
             .quantity(BigDecimal.valueOf(2.0))
             .pricePerUnit(BigDecimal.valueOf(2500))
             .totalValue(BigDecimal.valueOf(5000))
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
+            .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
+            .updatedAt(OffsetDateTime.now(ZoneOffset.UTC))
             .build();
 
     logger.info("List transaction :{}", transaction);

@@ -31,10 +31,10 @@ class PriceUpdateServiceIntegrationTest {
   @Autowired private PortfolioEntryRepository repository;
   @Autowired private UserRepository userRepository;
 
-  @org.springframework.boot.test.mock.mockito.MockBean
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
   private MarketDataProvider marketDataProvider;
 
-  @org.springframework.boot.test.mock.mockito.MockBean
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
   private com.mx.cryptomonitor.marketdata.application.port.out.AssetPricePort assetPricePort;
 
   private final String SYMBOL_ETH = "ETH";

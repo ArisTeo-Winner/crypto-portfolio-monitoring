@@ -115,7 +115,7 @@ class AuthNoSecretsInLogsUnitTest {
     when(refreshTokenStoreService.findByRawToken(refreshToken)).thenReturn(Optional.of(token));
 
     try {
-      tokenService.refreshToken(refreshToken);
+      tokenService.refreshToken(refreshToken, new MockHttpServletRequest());
     } catch (InvalidTokenException ignored) {
       // expected path
     }

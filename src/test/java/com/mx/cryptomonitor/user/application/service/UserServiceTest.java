@@ -3,9 +3,9 @@ package com.mx.cryptomonitor.user.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -77,7 +77,10 @@ class UserServiceTest {
             testUser.getCountry(),
             LocalDate.of(1990, 1, 1),
             true,
-            LocalDateTime.of(2026, 3, 15, 6, 0));
+            LocalDateTime.of(2026, 3, 15, 6, 0),
+            null,
+            null,
+            null);
   }
 
   @Test
@@ -342,7 +345,8 @@ class UserServiceTest {
   @Test
   void updateMeShouldMergeFieldsAndReturnMappedUser() {
     UserMeUpdateRequest request =
-        new UserMeUpdateRequest("First", null, "555", null, "CDMX", null, null, null, "bio");
+        new UserMeUpdateRequest(
+            "First", null, "555", null, "CDMX", null, null, null, "bio", null, null, null);
     when(userRepository.findByEmailIgnoreCase(testUser.getEmail()))
         .thenReturn(Optional.of(testUser));
     when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -365,7 +369,8 @@ class UserServiceTest {
             () ->
                 userService.updateMe(
                     "missing@example.com",
-                    new UserMeUpdateRequest(null, null, null, null, null, null, null, null, null)))
+                    new UserMeUpdateRequest(
+                        null, null, null, null, null, null, null, null, null, null, null, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("User not found");
   }
@@ -455,6 +460,8 @@ class UserServiceTest {
         "State",
         "12345",
         "Country",
-        LocalDate.of(1995, 5, 20));
+        LocalDate.of(1995, 5, 20),
+        null,
+        null);
   }
 }

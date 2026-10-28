@@ -14,14 +14,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -47,7 +47,7 @@ class AuthLoginIntegrationTest {
   @Autowired private PasswordEncoder passwordEncoder;
   @Autowired private SessionRepository sessionRepository;
   @Autowired private AuditLogRepository auditLogRepository;
-  @MockBean private RefreshTokenStoreService refreshTokenStoreService;
+  @MockitoBean private RefreshTokenStoreService refreshTokenStoreService;
 
   @Test
   void test() {
@@ -71,11 +71,9 @@ class AuthLoginIntegrationTest {
     registry.add("spring.datasource.password", postgres::getPassword);
     registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
     registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+    registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add(
-        "spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-    registry.add(
-        "spring.jpa.properties.hibernate.dialect",
-        () -> "org.hibernate.dialect.PostgreSQLDialect");
+        "spring.jpa.properties.hibernate.dialect", () -> "org.hibernate.dialect.PostgreSQLDialect");
     registry.add("spring.flyway.enabled", () -> "false");
   }
 
@@ -122,9 +120,14 @@ class AuthLoginIntegrationTest {
                     .content("{\"email\":\"user@example.com\",\"password\":\"ValidPass123!\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
-            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(jsonPath("$.refreshToken").doesNotExist())
             .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(header().string("Pragma", "no-cache"))
+            .andExpect(
+                header()
+                    .string("Set-Cookie", org.hamcrest.Matchers.containsString("refresh_token=")))
+            .andExpect(
+                header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
             .andReturn();
 
     assertThat(result.getResponse().getCookie("jwt")).isNull();
@@ -149,6 +152,9 @@ class AuthLoginIntegrationTest {
                 .content("{\"email\":\"User@Example.com\",\"password\":\"ValidPass123!\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.accessToken").isNotEmpty())
-        .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+        .andExpect(jsonPath("$.refreshToken").doesNotExist())
+        .andExpect(
+            header().string("Set-Cookie", org.hamcrest.Matchers.containsString("refresh_token=")))
+        .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")));
   }
 }

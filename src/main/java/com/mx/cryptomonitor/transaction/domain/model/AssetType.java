@@ -4,6 +4,8 @@ public enum AssetType {
   CRYPTO,
   STOCK,
   ETF,
-  INDICE,
-  BONOS
+  GOVERNMENT_BOND,
+  CORPORATE_BOND,
+  INDEX,
+  FOREX
 }

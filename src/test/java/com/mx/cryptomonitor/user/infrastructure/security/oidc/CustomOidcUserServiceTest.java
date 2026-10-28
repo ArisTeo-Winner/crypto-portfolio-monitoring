@@ -49,7 +49,8 @@ class CustomOidcUserServiceTest {
     List<TimestampSnapshot> persistedSnapshots = new ArrayList<>();
     ArgumentCaptor<UserAuthProvider> linkCaptor = ArgumentCaptor.forClass(UserAuthProvider.class);
 
-    when(userAuthProviderRepository.findByAuthProviderAndProviderId(AuthProvider.GOOGLE, "oidc-sub"))
+    when(userAuthProviderRepository.findByAuthProviderAndProviderId(
+            AuthProvider.GOOGLE, "oidc-sub"))
         .thenReturn(Optional.empty());
     when(userRepository.findByEmailIgnoreCase("oidc@example.com")).thenReturn(Optional.empty());
     when(roleRepository.findByName("ROLE_USER")).thenReturn(Optional.of(defaultRole));
@@ -57,7 +58,8 @@ class CustomOidcUserServiceTest {
         .thenAnswer(
             invocation -> {
               User user = invocation.getArgument(0);
-              persistedSnapshots.add(new TimestampSnapshot(user.getCreatedAt(), user.getUpdatedAt()));
+              persistedSnapshots.add(
+                  new TimestampSnapshot(user.getCreatedAt(), user.getUpdatedAt()));
               if (user.getId() == null) {
                 user.setId(UUID.randomUUID());
               }
@@ -75,7 +77,8 @@ class CustomOidcUserServiceTest {
               assertThat(snapshot.createdAt()).isNotNull();
               assertThat(snapshot.updatedAt()).isNotNull();
             });
-    assertThat(persistedSnapshots.get(0).updatedAt()).isEqualTo(persistedSnapshots.get(0).createdAt());
+    assertThat(persistedSnapshots.get(0).updatedAt())
+        .isEqualTo(persistedSnapshots.get(0).createdAt());
     assertThat(principal.domainUser().getCreatedAt()).isNotNull();
     assertThat(principal.domainUser().getUpdatedAt()).isNotNull();
     assertThat(principal.getAuthorities()).extracting("authority").contains("ROLE_USER");
@@ -101,9 +104,11 @@ class CustomOidcUserServiceTest {
             .build();
     ArgumentCaptor<UserAuthProvider> linkCaptor = ArgumentCaptor.forClass(UserAuthProvider.class);
 
-    when(userAuthProviderRepository.findByAuthProviderAndProviderId(AuthProvider.GOOGLE, "oidc-sub"))
+    when(userAuthProviderRepository.findByAuthProviderAndProviderId(
+            AuthProvider.GOOGLE, "oidc-sub"))
         .thenReturn(Optional.empty());
-    when(userRepository.findByEmailIgnoreCase("oidc@example.com")).thenReturn(Optional.of(existingUser));
+    when(userRepository.findByEmailIgnoreCase("oidc@example.com"))
+        .thenReturn(Optional.of(existingUser));
 
     OidcUserWithDomain principal = service.loadUserFromOidcUser(oidcUser());
 
@@ -137,7 +142,8 @@ class CustomOidcUserServiceTest {
             .createdAt(LocalDateTime.now().minusDays(2))
             .build();
 
-    when(userAuthProviderRepository.findByAuthProviderAndProviderId(AuthProvider.GOOGLE, "oidc-sub"))
+    when(userAuthProviderRepository.findByAuthProviderAndProviderId(
+            AuthProvider.GOOGLE, "oidc-sub"))
         .thenReturn(Optional.of(existingLink));
 
     OidcUserWithDomain principal = service.loadUserFromOidcUser(oidcUser());

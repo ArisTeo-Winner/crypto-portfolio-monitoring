@@ -1,7 +1,7 @@
 package com.mx.cryptomonitor.transaction.application.dto.request;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,5 +22,5 @@ public record TransferTransactionRequest(
         @Positive(message = "La cantidad debe ser mayor que cero")
         BigDecimal quantity,
     @PositiveOrZero(message = "La comision no puede ser negativa") BigDecimal fee,
-    @NotNull(message = "La fecha de transaccion no puede ser nula") LocalDateTime transactionDate,
+    @NotNull(message = "La fecha de transaccion no puede ser nula") OffsetDateTime transactionDate,
     @Size(max = 255, message = "Las notas no pueden exceder 255 caracteres") String notes) {}

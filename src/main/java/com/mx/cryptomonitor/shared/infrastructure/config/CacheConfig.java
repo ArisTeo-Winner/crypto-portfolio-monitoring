@@ -2,7 +2,6 @@ package com.mx.cryptomonitor.shared.infrastructure.config;
 
 import java.time.Duration;
 
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
@@ -18,6 +17,8 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @Configuration
 @EnableCaching
@@ -101,12 +102,26 @@ public class CacheConfig extends CachingConfigurerSupport {
 
     RedisCacheConfiguration testCache = base.entryTtl(Duration.ofSeconds(30));
 
+    // Series temporales OHLCV: TTL corto porque incluyen velas intraday recientes.
+    // Las series diarias/semanales podrían vivir más, pero usamos un TTL conservador
+    // compartido para no complicar la configuración.
+    RedisCacheConfiguration stockTimeSeriesConfig =
+        RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofHours(1))
+            .disableCachingNullValues()
+            .serializeKeysWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(
+                    new StringRedisSerializer()))
+            .serializeValuesWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(jsonSerializer));
+
     return RedisCacheManager.builder(redisConnectionFactory)
         .cacheDefaults(defaultConfig)
         .withCacheConfiguration("historicalPrices", historicalConfig)
         .withCacheConfiguration("cryptoHistoricalPrices", coinGeckoHistoricalConfig)
         .withCacheConfiguration("cryptoPrices", cryptoPriceConfig)
         .withCacheConfiguration("stockPrices", stockPriceConfig)
+        .withCacheConfiguration("stockTimeSeries", stockTimeSeriesConfig)
         .withCacheConfiguration("testCache", testCache)
         .build();
   }

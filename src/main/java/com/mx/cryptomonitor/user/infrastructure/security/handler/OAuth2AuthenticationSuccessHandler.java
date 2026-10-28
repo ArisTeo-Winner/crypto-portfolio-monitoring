@@ -11,7 +11,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.mx.cryptomonitor.user.application.dto.response.JwtResponse;
+import com.mx.cryptomonitor.user.application.dto.response.AuthResult;
 import com.mx.cryptomonitor.user.application.service.AuthService;
 import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
@@ -55,8 +55,18 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
       user.setLastLogin(LocalDateTime.now());
       userRepository.save(user);
 
-      JwtResponse jwt = authService.issueTokensForUser(user, request);
-      response.sendRedirect(buildSuccessRedirect(jwt));
+      AuthResult result = authService.issueTokensForUser(user, request);
+      // El refresh token va en la cookie HttpOnly; el access token en el fragment de la URL
+      // para que el frontend lo capture en memoria (no localStorage).
+      response.setHeader(
+          "Set-Cookie",
+          org.springframework.http.ResponseCookie.from("refresh_token", result.rawRefreshToken())
+              .httpOnly(true)
+              .path("/api/v1/")
+              .sameSite("Strict")
+              .build()
+              .toString());
+      response.sendRedirect(buildSuccessRedirect(result));
 
     } catch (Exception e) {
       log.error("Error en success handler", e);
@@ -64,12 +74,9 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
     }
   }
 
-  private String buildSuccessRedirect(JwtResponse jwt) {
-    return frontendBaseUrl
-        + "/auth/callback#accessToken="
-        + urlEncode(jwt.accessToken())
-        + "&refreshToken="
-        + urlEncode(jwt.refreshToken());
+  private String buildSuccessRedirect(AuthResult result) {
+    // Solo el accessToken viaja en el fragment — el refreshToken ya fue escrito como cookie.
+    return frontendBaseUrl + "/auth/callback#accessToken=" + urlEncode(result.accessToken());
   }
 
   private void redirectToFailure(HttpServletResponse response, String errorCode)

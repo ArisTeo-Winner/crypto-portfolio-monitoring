@@ -290,6 +290,9 @@ class CoinMarketCapAdapterTest {
         new CoinMarketCapProperties(
             baseUrl, "demo-key", Duration.ofSeconds(2), Duration.ofMinutes(1), "USD", enabled);
     return new CoinMarketCapAdapter(
-        webClient, props, meterRegistry, new ConcurrentMapCacheManager(CoinMarketCapAdapter.CACHE_NAME));
+        webClient,
+        props,
+        meterRegistry,
+        new ConcurrentMapCacheManager(CoinMarketCapAdapter.CACHE_NAME));
   }
 }
