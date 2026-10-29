@@ -11,6 +11,7 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
+import com.mx.cryptomonitor.portfolio.domain.exception.NoMarketDataProviderException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
@@ -132,7 +133,10 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
     if (lastError != null) {
       throw lastError;
     }
-    throw new IllegalStateException("No market price history provider configured for " + assetType);
+    // Ningun proveedor soporta este AssetType (p.ej. GOVERNMENT_BOND). Excepcion recuperable por
+    // activo (ADR-0018): el caller la degrada a "no disponible" (respuesta parcial) en vez de 500.
+    throw new NoMarketDataProviderException(
+        "No market price history provider configured for " + assetType);
   }
 
   private List<PricePoint> getCachedByKey(AssetType assetType, String symbol, String key) {
