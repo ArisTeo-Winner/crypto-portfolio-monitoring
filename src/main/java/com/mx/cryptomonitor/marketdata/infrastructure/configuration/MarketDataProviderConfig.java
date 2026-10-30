@@ -17,12 +17,14 @@ import com.mx.cryptomonitor.marketdata.application.port.out.StockQuoteProvider;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockTimeSeriesPort;
 import com.mx.cryptomonitor.marketdata.application.service.StockQuoteOrchestrator;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.alphavantage.AlphaVantageAdapter;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.eodhd.EodhdAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.massive.MassiveAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataAdapter;
 
 @Configuration
 @EnableConfigurationProperties({
   AlphaVantageProperties.class,
+  EodhdProperties.class,
   MassiveProperties.class,
   TwelveDataProperties.class
 })
@@ -66,9 +68,25 @@ public class MarketDataProviderConfig {
   }
 
   /**
+   * Proveedor PRIMARIO de precio de hoy: EODHD real-time (ADR-0016, opcional). Delante de la cadena
+   * para corregir el rezago de dia previo; si no devuelve dato, el orquestador cae a los demas.
+   */
+  @Bean
+  @ConditionalOnExpression("'${eodhd.base-url:}' != '' and '${eodhd.api-token:}' != ''")
+  public StockQuoteProvider eodhdStockQuoteProvider(
+      WebClient webClient, EodhdProperties eodhdProperties) {
+    return new EodhdAdapter(
+        webClient,
+        eodhdProperties.getBaseUrl(),
+        eodhdProperties.getApiToken(),
+        eodhdProperties.getDefaultSuffix());
+  }
+
+  /**
    * Orquestador de fallback. Orden de consulta:
    *
    * <ol>
+   *   <li>EODHD (si {@code EODHD_API_TOKEN} está configurado) — precio de hoy, ADR-0016
    *   <li>Twelve Data (si {@code TWELVEDATA_API_KEY} está configurada)
    *   <li>Alpha Vantage
    *   <li>Massive/Polygon (si {@code MASSIVE_API_KEY} está configurada)
@@ -77,12 +95,15 @@ public class MarketDataProviderConfig {
   @Bean
   @Primary
   public MarketDataProvider stockQuoteOrchestrator(
+      @Qualifier("eodhdStockQuoteProvider")
+          ObjectProvider<StockQuoteProvider> eodhdStockQuoteProvider,
       ObjectProvider<TwelveDataAdapter> twelveDataAdapter,
       @Qualifier("alphaVantageStockQuoteProvider")
           StockQuoteProvider alphaVantageStockQuoteProvider,
       @Qualifier("massiveStockQuoteProvider")
           ObjectProvider<StockQuoteProvider> massiveStockQuoteProvider) {
     List<StockQuoteProvider> providers = new ArrayList<>();
+    eodhdStockQuoteProvider.ifAvailable(providers::add);
     twelveDataAdapter.ifAvailable(providers::add);
     providers.add(alphaVantageStockQuoteProvider);
     massiveStockQuoteProvider.ifAvailable(providers::add);
