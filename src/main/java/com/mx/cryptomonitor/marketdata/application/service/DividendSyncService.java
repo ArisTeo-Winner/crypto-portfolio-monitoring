@@ -29,11 +29,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Ingesta de dividendos (ADR-0014 F3b + ADR-0018): trae el historico del proveedor y lo persiste
+ * Ingesta de dividendos (ADR-0014 F3b + ADR-0020): trae el historico del proveedor y lo persiste
  * como eventos DIVIDEND en {@code corporate_action} + {@code dividend_action_detail}. Idempotente:
  * dedup por {@code provider_event_id} (fuerte) y por la llave natural (simbolo+tipo+ex-date).
  *
- * <p>ADR-0018 (freeze-al-pago): un evento ya {@code COMPLETED} (pagado) es INMUTABLE — nunca se
+ * <p>ADR-0020 (freeze-al-pago): un evento ya {@code COMPLETED} (pagado) es INMUTABLE — nunca se
  * re-escriben sus montos ni fechas; a lo sumo se sincroniza la etiqueta de estado. Un evento
  * provisional ({@code ANNOUNCED}/{@code EFFECTIVE}) SI se actualiza si el emisor lo revisa. El
  * estado se deriva de las fechas, no se congela al sync-time. Solo DETECTA (puebla el catalogo); el
@@ -86,7 +86,8 @@ public class DividendSyncService {
       created++;
     }
     if (created > 0 || updated > 0) {
-      log.info("Dividend sync {}: {} evento(s) nuevo(s), {} actualizado(s)", symbol, created, updated);
+      log.info(
+          "Dividend sync {}: {} evento(s) nuevo(s), {} actualizado(s)", symbol, created, updated);
     }
     return created;
   }
@@ -104,7 +105,7 @@ public class DividendSyncService {
   }
 
   /**
-   * Reconcilia un evento ya almacenado (ADR-0018). Congelado (pagado) => inmutable: no se tocan
+   * Reconcilia un evento ya almacenado (ADR-0020). Congelado (pagado) => inmutable: no se tocan
    * montos ni fechas, solo se sincroniza la etiqueta de estado si quedo vieja. Provisional => se
    * actualiza si el emisor reviso monto o fechas. Devuelve {@code true} si hubo cambios de datos.
    */
@@ -207,8 +208,7 @@ public class DividendSyncService {
         .assetSymbol(symbol)
         .actionType(CorporateActionType.DIVIDEND)
         .status(
-            CorporateActionLifecycle.statusFor(
-                event.exDividendDate(), event.paymentDate(), today))
+            CorporateActionLifecycle.statusFor(event.exDividendDate(), event.paymentDate(), today))
         .pivotalDate(event.exDividendDate())
         .declarationDate(event.declarationDate())
         .recordDate(event.recordDate())
