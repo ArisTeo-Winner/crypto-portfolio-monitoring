@@ -278,6 +278,14 @@
 			<version>0.11.5</version>
 		</dependency>
 
+		<!-- Parseo del PEM SEC1 (EC PRIVATE KEY) de la llave CDP de Coinbase para firmar el JWT
+		     ES256 (ADR-0023); la JVM solo lee PKCS#8 de fabrica. -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcpkix-jdk18on</artifactId>
+			<version>1.80</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.apache.httpcomponents.client5</groupId>
 			<artifactId>httpclient5</artifactId>
