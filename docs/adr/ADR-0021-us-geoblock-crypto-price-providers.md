@@ -63,15 +63,16 @@ Coinbase + Kraken son exchanges regulados en EE. UU.: dan velas de calidad, sin 
 
 ## Action Items
 
-### Fase 1 — Coinbase primario + gateo de Binance/Bybit (núcleo)
-1. [ ] `CoinbaseMarketPriceHistoryAdapter` (`@Order` por delante de Binance) + `CoinbaseWebClientConfig`: `GET /products/{BASE-USD}/candles?granularity=&start=&end=`, paginación por ventanas (máx 300 velas/req), mapeo `ChartResolution.interval()`→granularidad en segundos (60/300/900/3600/21600/86400), símbolo `SYMBOL-USD`, 404/400→`UnknownAssetSymbolException`, 429→`MarketDataRateLimitException`, 5xx→`MarketDataServerException`, flag `external.providers.coinbase.enabled:true`.
-2. [ ] Gatear `external.providers.binance.enabled`, `...binance-futures.enabled`, `...bybit.enabled` a `false` en prod (variables de Render) y `true` en dev local.
-3. [ ] Tests unit (MockWebServer) del adapter + `CoinbaseCredentialsIT` como **health-check en vivo** del endpoint público (keyless, [[ADR-0002]]): valida contrato OHLC y disponibilidad, se omite si no hay red.
-4. [ ] Verificar en Render (US) que un gráfico de cripto responde por Coinbase, no por CoinGecko.
+### Fase 1 — Coinbase primario + gateo de Binance/Bybit (núcleo) — HECHA
+1. [x] `CoinbaseMarketPriceHistoryAdapter` (`@Order(-20)`) + `CoinbaseWebClientConfig`. (Migrado a Advanced Trade/CDP con JWT ES256, ver [[ADR-0023]]: `GET /api/v3/brokerage/products/{BASE-USD}/candles`, granularidad enum, 350 velas/req.)
+2. [x] Gatear `external.providers.binance.enabled`, `...binance.futures.enabled`, `...bybit.enabled` a `false` en prod (variables de Render) y `true` en dev local.
+3. [x] Tests unit (MockWebServer) del adapter + `CoinbaseCredentialsIT` **health-check en vivo** (se omite sin credencial CDP).
+4. [ ] Verificar en Render (US) que un gráfico de cripto responde por Coinbase, no por CoinGecko. *(pendiente de deploy + provisión de llave CDP)*
 
-### Fase 2 — Kraken secundario
-5. [ ] `KrakenMarketPriceHistoryAdapter` (`@Order` secundario, antes de CoinGecko) + `KrakenWebClientConfig`: `GET /0/public/OHLC?pair=&interval=&since=`, intervalo en minutos (1/5/15/30/60/240/1440/10080/21600), símbolo `XBTUSD`/`BTCUSD`, errores `error[]`→excepciones recuperables, flag propio. Tests unit + `KrakenCredentialsIT` health-check.
+### Fase 2 — Kraken secundario — HECHA
+5. [x] `KrakenMarketPriceHistoryAdapter` (`@Order(-10)`) + `KrakenWebClientConfig`: `GET /0/public/OHLC?pair={canónico}USD&assetVersion=1&interval={min}&since=`, intervalo en minutos, `error[]`→excepciones recuperables, flag `external.providers.kraken.enabled`. Tests unit + `KrakenCredentialsIT` en vivo (verdes). Sin tabla de alias ([[ADR-0022]]).
 
 ### Fase 3 — Cobertura y observabilidad
-6. [ ] Log/metric de qué proveedor sirvió cada símbolo; alerta de símbolos registrados que solo resuelven por CoinGecko (o por ninguno).
+6. [x] Métrica `marketdata.pricehistory.fetch{provider,asset_type,outcome}` (Micrometer→`/actuator/prometheus`) + log INFO "qué proveedor sirvió cada símbolo", instrumentados en `CachedMarketPriceHistoryAdapter.fetchWithFallback`. La alerta de credencial Coinbase (401/403, [[ADR-0023]]) se cubre con `provider=Coinbase…, outcome=server_error`. Tags de baja cardinalidad: `symbol` va al log, no a la métrica.
 7. [ ] Promoción opcional a Twelve Data / Polygon (`massive`) si la cobertura de exchanges US-OK es insuficiente para el universo registrado.
+8. [ ] *(futuro)* Métrica/alerta de símbolos registrados que solo resuelven por CoinGecko (o por ninguno) — requiere correlacionar el catálogo con el `provider` servido.
