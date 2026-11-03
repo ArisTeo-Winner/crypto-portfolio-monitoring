@@ -1,0 +1,33 @@
+name: external-providers-smoke
+
+# Smoke test de proveedores externos de datos de cripto (ADR-0021).
+#
+# IMPORTANTE: los runners hospedados de GitHub corren en US (Azure) -> reproducen
+# el geobloqueo 451 real de Binance/Bybit, que desde dev (Mexico) es invisible.
+# El job rompe el pipeline SOLO si un proveedor REQUERIDO (Coinbase/Kraken/CoinGecko,
+# de los que depende prod) no responde 200. Los proveedores gateados-en-US
+# (Binance/Bybit/Futures) se vigilan como canario y su 451 NO rompe nada.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 7 * * *" # nightly 07:00 UTC
+  pull_request:
+    paths:
+      - "src/main/java/com/mx/cryptomonitor/portfolio/infrastructure/outbound/marketdata/**"
+      - "ci/smoke-external-providers.sh"
+      - ".github/workflows/external-providers-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest # hospedado = egress US, reproduce el 451 real
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke de proveedores externos
+        run: |
+          chmod +x ci/smoke-external-providers.sh
+          ci/smoke-external-providers.sh
