@@ -62,6 +62,7 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
   private final ChartResolutionStrategy chartResolutionStrategy;
   private final TwrEngine twrEngine;
   private final MwrEngine mwrEngine;
+  private final FixedIncomeSeriesBuilder fixedIncomeSeriesBuilder;
 
   @org.springframework.beans.factory.annotation.Autowired
   public GetPortfolioTotalHistoryService(
@@ -79,6 +80,7 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
     this.chartResolutionStrategy = new ChartResolutionStrategy();
     this.twrEngine = new TwrEngine();
     this.mwrEngine = new MwrEngine();
+    this.fixedIncomeSeriesBuilder = new FixedIncomeSeriesBuilder();
   }
 
   public GetPortfolioTotalHistoryService(
@@ -272,22 +274,28 @@ public class GetPortfolioTotalHistoryService implements GetPortfolioTotalHistory
       List<String> unavailableSymbols,
       Map<String, List<StockSplitData>> splitsBySymbol) {
     List<PricePoint> prices;
-    try {
+    if (FixedIncomeSeriesBuilder.isAccrualValued(identity.assetType())) {
+      // Renta fija a descuento: valuación por devengo determinista, sin proveedor de mercado.
       prices =
-          marketPriceHistoryPort.getPriceHistory(
-              identity.assetType(), identity.symbol(), chartResolution);
-    } catch (UnknownAssetSymbolException
-        | MarketDataRateLimitException
-        | MarketDataServerException e) {
-      // Un activo cuyo proveedor falla no debe tumbar toda la gráfica: se omite y se
-      // reporta como no disponible (respuesta parcial) en lugar de propagar un 502.
-      log.warn(
-          "portfolio.history.asset_unavailable symbol={} type={} reason={}",
-          identity.symbol(),
-          identity.assetType(),
-          e.getMessage());
-      unavailableSymbols.add(identity.symbol());
-      prices = List.of();
+          fixedIncomeSeriesBuilder.build(snapshots, chartResolution.start(), chartResolution.end());
+    } else {
+      try {
+        prices =
+            marketPriceHistoryPort.getPriceHistory(
+                identity.assetType(), identity.symbol(), chartResolution);
+      } catch (UnknownAssetSymbolException
+          | MarketDataRateLimitException
+          | MarketDataServerException e) {
+        // Un activo cuyo proveedor falla no debe tumbar toda la gráfica: se omite y se
+        // reporta como no disponible (respuesta parcial) en lugar de propagar un 502.
+        log.warn(
+            "portfolio.history.asset_unavailable symbol={} type={} reason={}",
+            identity.symbol(),
+            identity.assetType(),
+            e.getMessage());
+        unavailableSymbols.add(identity.symbol());
+        prices = List.of();
+      }
     }
     return new PortfolioAssetHistoryInput(
         identity.assetType(),

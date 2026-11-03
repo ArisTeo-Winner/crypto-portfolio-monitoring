@@ -1,7 +1,7 @@
 # ADR-0018: Valuación por clase de activo — renta fija a descuento por devengo lineal determinista
 
-**Status:** Proposed
-**Date:** 2026-10-26
+**Status:** Accepted — núcleo implementado (B.1/B.2/B.3); follow-ups FX, metadatos de proyección y redención pendientes
+**Date:** 2026-10-26 (aceptada 2026-10-31)
 **Deciders:** Aristeo (owner backend)
 **Módulo:** `portfolio` (application.service.GetPortfolioTotalHistoryService, application.service.GetAssetHoldingsHistoryService, domain.engine, application.port.out), `transaction` (snapshot/proyección de campos de bono)
 **Relacionado:** [[ADR-0013]] (fecha de operación vs registro-sistema), [[ADR-0014]] (corporate actions / REDEEM), [[ADR-0006]] [[ADR-0009]] [[ADR-0010]] (moneda/FX), [[ADR-0001]] (Banxico SIE), [[ADR-0012]] (calendarios)
@@ -153,25 +153,37 @@ su endpoint) — documentarlo; instrumentos con cupón necesitan extensión futu
   cetesdirecto); materialización del flujo de redención al vencimiento.
 
 ## Decisiones abiertas (cerrar en revisión)
-1. **ISR (bruto vs neto):** ¿la recta va a valor **bruto** y el fisco se trata aparte (como
-   [[ADR-0014]]), o **neto-de-ISR** como muestra cetesdirecto? Define `finalValue`.
+1. **ISR (bruto vs neto):** **RESUELTO (bruto).** `finalValue = faceValue` (valor nominal íntegro);
+   el ISR se trata aparte en el módulo `tax` (coherente con [[ADR-0014]] y [[ADR-0017]]), no se resta
+   en la recta de devengo.
 2. **Redención al vencimiento:** (a) materializar un `REDEEM` derivado fechado en el vencimiento
    (encaja con [[ADR-0014]], útil para saldo líquido/reinversión) vs (b) solo computado (la serie ya
-   refleja `valor = final` tras vencer). Recomendado: (b) ahora para la gráfica, (a) como follow-up.
-3. **Alcance inicial:** solo CETES (cupón cero) en esta ADR; cupón/indexados en una posterior.
+   refleja `valor = final` tras vencer). **Elegido (b) ahora**; (a) como follow-up (Action Item 9).
+3. **Alcance inicial:** **RESUELTO.** Solo `GOVERNMENT_BOND` (cupón cero, CETES) activa el devengo
+   (`FixedIncomeSeriesBuilder.isAccrualValued`); `CORPORATE_BOND` y demás tipos sin proveedor degradan
+   a serie vacía (sin 500) hasta modelarse. Cupón/indexados en una ADR posterior.
+4. **Agregación multi-lote (nuevo):** varios BUY del mismo símbolo se promedian a un costo y nominal
+   por título, con `T0` = operación más antigua y vencimiento = el más lejano. Exacto para el caso
+   CETES de un solo lote mantenido a vencimiento; para lotes con **vencimientos distintos** es una
+   aproximación — suma por tramo queda como follow-up.
 
 ## Action Items
-1. [ ] `failAfterFallback` lanza `NoMarketDataProviderException` (dominio) y `toAssetInput` la cubre
-   → respuesta parcial en vez de 500 (invariante de robustez, independiente del resto).
-2. [ ] Enriquecer el input del motor con `maturityDate`, `faceValue`, `couponRate`, `currency`.
-3. [ ] `FixedIncomeAccrualValuator` en `portfolio/domain/engine` (devengo lineal, clamp, meseta).
-4. [ ] Selección por `AssetType` en `GetPortfolioTotalHistoryService` y
-   `GetAssetHoldingsHistoryService` (market-quoted → actual; GOVERNMENT_BOND cupón cero → devengo).
-5. [ ] Anclar `T0` en la **fecha de operación** (Evento1, [[ADR-0013]]); guard para `T0 > hoy`.
-6. [ ] Conversión MXN→moneda de presentación al final (no doble conversión).
+1. [x] **(B.1)** `failAfterFallback` lanza `NoMarketDataProviderException` (dominio) y `toAssetInput`
+   la cubre → respuesta parcial en vez de 500 (invariante de robustez).
+2. [x] **(B.2)** Enriquecer el snapshot del motor con `maturityDate`, `faceValue`, `couponRate`
+   (`currency` ya venía). Constructores de compatibilidad para no romper llamadas existentes.
+3. [x] **(B.3)** `FixedIncomeAccrualValuator` en `portfolio/domain/engine` (devengo lineal, clamp,
+   meseta post-vencimiento, guard de división por cero en vencimiento el mismo día).
+4. [x] **(B.3)** Selección por `AssetType` vía `FixedIncomeSeriesBuilder` en
+   `GetPortfolioTotalHistoryService` y `GetAssetHoldingsHistoryService` (market-quoted → actual;
+   GOVERNMENT_BOND → devengo). El per-asset path además atrapa fallos de proveedor (ya no 500).
+5. [x] **(B.3)** `T0` anclado en la **fecha de operación** (Evento1, [[ADR-0013]]); `T0 > hoy` queda
+   cubierto por el `clamp(elapsed, 0, term)` (valor = costo hasta operar) — sin guard aparte.
+6. [ ] Conversión MXN→moneda de presentación al final (no doble conversión). **Pendiente.**
 7. [ ] Metadatos de proyección en la respuesta (`maturityDate`, `termDays`, `daysElapsed`,
-   `projectedFinal`) para la UI (línea punteada + progress bar + tooltips).
-8. [ ] Tests: devengo (día 0 = costo; a media vida; vencido = face; `T0` futuro), lag-agnóstico
-   (misma curva registrando el mismo día vs meses después), guard de robustez (bono sin datos →
-   parcial, no 500), e integración de `/me/portfolio/history` con un CETES.
-9. [ ] (Follow-up) Decidir/implementar redención materializada y extensión a cupón/indexados.
+   `projectedFinal`) para la UI (línea punteada + progress bar + tooltips). **Pendiente.**
+8. [x] **(B.3)** Tests: unitario del devengo (día 0 = costo; media vida; vencido = face; mismo-día);
+   IT `/me/portfolio/history` + per-asset con un CETES (200 + serie devengada, ya no 500).
+   Lag-agnóstico se deriva de la fórmula (sin dependencia de captura); test explícito → follow-up.
+9. [ ] (Follow-up) Redención materializada (`REDEEM` al vencimiento), suma por tramo para lotes con
+   vencimientos distintos, y extensión a cupón/indexados.

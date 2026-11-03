@@ -314,3 +314,51 @@ el `DataSource` y el `RedisConnectionFactory` al puerto asignado por Docker.
   garantías del framework.
 - Los campos `@Autowired` solo se usan en tests y configuración de seguridad
   (`@Lazy`). En el resto, inyección por constructor vía `@RequiredArgsConstructor`.
+
+---
+
+## ⚠️ POLÍTICA DE RAMAS — OBLIGATORIA
+
+Jerarquía de ramas y su rol:
+
+- `master` / `main` → **producción** (app definitiva). Solo lectura para el agente.
+- `dev` → **unificación / pre-producción**. Solo recibe lo que ya tiene V.º B.º,
+  vía PR. Solo lectura para el agente.
+- `feature/*`, `fix/*`, `test/*`, `chore/*` → **ramas de trabajo**. Aquí vive
+  todo el desarrollo (commits, push, merge, revert).
+
+### Reglas de conducta del agente (NO negociables)
+
+1. **Nunca** cambiar de rama (`checkout` / `switch`) por iniciativa propia.
+   Solo cuando el usuario **nombre explícitamente** la rama destino.
+2. **Nunca** hacer `commit`, `push`, `merge`, `pull`, `rebase`, `revert` ni
+   `reset` sobre `master`, `main` o `dev`. Esas ramas son solo-lectura.
+3. Antes de cualquier commit, **confirmar en voz alta la rama actual**. Si no es
+   una rama de trabajo, detenerse y pedir al usuario la rama correcta.
+4. Todo ajuste de lógica de negocio parte de una rama de trabajo
+   (`feature/*` o `fix/*`), **nunca** directamente de `dev`.
+5. La actualización de `dev` (`pull`/`merge`) la hace **siempre el usuario**,
+   no el agente.
+6. Reescribir historia (`commit --amend`, `rebase`, `push --force`) solo en
+   ramas de trabajo y **solo si aún no se ha subido**; pedir confirmación.
+7. Eliminar ramas: solo con confirmación explícita del usuario.
+
+### Matriz de permisos por rama × acción
+
+| Acción | `master` / `main` | `dev` | ramas de trabajo |
+|---|:---:|:---:|:---:|
+| Ver (status, log, diff, show) | ✅ | ✅ | ✅ |
+| Traer repo (fetch, clone) | ✅ | ✅ | ✅ |
+| Actualizar local (pull, merge origin) | ❌ | ❌ *(solo usuario)* | ✅ |
+| Cambiarse a la rama (checkout/switch) | ✅ leer | ✅ leer | ✅ |
+| Aplicar commit | ❌ | ❌ | ✅ |
+| Subir (push) | ❌ | ❌ | ✅ |
+| Fusionar otra rama hacia aquí (merge) | ❌ | ❌ | ✅ |
+| Revertir commit (revert, reset) | ❌ | ❌ | ✅ |
+| Reescribir último commit (amend, rebase, push --force) | ❌ | ❌ | ⚠️ si no se subió |
+| Eliminar rama (branch -D, push --delete) | ❌ | ❌ | ⚠️ con confirmación |
+
+> Esta matriz la hace cumplir además, de forma determinista, el hook global
+> `PreToolUse` en `~/.claude/hooks/git-branch-guard.js`: bloquea (`deny`) las
+> celdas ❌ y pide confirmación (`ask`) en las ⚠️. El hook es la barrera dura;
+> esta política es la guía de conducta.
