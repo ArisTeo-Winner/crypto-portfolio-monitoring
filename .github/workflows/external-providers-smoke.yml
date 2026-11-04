@@ -9,14 +9,36 @@ name: external-providers-smoke
 # (Binance/Bybit/Futures) se vigilan como canario y su 451 NO rompe nada.
 
 on:
-  workflow_dispatch: {}
-  schedule:
-    - cron: "0 7 * * *" # nightly 07:00 UTC
-  pull_request:
+  # push: corre desde la rama que empujas (usa SU version del archivo), asi que
+  # funciona ya mismo en feature/** sin pasar por master. Filtrado por paths para
+  # no disparar el smoke (flaky, pega a APIs reales) en cada commit irrelevante.
+  push:
+    branches:
+      - "feature/**"
+      - "fix/**"
+      - "test/**"
+      - "chore/**"
     paths:
       - "src/main/java/com/mx/cryptomonitor/portfolio/infrastructure/outbound/marketdata/**"
       - "ci/smoke-external-providers.sh"
       - ".github/workflows/external-providers-smoke.yml"
+  # pull_request: usa el archivo del HEAD del PR (tu feature), por lo que valida
+  # ANTES de entrar a dev (pre-produccion) y a master (produccion) aunque esas
+  # ramas todavia no tengan este workflow. branches = rama BASE/destino del PR.
+  pull_request:
+    branches:
+      - dev
+      - master
+    paths:
+      - "src/main/java/com/mx/cryptomonitor/portfolio/infrastructure/outbound/marketdata/**"
+      - "ci/smoke-external-providers.sh"
+      - ".github/workflows/external-providers-smoke.yml"
+  # workflow_dispatch + schedule: solo se activan cuando el workflow vive en la
+  # rama default (master). Quedan listos para dispatch manual y el nightly una
+  # vez mergeado; desde feature/** no disparan (limitacion de GitHub).
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 7 * * *" # nightly 07:00 UTC
 
 permissions:
   contents: read
