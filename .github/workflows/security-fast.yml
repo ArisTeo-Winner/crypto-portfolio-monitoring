@@ -44,14 +44,18 @@ jobs:
       - name: Build Docker image (hardened)
         run: docker build -f Dockerfile.secure -t "$IMAGE_REF" .
 
-      - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
+      # Action oficial de Aquasecurity: trae un Trivy fijado (sin `curl | sh`,
+      # que fallaba con exit 6 por DNS del runner) y cachea la DB de vulns entre
+      # pasos del job, asi el gate no la vuelve a descargar.
       - name: Trivy scan → SARIF (reporte, no bloquea)
-        run: |
-          trivy image --scanners vuln,secret,misconfig --no-progress \
-            --format sarif --output trivy-results.sarif --exit-code 0 \
-            "$IMAGE_REF"
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln,secret,misconfig
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '0'
 
       - name: Upload Trivy SARIF a Code Scanning (best-effort)
         if: always()
@@ -61,7 +65,12 @@ jobs:
           sarif_file: trivy-results.sarif
 
       - name: Trivy gate (rompe ante HIGH/CRITICAL con fix)
-        run: |
-          trivy image --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
-            --ignore-unfixed --no-progress --exit-code 1 \
-            "$IMAGE_REF"
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE_REF }}
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
