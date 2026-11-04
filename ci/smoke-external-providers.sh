@@ -10,8 +10,9 @@
 #
 # Criterio de fallo (POR PROVEEDOR, no "cualquier 451"):
 #   - REQUIRED : prod depende de ellos -> cualquier status != 200 rompe el pipeline.
-#   - CANARY   : bloqueados-en-US (gateados en prod) -> 451 es ESPERADO (ok);
-#                un 200 inesperado solo avisa (geobloqueo levantado / runner no-US).
+#   - CANARY   : bloqueados-en-US (gateados en prod) -> cualquier 4xx de bloqueo
+#                (403 Forbidden o 451 Unavailable For Legal Reasons) es ESPERADO (ok);
+#                un 200 avisa (geobloqueo LEVANTADO / runner no-US); otro status avisa.
 #
 # Uso: ci/smoke-external-providers.sh
 # Sale con codigo != 0 solo si falla al menos un REQUIRED.
@@ -28,12 +29,21 @@ REQUIRED=(
   "CoinGecko|https://api.coingecko.com/api/v3/ping|200"
 )
 
-# nombre|url|status_esperado_desde_US
+# nombre|url|status_esperado_desde_US (403/451 = bloqueado; ambos valen)
 CANARY=(
-  "Binance|https://api.binance.com/api/v3/ping|451"
-  "BinanceFutures|https://fapi.binance.com/fapi/v1/ping|451"
-  "Bybit|https://api.bybit.com/v5/market/time|451"
+  "Binance|https://api.binance.com/api/v3/ping|403/451"
+  "BinanceFutures|https://fapi.binance.com/fapi/v1/ping|403/451"
+  "Bybit|https://api.bybit.com/v5/market/time|403/451"
 )
+
+# Un canario sigue "ok" mientras devuelva CUALQUIER 4xx de bloqueo. El proveedor
+# puede cambiar 451<->403 sin que nada este mal; lo que importa es que siga vetado.
+is_blocked() {
+  case "$1" in
+    403 | 451) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 http_code() {
   curl -s -o /dev/null -w '%{http_code}' \
@@ -60,8 +70,10 @@ done
 for row in "${CANARY[@]}"; do
   IFS='|' read -r name url expected <<<"$row"
   code="$(http_code "$url")"
-  if [ "$code" = "$expected" ]; then
-    printf '%-16s %-7s %-9s %s\n' "$name" "$code" "$expected" "ok (canario, esperado)"
+  if is_blocked "$code"; then
+    printf '%-16s %-7s %-9s %s\n' "$name" "$code" "$expected" "ok (canario, bloqueado)"
+  elif [ "$code" = "200" ]; then
+    printf '%-16s %-7s %-9s %s\n' "$name" "$code" "$expected" "AVISO: geobloqueo LEVANTADO"
   else
     printf '%-16s %-7s %-9s %s\n' "$name" "$code" "$expected" "AVISO: status inesperado"
   fi

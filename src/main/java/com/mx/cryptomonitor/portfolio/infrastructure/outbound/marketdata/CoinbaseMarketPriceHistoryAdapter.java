@@ -192,6 +192,9 @@ public class CoinbaseMarketPriceHistoryAdapter implements MarketPriceHistoryProv
                             body ->
                                 Mono.error(
                                     new MarketDataServerException("Coinbase error: " + body))))
+            .onStatus(
+                HttpStatusCode::isError,
+                clientResponse -> MarketDataResponseErrors.recoverable("Coinbase", clientResponse))
             .bodyToMono(CandlesResponse.class)
             .timeout(responseTimeout)
             .onErrorMap(

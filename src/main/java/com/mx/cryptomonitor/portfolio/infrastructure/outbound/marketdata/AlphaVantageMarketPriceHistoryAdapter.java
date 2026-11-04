@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -57,6 +58,21 @@ public class AlphaVantageMarketPriceHistoryAdapter implements MarketPriceHistory
                 "%s/query?function=TIME_SERIES_DAILY&symbol=%s&outputsize=%s&apikey=%s"
                     .formatted(baseUrl, symbol.trim().toUpperCase(), outputSize, apiKey))
             .retrieve()
+            .onStatus(
+                status -> status.value() == 429,
+                resp ->
+                    resp.bodyToMono(String.class)
+                        .defaultIfEmpty("AlphaVantage rate limit exceeded")
+                        .map(MarketDataRateLimitException::new))
+            .onStatus(
+                HttpStatusCode::is5xxServerError,
+                resp ->
+                    resp.bodyToMono(String.class)
+                        .defaultIfEmpty("AlphaVantage server error")
+                        .map(body -> new MarketDataServerException("AlphaVantage error: " + body)))
+            .onStatus(
+                HttpStatusCode::isError,
+                resp -> MarketDataResponseErrors.recoverable("AlphaVantage", resp))
             .bodyToMono(Map.class)
             .map(Map.class::cast)
             .block();

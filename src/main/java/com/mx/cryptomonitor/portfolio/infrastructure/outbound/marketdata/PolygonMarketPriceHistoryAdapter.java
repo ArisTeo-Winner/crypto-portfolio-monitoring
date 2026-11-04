@@ -10,10 +10,13 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 
@@ -54,6 +57,21 @@ public class PolygonMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
                 "%s/v2/aggs/ticker/%s/range/1/day/%s/%s?adjusted=true&sort=asc&limit=50000&apiKey=%s"
                     .formatted(baseUrl, symbol.trim().toUpperCase(), from, to, apiKey))
             .retrieve()
+            .onStatus(
+                status -> status.value() == 429,
+                resp ->
+                    resp.bodyToMono(String.class)
+                        .defaultIfEmpty("Polygon rate limit exceeded")
+                        .map(MarketDataRateLimitException::new))
+            .onStatus(
+                HttpStatusCode::is5xxServerError,
+                resp ->
+                    resp.bodyToMono(String.class)
+                        .defaultIfEmpty("Polygon server error")
+                        .map(body -> new MarketDataServerException("Polygon error: " + body)))
+            .onStatus(
+                HttpStatusCode::isError,
+                resp -> MarketDataResponseErrors.recoverable("Polygon", resp))
             .bodyToMono(Map.class)
             .map(Map.class::cast)
             .block();

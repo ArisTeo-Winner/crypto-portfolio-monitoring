@@ -135,11 +135,7 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
                         .map(MarketDataRateLimitException::new))
             .onStatus(
                 HttpStatusCode::isError,
-                clientResponse ->
-                    clientResponse
-                        .bodyToMono(String.class)
-                        .defaultIfEmpty("CoinGecko error")
-                        .map(MarketDataServerException::new))
+                clientResponse -> MarketDataResponseErrors.recoverable("CoinGecko", clientResponse))
             .bodyToMono(CoinGeckoMarketChartResponse.class)
             .timeout(responseTimeout)
             .block();
@@ -182,11 +178,7 @@ public class CoinGeckoMarketPriceHistoryAdapter implements MarketPriceHistoryPro
                         .map(MarketDataRateLimitException::new))
             .onStatus(
                 HttpStatusCode::isError,
-                clientResponse ->
-                    clientResponse
-                        .bodyToMono(String.class)
-                        .defaultIfEmpty("CoinGecko search error")
-                        .map(MarketDataServerException::new))
+                clientResponse -> MarketDataResponseErrors.recoverable("CoinGecko", clientResponse))
             .bodyToMono(CoinGeckoSearchResponse.class)
             .timeout(responseTimeout)
             .block();

@@ -167,6 +167,9 @@ public class KrakenMarketPriceHistoryAdapter implements MarketPriceHistoryProvid
                         .flatMap(
                             body ->
                                 Mono.error(new MarketDataServerException("Kraken error: " + body))))
+            .onStatus(
+                HttpStatusCode::isError,
+                clientResponse -> MarketDataResponseErrors.recoverable("Kraken", clientResponse))
             .bodyToMono(KrakenOhlcResponse.class)
             .timeout(responseTimeout)
             .onErrorMap(
