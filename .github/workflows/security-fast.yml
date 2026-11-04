@@ -44,18 +44,23 @@ jobs:
       - name: Build Docker image (hardened)
         run: docker build -f Dockerfile.secure -t "$IMAGE_REF" .
 
-      # Action oficial de Aquasecurity: trae un Trivy fijado (sin `curl | sh`,
-      # que fallaba con exit 6 por DNS del runner) y cachea la DB de vulns entre
-      # pasos del job, asi el gate no la vuelve a descargar.
+      # Trivy se ejecuta como contenedor (imagen oficial desde Docker Hub, anclada por
+      # digest). Evita descargar el binario desde GitHub Releases, que fallaba de forma
+      # intermitente con `exit 6` (couldn't resolve host) tanto con `curl | sh` como
+      # dentro de aquasecurity/trivy-action (su setup-trivy hace la misma descarga).
+      # Docker Hub si resuelve en el runner (la build de la imagen hardened lo prueba).
+      # El socket deja que Trivy lea la imagen local; /tmp/trivy-cache comparte la DB de
+      # vulns entre los dos pasos para no descargarla dos veces.
       - name: Trivy scan → SARIF (reporte, no bloquea)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: image
-          image-ref: ${{ env.IMAGE_REF }}
-          scanners: vuln,secret,misconfig
-          format: sarif
-          output: trivy-results.sarif
-          exit-code: '0'
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e \
+            image --scanners vuln,secret,misconfig --no-progress \
+            --format sarif --output /work/trivy-results.sarif --exit-code 0 \
+            "$IMAGE_REF"
 
       - name: Upload Trivy SARIF a Code Scanning (best-effort)
         if: always()
@@ -65,12 +70,11 @@ jobs:
           sarif_file: trivy-results.sarif
 
       - name: Trivy gate (rompe ante HIGH/CRITICAL con fix)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: image
-          image-ref: ${{ env.IMAGE_REF }}
-          scanners: vuln,secret,misconfig
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
-          format: table
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e \
+            image --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
+            --ignore-unfixed --no-progress --exit-code 1 \
+            "$IMAGE_REF"
