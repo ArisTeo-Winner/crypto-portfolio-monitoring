@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
@@ -17,11 +20,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 /**
- * Valida EODHD_API_TOKEN contra la API real de EODHD ({@code GET /api/real-time/{symbol}}),
- * ADR-0016 / ADR-0002.
+ * Valida EODHD_API_TOKEN contra la API real de EODHD, ADR-0016 / ADR-0002, en los dos endpoints que
+ * consume el sistema: {@code GET /api/real-time/{symbol}} (precio de hoy, {@code EodhdAdapter}) y
+ * {@code GET /api/eod/{symbol}} (serie histórica, {@code EodhdMarketPriceHistoryProvider}).
  *
- * <p>Este IT es el <b>gate técnico de la Fase 2</b> del ADR-0016 (Action Item #4): confirma que el
- * plan EODHD entrega <b>real-time en AMBOS mercados</b> antes de rutear posiciones por mercado:
+ * <p>Es el <b>gate técnico de la Fase 2</b> del ADR-0016 (Action Item #4): confirma que el plan
+ * EODHD entrega <b>real-time y EOD en AMBOS mercados</b> antes de rutear posiciones por mercado:
  *
  * <ul>
  *   <li>{@code AAPL.US} — NASDAQ en USD; además expone {@code previousClose}/{@code change} para el
@@ -72,6 +76,106 @@ class EodhdCredentialsIT {
   void realTimeGateMxConfirmsNativeMxnCoverage() {
     Map<String, Object> body = fetchRealTime("MELIN.MX");
     assertRealTimeQuote("MELIN.MX", body);
+  }
+
+  @Test
+  void eodHistoricalGateUsReturnsAdjustedSeries() {
+    assertEodSeries("AAPL.US", fetchEod("AAPL.US"));
+  }
+
+  @Test
+  void eodHistoricalGateMxConfirmsNativeMxnHistory() {
+    assertEodSeries("MELIN.MX", fetchEod("MELIN.MX"));
+  }
+
+  private List<Map<String, Object>> fetchEod(String symbol) {
+    String apiToken = System.getenv("EODHD_API_TOKEN");
+    Assumptions.assumeTrue(
+        StringUtils.hasText(apiToken),
+        "EODHD_API_TOKEN no esta configurado en el entorno, se omite la validacion contra la API"
+            + " real");
+    String baseUrl = System.getenv().getOrDefault("EODHD_BASE_URL", BASE_URL_DEFAULT);
+    LocalDate to = LocalDate.now(ZoneOffset.UTC);
+    LocalDate from = to.minusMonths(1);
+
+    WebClient webClient = WebClient.builder().baseUrl(baseUrl).build();
+
+    try {
+      return webClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/api/eod/" + symbol)
+                      .queryParam("api_token", apiToken)
+                      .queryParam("fmt", "json")
+                      .queryParam("period", "d")
+                      .queryParam("from", from.toString())
+                      .queryParam("to", to.toString())
+                      .build())
+          .retrieve()
+          .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+          .timeout(Duration.ofSeconds(10))
+          .block();
+    } catch (WebClientResponseException ex) {
+      HttpStatusCode status = ex.getStatusCode();
+      if (status.value() == 401 || status.value() == 403) {
+        return fail(
+            "EODHD rechazo EODHD_API_TOKEN con HTTP "
+                + status.value()
+                + " para /api/eod/"
+                + symbol
+                + ": token invalido/revocado, o el plan/licencia NO cubre EOD para este mercado"
+                + " (gate del EodhdMarketPriceHistoryProvider).",
+            ex);
+      }
+      return fail(
+          "EODHD respondio HTTP "
+              + status.value()
+              + " para /api/eod/"
+              + symbol
+              + " con un token en teoria valido. Causa: "
+              + ex.getMessage(),
+          ex);
+    } catch (RuntimeException ex) {
+      return fail(
+          "No se pudo contactar a EODHD ("
+              + baseUrl
+              + ") para EOD "
+              + symbol
+              + ": "
+              + ex.getMessage(),
+          ex);
+    }
+  }
+
+  private void assertEodSeries(String symbol, List<Map<String, Object>> series) {
+    assertThat(series)
+        .as(
+            "EODHD /api/eod/"
+                + symbol
+                + " devolvio serie vacia: el plan no cubre EOD de este mercado o el simbolo no"
+                + " cotiza (el EodhdMarketPriceHistoryProvider caeria al siguiente proveedor).")
+        .isNotEmpty();
+
+    Map<String, Object> last = series.get(series.size() - 1);
+    assertThat(last.get("date"))
+        .as("EODHD /api/eod/" + symbol + " fila sin 'date'. Detalle: " + last)
+        .isNotNull();
+
+    Object close =
+        last.get("adjusted_close") != null ? last.get("adjusted_close") : last.get("close");
+    assertThat(close)
+        .as("EODHD /api/eod/" + symbol + " fila sin 'close'/'adjusted_close'. Detalle: " + last)
+        .isNotNull();
+
+    String rawClose = String.valueOf(close).trim();
+    assertThat(rawClose)
+        .as("EODHD /api/eod/" + symbol + " close no numerico: '" + rawClose + "'")
+        .isNotIn("NA", "null", "");
+    assertThat(new BigDecimal(rawClose).signum())
+        .as("EODHD /api/eod/" + symbol + " close no positivo: " + rawClose)
+        .isPositive();
   }
 
   private Map<String, Object> fetchRealTime(String symbol) {

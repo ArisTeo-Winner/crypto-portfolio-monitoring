@@ -32,6 +32,7 @@ import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.BybitMa
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.CoinGeckoMarketPriceHistoryAdapter;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.CoinbaseJwtSigner;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.CoinbaseMarketPriceHistoryAdapter;
+import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.EodhdMarketPriceHistoryProvider;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.KrakenMarketPriceHistoryAdapter;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.MarketPriceHistoryProvider;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.MassiveMarketPriceHistoryAdapter;
@@ -41,7 +42,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 
 /**
- * Contrato de resiliencia de geobloqueo para los NUEVE adapters de precios (ADR-0021).
+ * Contrato de resiliencia de geobloqueo para los DIEZ adapters de precios (ADR-0021).
  *
  * <p>Un status de error NO contemplado por los {@code onStatus} específicos de un adapter —sobre
  * todo {@code 451 Unavailable For Legal Reasons} y {@code 403 Forbidden} de un geobloqueo de
@@ -51,7 +52,7 @@ import okhttp3.mockwebserver.MockWebServer;
  * (vía {@code MarketDataResponseErrors}) estos status se filtraban como {@code
  * WebClientResponseException} y la valuación terminaba en HTTP 500.
  *
- * <p>Los nueve proveedores comparten el mismo invariante: cualquier bloqueo (403/451) o 4xx
+ * <p>Los diez proveedores comparten el mismo invariante: cualquier bloqueo (403/451) o 4xx
  * inesperado (418) es recuperable. {@code 429} y {@code 404} quedan fuera porque cada adapter los
  * mapea a su propia excepción (rate-limit / símbolo desconocido) y se prueban en sus tests propios.
  */
@@ -158,6 +159,16 @@ class MarketDataGeoblockContractTest {
         AssetType.STOCK,
         "AAPL",
         new TwelveDataMarketPriceHistoryAdapter(WebClient.builder(), baseUrl(), "test-key"));
+  }
+
+  @ParameterizedTest(name = "EODHD historico HTTP {0} -> recuperable")
+  @ValueSource(ints = {451, 403, 418})
+  void eodhd(int status) {
+    assertRecoverable(
+        status,
+        AssetType.STOCK,
+        "AAPL",
+        new EodhdMarketPriceHistoryProvider(WebClient.builder(), baseUrl(), "test-token", ".US"));
   }
 
   private void assertRecoverable(
