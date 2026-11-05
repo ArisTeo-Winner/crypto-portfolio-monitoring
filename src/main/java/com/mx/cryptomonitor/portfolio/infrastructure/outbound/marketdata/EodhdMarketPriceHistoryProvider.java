@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -42,6 +44,11 @@ import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
  * siguiente proveedor (TwelveData → Massive → AlphaVantage) en vez de cortar con una serie vacía.
  * 429/5xx y cualquier otro no-2xx (p. ej. 403/451 de geobloqueo) se mapean a excepciones
  * recuperables (ADR-0021) para el mismo fallback.
+ *
+ * <p>Seguridad: el símbolo viaja como segmento de path codificado y validado contra un allowlist
+ * ({@link UnknownAssetSymbolException} si no encaja); los errores de
+ * transporte/decodificación/timeout se sanitizan a {@link MarketDataServerException} sin la URL, de
+ * modo que el {@code api_token} nunca aparece en logs ni en stack traces.
  */
 @Component
 @ConditionalOnExpression("'${eodhd.base-url:}' != '' and '${eodhd.api-token:}' != ''")
@@ -49,9 +56,10 @@ import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 public class EodhdMarketPriceHistoryProvider implements MarketPriceHistoryProvider {
 
   private static final LocalDate ALL_START = LocalDate.of(2000, 1, 1);
+  private static final Pattern SYMBOL_ALLOWLIST =
+      Pattern.compile("^[A-Z0-9_\\-]{1,20}(\\.[A-Z]{1,4})?$");
 
   private final WebClient webClient;
-  private final String baseUrl;
   private final String apiToken;
   private final String defaultSuffix;
 
@@ -60,8 +68,7 @@ public class EodhdMarketPriceHistoryProvider implements MarketPriceHistoryProvid
       @Value("${eodhd.base-url:https://eodhd.com}") String baseUrl,
       @Value("${eodhd.api-token:}") String apiToken,
       @Value("${eodhd.default-suffix:.US}") String defaultSuffix) {
-    this.webClient = webClientBuilder.build();
-    this.baseUrl = baseUrl.replaceAll("/$", "");
+    this.webClient = webClientBuilder.baseUrl(baseUrl.replaceAll("/$", "")).build();
     this.apiToken = apiToken;
     this.defaultSuffix = (defaultSuffix == null || defaultSuffix.isBlank()) ? ".US" : defaultSuffix;
   }
@@ -79,15 +86,23 @@ public class EodhdMarketPriceHistoryProvider implements MarketPriceHistoryProvid
     LocalDate to = LocalDate.now(ZoneOffset.UTC);
     LocalDate from = range.isAll() ? ALL_START : to.minus(range.period());
     String eodSymbol = toEodSymbol(symbol);
-    String url =
-        String.format(
-            "%s/api/eod/%s?api_token=%s&fmt=json&period=d&from=%s&to=%s",
-            baseUrl, eodSymbol, apiToken, from, to);
+    if (!SYMBOL_ALLOWLIST.matcher(eodSymbol).matches()) {
+      throw new UnknownAssetSymbolException("EODHD: simbolo con formato no soportado");
+    }
 
     List<Map<String, Object>> rows =
         webClient
             .get()
-            .uri(url)
+            .uri(
+                uriBuilder ->
+                    uriBuilder
+                        .path("/api/eod/{symbol}")
+                        .queryParam("api_token", apiToken)
+                        .queryParam("fmt", "json")
+                        .queryParam("period", "d")
+                        .queryParam("from", from)
+                        .queryParam("to", to)
+                        .build(eodSymbol))
             .retrieve()
             .onStatus(
                 status -> status.value() == 404,
@@ -114,6 +129,13 @@ public class EodhdMarketPriceHistoryProvider implements MarketPriceHistoryProvid
                 HttpStatusCode::isError,
                 resp -> MarketDataResponseErrors.recoverable("EODHD", resp))
             .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+            .timeout(Duration.ofSeconds(10))
+            .onErrorMap(
+                ex ->
+                    !(ex instanceof MarketDataRateLimitException
+                        || ex instanceof MarketDataServerException
+                        || ex instanceof UnknownAssetSymbolException),
+                ex -> new MarketDataServerException("EODHD request failed"))
             .block();
 
     if (rows == null || rows.isEmpty()) {
