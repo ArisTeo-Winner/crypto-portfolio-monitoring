@@ -37,7 +37,7 @@ public class StockDataController {
       summary = "Precio en tiempo real (Previous Close)",
       description =
           "Obtiene el último precio disponible de un stock consultando los proveedores"
-              + " configurados en orden: Twelve Data → Alpha Vantage → Polygon.")
+              + " configurados en orden: Twelve Data → Alpha Vantage → Massive.")
   @ApiResponse(responseCode = "200", description = "Precio obtenido correctamente")
   @ApiResponse(responseCode = "400", description = "Symbol vacío o nulo")
   @ApiResponse(responseCode = "404", description = "Sin datos para el symbol")

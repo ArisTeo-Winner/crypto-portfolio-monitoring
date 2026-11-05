@@ -57,7 +57,7 @@ public class MarketDataProviderConfig {
         webClient, alphaVantageProperties.getBaseUrl(), alphaVantageProperties.getApiKey());
   }
 
-  /** Proveedor terciario: Massive/Polygon.io (opcional). */
+  /** Proveedor terciario: Massive (antes Polygon.io; opcional). */
   @Bean
   @ConditionalOnExpression(
       "'${marketdata.massive.base-url:}' != '' and '${marketdata.massive.api-key:}' != ''")
@@ -89,7 +89,7 @@ public class MarketDataProviderConfig {
    *   <li>EODHD (si {@code EODHD_API_TOKEN} está configurado) — precio de hoy, ADR-0016
    *   <li>Twelve Data (si {@code TWELVEDATA_API_KEY} está configurada)
    *   <li>Alpha Vantage
-   *   <li>Massive/Polygon (si {@code MASSIVE_API_KEY} está configurada)
+   *   <li>Massive (antes Polygon; si {@code MASSIVE_API_KEY} está configurada)
    * </ol>
    */
   @Bean

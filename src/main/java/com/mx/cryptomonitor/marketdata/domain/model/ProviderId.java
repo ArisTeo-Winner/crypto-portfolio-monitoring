@@ -3,6 +3,6 @@ package com.mx.cryptomonitor.marketdata.domain.model;
 public enum ProviderId {
   COINMARKETCAP,
   COINGECKO,
-  POLYGON,
+  MASSIVE,
   ALPHAVANTAGE
 }

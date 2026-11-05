@@ -80,8 +80,8 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
     registry.add("external.providers.binance.futures.enabled", () -> "false");
     registry.add("marketdata.alphavantage.base-url", () -> "http://localhost");
     registry.add("marketdata.alphavantage.api-key", () -> "demo");
-    registry.add("polygon.base-url", () -> "");
-    registry.add("polygon.api.key", () -> "");
+    registry.add("marketdata.massive.base-url", () -> "");
+    registry.add("marketdata.massive.api-key", () -> "");
   }
 
   @BeforeEach

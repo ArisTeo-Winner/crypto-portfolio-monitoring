@@ -34,7 +34,7 @@ import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.Coinbas
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.CoinbaseMarketPriceHistoryAdapter;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.KrakenMarketPriceHistoryAdapter;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.MarketPriceHistoryProvider;
-import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.PolygonMarketPriceHistoryAdapter;
+import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.MassiveMarketPriceHistoryAdapter;
 import com.mx.cryptomonitor.portfolio.infrastructure.outbound.marketdata.TwelveDataMarketPriceHistoryAdapter;
 
 import okhttp3.mockwebserver.MockResponse;
@@ -140,14 +140,14 @@ class MarketDataGeoblockContractTest {
         new AlphaVantageMarketPriceHistoryAdapter(WebClient.builder(), baseUrl(), "test-key"));
   }
 
-  @ParameterizedTest(name = "Polygon HTTP {0} -> recuperable")
+  @ParameterizedTest(name = "Massive HTTP {0} -> recuperable")
   @ValueSource(ints = {451, 403, 418})
-  void polygon(int status) {
+  void massive(int status) {
     assertRecoverable(
         status,
         AssetType.STOCK,
         "AAPL",
-        new PolygonMarketPriceHistoryAdapter(WebClient.builder(), baseUrl(), "test-key"));
+        new MassiveMarketPriceHistoryAdapter(WebClient.builder(), baseUrl(), "test-key"));
   }
 
   @ParameterizedTest(name = "TwelveData HTTP {0} -> recuperable")
