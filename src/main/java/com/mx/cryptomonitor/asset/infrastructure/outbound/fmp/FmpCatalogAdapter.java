@@ -39,8 +39,8 @@ public class FmpCatalogAdapter implements CatalogFetchPort {
       @Value("${fmp.base-url:https://financialmodelingprep.com}") String baseUrl,
       @Value("${fmp.api-key:}") String apiKey,
       CompaniesLogoAdapter companiesLogoAdapter,
-      @Value("${fmp.screener-path:/api/v3/stock-screener}") String screenerPath,
-      @Value("${fmp.etf-list-path:/api/v3/etf/list}") String etfListPath) {
+      @Value("${fmp.screener-path:/stable/company-screener}") String screenerPath,
+      @Value("${fmp.etf-list-path:/stable/etf-list}") String etfListPath) {
     this.webClient = builder.baseUrl(baseUrl).build();
     this.apiKey = apiKey;
     this.companiesLogoAdapter = companiesLogoAdapter;

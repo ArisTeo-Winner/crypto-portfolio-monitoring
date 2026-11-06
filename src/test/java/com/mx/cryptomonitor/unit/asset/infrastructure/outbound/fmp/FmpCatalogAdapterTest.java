@@ -46,8 +46,8 @@ class FmpCatalogAdapterTest {
             server.url("/").toString(),
             "test-key",
             companiesLogoAdapter,
-            "/api/v3/stock-screener",
-            "/api/v3/etf/list");
+            "/stable/company-screener",
+            "/stable/etf-list");
   }
 
   @AfterEach
@@ -77,7 +77,7 @@ class FmpCatalogAdapterTest {
     assertThat(result.get(0).marketCap()).isEqualTo(3_000_000L);
 
     RecordedRequest request = server.takeRequest();
-    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/v3/stock-screener");
+    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/stable/company-screener");
     assertThat(request.getRequestUrl().queryParameter("apikey")).isEqualTo("test-key");
     assertThat(request.getRequestUrl().queryParameter("limit")).isEqualTo("2");
   }
@@ -131,7 +131,7 @@ class FmpCatalogAdapterTest {
     assertThat(result.get(0).currency()).isEqualTo("USD");
 
     RecordedRequest request = server.takeRequest();
-    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/v3/etf/list");
+    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/stable/etf-list");
     assertThat(request.getRequestUrl().queryParameter("apikey")).isEqualTo("test-key");
   }
 
@@ -155,8 +155,8 @@ class FmpCatalogAdapterTest {
             server.url("/").toString(),
             "",
             companiesLogoAdapter,
-            "/api/v3/stock-screener",
-            "/api/v3/etf/list");
+            "/stable/company-screener",
+            "/stable/etf-list");
 
     server.enqueue(jsonResponse("[]"));
 
@@ -248,8 +248,8 @@ class FmpCatalogAdapterTest {
             unreachableUrl,
             "test-key",
             companiesLogoAdapter,
-            "/api/v3/stock-screener",
-            "/api/v3/etf/list");
+            "/stable/company-screener",
+            "/stable/etf-list");
 
     List<AssetCatalogDto> result = adapter.fetchTopStocks(10);
 
