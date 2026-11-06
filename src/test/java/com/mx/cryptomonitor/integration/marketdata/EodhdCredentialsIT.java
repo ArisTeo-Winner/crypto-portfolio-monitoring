@@ -88,6 +88,114 @@ class EodhdCredentialsIT {
     assertEodSeries("MELIN.MX", fetchEod("MELIN.MX"));
   }
 
+  @Test
+  void dividendGateUsReturnsSeries() {
+    assertDivSeries("AAPL.US", fetchDiv("AAPL.US"));
+  }
+
+  @Test
+  void dividendGateMxConfirmsNativeMxn() {
+    assertDivSeries("BIMBOA.MX", fetchDiv("BIMBOA.MX"));
+  }
+
+  private List<Map<String, Object>> fetchDiv(String symbol) {
+    String apiToken = System.getenv("EODHD_API_TOKEN");
+    Assumptions.assumeTrue(
+        StringUtils.hasText(apiToken),
+        "EODHD_API_TOKEN no esta configurado en el entorno, se omite la validacion contra la API"
+            + " real");
+    String baseUrl = System.getenv().getOrDefault("EODHD_BASE_URL", BASE_URL_DEFAULT);
+    LocalDate to = LocalDate.now(ZoneOffset.UTC);
+    LocalDate from = to.minusYears(5);
+
+    WebClient webClient = WebClient.builder().baseUrl(baseUrl).build();
+
+    try {
+      return webClient
+          .get()
+          .uri(
+              uriBuilder ->
+                  uriBuilder
+                      .path("/api/div/" + symbol)
+                      .queryParam("api_token", apiToken)
+                      .queryParam("fmt", "json")
+                      .queryParam("from", from.toString())
+                      .build())
+          .retrieve()
+          .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+          .timeout(Duration.ofSeconds(10))
+          .block();
+    } catch (WebClientResponseException ex) {
+      // No se incluye ex.getMessage(): la URL de EODHD lleva el api_token como query param y no
+      // debe quedar en surefire-reports (CLAUDE.md: secretos nunca en logs).
+      HttpStatusCode status = ex.getStatusCode();
+      if (status.value() == 403) {
+        return Assumptions.abort(
+            "EODHD /api/div/"
+                + symbol
+                + " respondio 403: el plan actual NO incluye la API de dividendos. EODHD es ULTIMO"
+                + " recurso para dividendos (fuente MXN = DataBursatil, US = Massive); se omite este"
+                + " gate hasta contratar el add-on de dividendos.");
+      }
+      if (status.value() == 401) {
+        return fail(
+            "EODHD rechazo EODHD_API_TOKEN con HTTP 401 para /api/div/"
+                + symbol
+                + ": token invalido/revocado.");
+      }
+      return fail(
+          "EODHD respondio HTTP "
+              + status.value()
+              + " para /api/div/"
+              + symbol
+              + " con un token en teoria valido.");
+    } catch (RuntimeException ex) {
+      return fail(
+          "No se pudo contactar a EODHD ("
+              + baseUrl
+              + ") para dividendos "
+              + symbol
+              + ": "
+              + ex.getClass().getSimpleName());
+    }
+  }
+
+  private void assertDivSeries(String symbol, List<Map<String, Object>> series) {
+    assertThat(series)
+        .as(
+            "EODHD /api/div/"
+                + symbol
+                + " devolvio serie vacia: el plan no cubre dividendos de este mercado o el emisor no"
+                + " reparte (el EodhdDividendAdapter caeria sin detectar).")
+        .isNotEmpty();
+
+    Map<String, Object> last = series.get(series.size() - 1);
+    assertThat(last.get("date"))
+        .as("EODHD /api/div/" + symbol + " fila sin 'date'. Detalle: " + last)
+        .isNotNull();
+
+    Object value = last.get("value") != null ? last.get("value") : last.get("unadjustedValue");
+    assertThat(value)
+        .as("EODHD /api/div/" + symbol + " fila sin 'value'/'unadjustedValue'. Detalle: " + last)
+        .isNotNull();
+
+    String rawValue = String.valueOf(value).trim();
+    assertThat(rawValue)
+        .as("EODHD /api/div/" + symbol + " value no numerico: '" + rawValue + "'")
+        .isNotIn("NA", "null", "");
+    assertThat(new BigDecimal(rawValue).signum())
+        .as("EODHD /api/div/" + symbol + " value no positivo: " + rawValue)
+        .isPositive();
+
+    assertThat(last.get("currency"))
+        .as(
+            "EODHD /api/div/"
+                + symbol
+                + " sin 'currency': el grafico necesita la moneda nativa. Detalle: "
+                + last)
+        .isNotNull();
+  }
+
   private List<Map<String, Object>> fetchEod(String symbol) {
     String apiToken = System.getenv("EODHD_API_TOKEN");
     Assumptions.assumeTrue(

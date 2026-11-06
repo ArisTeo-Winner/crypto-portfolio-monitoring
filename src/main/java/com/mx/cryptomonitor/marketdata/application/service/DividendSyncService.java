@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.mx.cryptomonitor.marketdata.application.port.in.SyncDividendsUseCase;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
@@ -42,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class DividendSyncService {
+public class DividendSyncService implements SyncDividendsUseCase {
 
   private static final String PROVIDER = "MASSIVE";
 
@@ -52,6 +53,7 @@ public class DividendSyncService {
   private final ApplicationEventPublisher eventPublisher;
 
   /** Sincroniza los dividendos de un ticker. Devuelve cuantos eventos NUEVOS se insertaron. */
+  @Override
   @Transactional
   public int sync(String ticker) {
     if (!StringUtils.hasText(ticker)) {
