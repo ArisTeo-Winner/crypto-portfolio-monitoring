@@ -7,8 +7,10 @@ import org.springframework.stereotype.Component;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.alphavantage.AlphaVantageDividendAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.databursatil.DataBursatilDividendAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.eodhd.EodhdDividendAdapter;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.fmp.FmpDividendAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.massive.MassiveDividendAdapter;
 
 /**
@@ -16,14 +18,18 @@ import com.mx.cryptomonitor.marketdata.infrastructure.outbound.massive.MassiveDi
  * devuelve el PRIMER resultado no vacío:
  *
  * <ol>
- *   <li>Massive — US (proveedor ya probado para NASDAQ/NYSE).
+ *   <li>Massive — US primario (NASDAQ/NYSE).
+ *   <li>FMP — fallback US ({@code /stable/dividends}); el más completo (incluye el dividendo futuro
+ *       anunciado y {@code frequency}). Rellena huecos de Massive (p. ej. {@code GOOG}).
+ *   <li>AlphaVantage — fallback US secundario ({@code DIVIDENDS}); solo histórico (sin el futuro).
  *   <li>DataBursatil — BMV en MXN nativo ({@code /v2/emisoras}, histórico + próximo con ex-date).
  *   <li>EODHD — ÚLTIMO recurso (su plan actual no autoriza {@code /api/div}, 403).
  * </ol>
  *
- * <p>Es {@code @Primary} para que {@code DividendSyncService} lo inyecte sin ambigüedad frente a
- * los adapters concretos (que siguen siendo beans para poder orquestarlos). Cada adapter ya
- * devuelve lista vacía ante fallo/no-configurado, así que la orquestación nunca rompe la ingesta.
+ * <p>Los proveedores US van antes que DataBursatil para no gastar créditos BMV en símbolos US. Es
+ * {@code @Primary} para que {@code DividendSyncService} lo inyecte sin ambigüedad frente a los
+ * adapters concretos (que siguen siendo beans para poder orquestarlos). Cada adapter ya devuelve
+ * lista vacía ante fallo/no-configurado, así que la orquestación nunca rompe la ingesta.
  */
 @Component
 @Primary
@@ -33,10 +39,17 @@ public class DividendProviderOrchestrator implements DividendProviderPort {
 
   public DividendProviderOrchestrator(
       MassiveDividendAdapter massiveDividendAdapter,
+      FmpDividendAdapter fmpDividendAdapter,
+      AlphaVantageDividendAdapter alphaVantageDividendAdapter,
       DataBursatilDividendAdapter dataBursatilDividendAdapter,
       EodhdDividendAdapter eodhdDividendAdapter) {
     this.providers =
-        List.of(massiveDividendAdapter, dataBursatilDividendAdapter, eodhdDividendAdapter);
+        List.of(
+            massiveDividendAdapter,
+            fmpDividendAdapter,
+            alphaVantageDividendAdapter,
+            dataBursatilDividendAdapter,
+            eodhdDividendAdapter);
   }
 
   @Override
