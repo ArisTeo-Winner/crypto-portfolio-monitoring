@@ -24,12 +24,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.application.service.DividendSyncService;
+import com.mx.cryptomonitor.marketdata.domain.model.AssetDividendStatusEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionStatus;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionType;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendActionDetailEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendDistributionType;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendEligibilityStatus;
+import com.mx.cryptomonitor.marketdata.domain.repository.AssetDividendStatusRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.CorporateActionRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRepository;
 
@@ -40,10 +44,15 @@ class DividendSyncServiceTest {
   @Mock private CorporateActionRepository corporateActionRepository;
   @Mock private DividendActionDetailRepository detailRepository;
   @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
+  @Mock private AssetDividendStatusRepository dividendStatusRepository;
 
   private DividendSyncService service() {
     return new DividendSyncService(
-        provider, corporateActionRepository, detailRepository, eventPublisher);
+        provider,
+        corporateActionRepository,
+        detailRepository,
+        eventPublisher,
+        dividendStatusRepository);
   }
 
   private DividendEventData paidGoogl() {
@@ -116,6 +125,73 @@ class DividendSyncServiceTest {
     verify(eventPublisher).publishEvent(eventCaptor.capture());
     assertThat(eventCaptor.getValue().assetSymbol()).isEqualTo("GOOGL");
     assertThat(eventCaptor.getValue().dividendPerShare()).isEqualByComparingTo("0.20");
+  }
+
+  @Test
+  void recordsPaysWhenProviderReturnsEvents() {
+    when(provider.fetchDividends("GOOGL")).thenReturn(List.of(paidGoogl()));
+    when(corporateActionRepository.findByProviderEventId("E1cdc29fc58066"))
+        .thenReturn(Optional.empty());
+    when(corporateActionRepository.findByAssetSymbolAndActionTypeAndPivotalDate(
+            "GOOGL", CorporateActionType.DIVIDEND, LocalDate.of(2024, 6, 10)))
+        .thenReturn(Optional.empty());
+    when(corporateActionRepository.save(any(CorporateActionEntity.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+
+    service().sync("googl");
+
+    ArgumentCaptor<AssetDividendStatusEntity> captor =
+        ArgumentCaptor.forClass(AssetDividendStatusEntity.class);
+    verify(dividendStatusRepository).save(captor.capture());
+    assertThat(captor.getValue().getAssetSymbol()).isEqualTo("GOOGL");
+    assertThat(captor.getValue().getStatus()).isEqualTo(DividendEligibilityStatus.PAYS);
+  }
+
+  @Test
+  void recordsNoneWhenProviderReturnsEmpty() {
+    when(provider.fetchDividends("NODIV")).thenReturn(List.of());
+
+    int created = service().sync("nodiv");
+
+    assertThat(created).isZero();
+    ArgumentCaptor<AssetDividendStatusEntity> captor =
+        ArgumentCaptor.forClass(AssetDividendStatusEntity.class);
+    verify(dividendStatusRepository).save(captor.capture());
+    assertThat(captor.getValue().getAssetSymbol()).isEqualTo("NODIV");
+    assertThat(captor.getValue().getStatus()).isEqualTo(DividendEligibilityStatus.NONE);
+  }
+
+  /** ADR-0025 F2: proveedores no disponibles => ERROR (no concluyente), nunca NONE. */
+  @Test
+  void recordsErrorWhenProvidersUnavailable() {
+    when(provider.fetchDividends("DOWN"))
+        .thenThrow(new DividendProviderUnavailableException("all providers failed"));
+
+    int created = service().sync("down");
+
+    assertThat(created).isZero();
+    ArgumentCaptor<AssetDividendStatusEntity> captor =
+        ArgumentCaptor.forClass(AssetDividendStatusEntity.class);
+    verify(dividendStatusRepository).save(captor.capture());
+    assertThat(captor.getValue().getStatus()).isEqualTo(DividendEligibilityStatus.ERROR);
+  }
+
+  /** ADR-0025 F2: un fallo transitorio NO degrada un veredicto ya concluyente (PAYS). */
+  @Test
+  void errorDoesNotDowngradeExistingPays() {
+    when(provider.fetchDividends("GOOGL"))
+        .thenThrow(new DividendProviderUnavailableException("down"));
+    when(dividendStatusRepository.findByAssetSymbol("GOOGL"))
+        .thenReturn(
+            Optional.of(
+                AssetDividendStatusEntity.builder()
+                    .assetSymbol("GOOGL")
+                    .status(DividendEligibilityStatus.PAYS)
+                    .build()));
+
+    service().sync("GOOGL");
+
+    verify(dividendStatusRepository, never()).save(any());
   }
 
   @Test

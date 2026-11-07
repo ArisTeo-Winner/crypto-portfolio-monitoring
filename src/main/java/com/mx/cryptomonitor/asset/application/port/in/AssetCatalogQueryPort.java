@@ -11,6 +11,13 @@ public interface AssetCatalogQueryPort {
   Optional<String> findNameBySymbol(String symbol);
 
   /**
+   * Moneda del catálogo para un símbolo (ADR-0025 F3): permite rutear la ingesta de dividendos por
+   * mercado (p. ej. {@code MXN} → BMV/DataBursatil primero). Vacío si el símbolo no está en el
+   * catálogo o no tiene moneda; el consumidor cae a un orden por defecto.
+   */
+  Optional<String> findCurrencyBySymbol(String symbol);
+
+  /**
    * Resuelve las URLs de logo del catálogo para un conjunto de símbolos, deduplicando. Pensado para
    * el hot path de listados (p.ej. /me/transactions): una sola resolución por símbolo distinto,
    * leyendo del catálogo cacheado (Redis) — sin llamar a proveedores externos.

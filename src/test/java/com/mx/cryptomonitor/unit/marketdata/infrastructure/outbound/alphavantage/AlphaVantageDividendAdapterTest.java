@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.unit.marketdata.infrastructure.outbound.alphavantage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.AlphaVantageProperties;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.alphavantage.AlphaVantageDividendAdapter;
 
@@ -82,10 +84,12 @@ class AlphaVantageDividendAdapterTest {
   }
 
   @Test
-  void returnsEmptyOnRateLimitEnvelope() {
+  void throwsOnRateLimitEnvelope() {
     server.enqueue(jsonOk("{\"Information\":\"rate limit reached (25/day)\"}"));
 
-    assertThat(adapter.fetchDividends("GOOGL")).isEmpty();
+    // ADR-0025 F2: envelope de cuota/error => no concluyente (ERROR), nunca "no paga" (NONE).
+    assertThatThrownBy(() -> adapter.fetchDividends("GOOGL"))
+        .isInstanceOf(DividendProviderUnavailableException.class);
   }
 
   @Test

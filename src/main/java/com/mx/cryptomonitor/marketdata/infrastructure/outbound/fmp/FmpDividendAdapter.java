@@ -16,6 +16,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,10 +77,11 @@ public class FmpDividendAdapter implements DividendProviderPort {
       return parse(rows, symbol);
     } catch (RuntimeException ex) {
       log.warn(
-          "No se pudo obtener dividendos de FMP para {} ({}); se continua sin deteccion",
+          "No se pudo obtener dividendos de FMP para {} ({}); no concluyente",
           symbol,
           ex.getClass().getSimpleName());
-      return List.of();
+      throw new DividendProviderUnavailableException(
+          "FMP " + symbol + ": " + ex.getClass().getSimpleName());
     }
   }
 

@@ -17,6 +17,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.AlphaVantageProperties;
 
 import lombok.RequiredArgsConstructor;
@@ -68,13 +69,23 @@ public class AlphaVantageDividendAdapter implements DividendProviderPort {
     try {
       Map<String, Object> body =
           webClient.get().uri(uri).retrieve().bodyToMono(BODY_TYPE).timeout(TIMEOUT).block();
+      // Envelope sin 'data' (Information/Note/Error Message) = cuota/error del proveedor: NO
+      // concluyente (ADR-0025 F2). Distinto de 'data' vacío, que sí sería "no paga".
+      if (body != null && !(body.get("data") instanceof List)) {
+        log.warn("AlphaVantage respondió envelope de cuota/error para {}; no concluyente", symbol);
+        throw new DividendProviderUnavailableException(
+            "AlphaVantage " + symbol + ": envelope de cuota/error");
+      }
       return parse(body, symbol);
+    } catch (DividendProviderUnavailableException ex) {
+      throw ex;
     } catch (RuntimeException ex) {
       log.warn(
-          "No se pudo obtener dividendos de AlphaVantage para {} ({}); se continua sin deteccion",
+          "No se pudo obtener dividendos de AlphaVantage para {} ({}); no concluyente",
           symbol,
           ex.getClass().getSimpleName());
-      return List.of();
+      throw new DividendProviderUnavailableException(
+          "AlphaVantage " + symbol + ": " + ex.getClass().getSimpleName());
     }
   }
 

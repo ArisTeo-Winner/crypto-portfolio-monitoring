@@ -14,6 +14,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.MassiveProperties;
 
 import lombok.RequiredArgsConstructor;
@@ -59,16 +60,18 @@ public class MassiveDividendAdapter implements DividendProviderPort {
       return parse(body, normalized);
     } catch (WebClientResponseException ex) {
       log.warn(
-          "No se pudo obtener dividendos de Massive para {} (HTTP {}); se continua sin deteccion",
+          "No se pudo obtener dividendos de Massive para {} (HTTP {}); no concluyente",
           normalized,
           ex.getStatusCode().value());
-      return List.of();
+      throw new DividendProviderUnavailableException(
+          "Massive " + normalized + ": HTTP " + ex.getStatusCode().value());
     } catch (RuntimeException ex) {
       log.warn(
-          "No se pudo obtener dividendos de Massive para {} ({}); se continua sin deteccion",
+          "No se pudo obtener dividendos de Massive para {} ({}); no concluyente",
           normalized,
           ex.getClass().getSimpleName());
-      return List.of();
+      throw new DividendProviderUnavailableException(
+          "Massive " + normalized + ": " + ex.getClass().getSimpleName());
     }
   }
 

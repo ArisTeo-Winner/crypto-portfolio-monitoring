@@ -17,6 +17,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.DataBursatilProperties;
 
 import lombok.extern.slf4j.Slf4j;
@@ -99,10 +100,11 @@ public class DataBursatilDividendAdapter implements DividendProviderPort {
           .block();
     } catch (RuntimeException ex) {
       log.warn(
-          "No se pudo obtener dividendos de DataBursatil (letra {}) ({}); se continua sin deteccion",
+          "No se pudo obtener dividendos de DataBursatil (letra {}) ({}); no concluyente",
           letra,
           ex.getClass().getSimpleName());
-      return null;
+      throw new DividendProviderUnavailableException(
+          "DataBursatil " + letra + ": " + ex.getClass().getSimpleName());
     }
   }
 

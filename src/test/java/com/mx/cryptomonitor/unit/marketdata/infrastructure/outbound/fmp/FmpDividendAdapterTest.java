@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.unit.marketdata.infrastructure.outbound.fmp;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.fmp.FmpDividendAdapter;
 
 import okhttp3.mockwebserver.MockResponse;
@@ -76,10 +78,12 @@ class FmpDividendAdapterTest {
   }
 
   @Test
-  void returnsEmptyOnErrorBody() {
+  void throwsWhenProviderReturnsErrorBody() {
     server.enqueue(jsonOk("{\"Error Message\":\"Invalid API KEY\"}"));
 
-    assertThat(adapter.fetchDividends("GOOGL")).isEmpty();
+    // ADR-0025 F2: fallo del proveedor => no concluyente (ERROR), nunca "no paga" (NONE).
+    assertThatThrownBy(() -> adapter.fetchDividends("GOOGL"))
+        .isInstanceOf(DividendProviderUnavailableException.class);
   }
 
   @Test

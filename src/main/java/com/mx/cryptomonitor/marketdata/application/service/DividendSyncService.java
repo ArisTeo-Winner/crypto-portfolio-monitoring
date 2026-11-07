@@ -17,12 +17,16 @@ import com.mx.cryptomonitor.marketdata.application.port.in.SyncDividendsUseCase;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.domain.corporateaction.CorporateActionLifecycle;
+import com.mx.cryptomonitor.marketdata.domain.model.AssetDividendStatusEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionStatus;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionType;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendActionDetailEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendDistributionType;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendEligibilityStatus;
+import com.mx.cryptomonitor.marketdata.domain.repository.AssetDividendStatusRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.CorporateActionRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRepository;
 
@@ -51,6 +55,7 @@ public class DividendSyncService implements SyncDividendsUseCase {
   private final CorporateActionRepository corporateActionRepository;
   private final DividendActionDetailRepository dividendDetailRepository;
   private final ApplicationEventPublisher eventPublisher;
+  private final AssetDividendStatusRepository dividendStatusRepository;
 
   /** Sincroniza los dividendos de un ticker. Devuelve cuantos eventos NUEVOS se insertaron. */
   @Override
@@ -60,7 +65,15 @@ public class DividendSyncService implements SyncDividendsUseCase {
       return 0;
     }
     String symbol = ticker.trim().toUpperCase();
-    List<DividendEventData> events = dividendProvider.fetchDividends(symbol);
+    boolean providerError = false;
+    List<DividendEventData> events;
+    try {
+      events = dividendProvider.fetchDividends(symbol);
+    } catch (DividendProviderUnavailableException ex) {
+      log.warn("Descubrimiento de dividendos no concluyente para {}: {}", symbol, ex.getMessage());
+      events = List.of();
+      providerError = true;
+    }
     LocalDate today = LocalDate.now(ZoneOffset.UTC);
     int created = 0;
     int updated = 0;
@@ -91,7 +104,38 @@ public class DividendSyncService implements SyncDividendsUseCase {
       log.info(
           "Dividend sync {}: {} evento(s) nuevo(s), {} actualizado(s)", symbol, created, updated);
     }
+    recordEligibility(symbol, !events.isEmpty(), providerError);
     return created;
+  }
+
+  /**
+   * ADR-0025: persiste el desenlace del descubrimiento como estado de elegibilidad. {@code PAYS} si
+   * el proveedor devolvió eventos; {@code NONE} si respondió OK y vacío; {@code ERROR} (F2) si
+   * ningún proveedor concluyó (caído/sin cuota) — NO concluyente. Regla anti-degradación: un {@code
+   * ERROR} nunca sobre-escribe un veredicto ya concluyente ({@code PAYS}/{@code NONE}); solo
+   * refresca el {@code lastCheckedAt} se omite para no borrar lo conocido. Upsert por símbolo.
+   */
+  private void recordEligibility(String symbol, boolean pays, boolean providerError) {
+    DividendEligibilityStatus newStatus =
+        pays
+            ? DividendEligibilityStatus.PAYS
+            : (providerError ? DividendEligibilityStatus.ERROR : DividendEligibilityStatus.NONE);
+    Optional<AssetDividendStatusEntity> existing =
+        dividendStatusRepository.findByAssetSymbol(symbol);
+    if (newStatus == DividendEligibilityStatus.ERROR
+        && existing
+            .filter(
+                e ->
+                    e.getStatus() == DividendEligibilityStatus.PAYS
+                        || e.getStatus() == DividendEligibilityStatus.NONE)
+            .isPresent()) {
+      return;
+    }
+    AssetDividendStatusEntity entity =
+        existing.orElseGet(() -> AssetDividendStatusEntity.builder().assetSymbol(symbol).build());
+    entity.setStatus(newStatus);
+    entity.setLastCheckedAt(OffsetDateTime.now(ZoneOffset.UTC));
+    dividendStatusRepository.save(entity);
   }
 
   private Optional<CorporateActionEntity> findExisting(String symbol, DividendEventData event) {

@@ -5,8 +5,10 @@ import java.util.List;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.alphavantage.AlphaVantageDividendAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.databursatil.DataBursatilDividendAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.eodhd.EodhdDividendAdapter;
@@ -35,31 +37,69 @@ import com.mx.cryptomonitor.marketdata.infrastructure.outbound.massive.MassiveDi
 @Primary
 public class DividendProviderOrchestrator implements DividendProviderPort {
 
-  private final List<DividendProviderPort> providers;
+  private final List<DividendProviderPort> usFirst;
+  private final List<DividendProviderPort> mxnFirst;
+  private final AssetCatalogQueryPort assetCatalog;
 
   public DividendProviderOrchestrator(
       MassiveDividendAdapter massiveDividendAdapter,
       FmpDividendAdapter fmpDividendAdapter,
       AlphaVantageDividendAdapter alphaVantageDividendAdapter,
       DataBursatilDividendAdapter dataBursatilDividendAdapter,
-      EodhdDividendAdapter eodhdDividendAdapter) {
-    this.providers =
+      EodhdDividendAdapter eodhdDividendAdapter,
+      AssetCatalogQueryPort assetCatalog) {
+    // Orden US (default): Massive → FMP → AlphaVantage → DataBursatil → EODHD.
+    this.usFirst =
         List.of(
             massiveDividendAdapter,
             fmpDividendAdapter,
             alphaVantageDividendAdapter,
             dataBursatilDividendAdapter,
             eodhdDividendAdapter);
+    // ADR-0025 F3: para MXN/BMV se consulta DataBursatil PRIMERO (no gasta cuota US); los US quedan
+    // de respaldo y EODHD último, como siempre.
+    this.mxnFirst =
+        List.of(
+            dataBursatilDividendAdapter,
+            massiveDividendAdapter,
+            fmpDividendAdapter,
+            alphaVantageDividendAdapter,
+            eodhdDividendAdapter);
+    this.assetCatalog = assetCatalog;
   }
 
   @Override
   public List<DividendEventData> fetchDividends(String ticker) {
-    for (DividendProviderPort provider : providers) {
-      List<DividendEventData> events = provider.fetchDividends(ticker);
-      if (events != null && !events.isEmpty()) {
-        return events;
+    boolean anyProviderFailed = false;
+    for (DividendProviderPort provider : resolveOrder(ticker)) {
+      try {
+        List<DividendEventData> events = provider.fetchDividends(ticker);
+        if (events != null && !events.isEmpty()) {
+          return events;
+        }
+      } catch (RuntimeException ex) {
+        // Un proveedor no concluyó (ADR-0025 F2): se intenta el siguiente, pero se recuerda que
+        // el "vacío" final no es un "no paga" confiable.
+        anyProviderFailed = true;
       }
     }
+    if (anyProviderFailed) {
+      throw new DividendProviderUnavailableException(
+          "Ningún proveedor concluyó para " + ticker + " (al menos uno falló)");
+    }
     return List.of();
+  }
+
+  /**
+   * ADR-0025 F3: elige el orden de proveedores según la moneda del catálogo. {@code MXN} → BMV →
+   * DataBursatil primero; cualquier otra (o desconocida) → orden US por defecto.
+   */
+  private List<DividendProviderPort> resolveOrder(String ticker) {
+    boolean mxn =
+        assetCatalog
+            .findCurrencyBySymbol(ticker)
+            .map(currency -> currency.equalsIgnoreCase("MXN"))
+            .orElse(false);
+    return mxn ? mxnFirst : usFirst;
   }
 }
