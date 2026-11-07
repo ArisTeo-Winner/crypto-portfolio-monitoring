@@ -24,9 +24,9 @@ La idempotencia del accrual (idempotency-key determinista + unique + manejo de `
 **Endurecer el pipeline de dividendos para escala tipo exchange, por FASES, priorizando la confiabilidad de entrega (#2) por ser riesgo de corrección.**
 
 - **F1 — Executor dedicado sin descarte [ESTA ENTREGA]:** el disparador de dividendos corre en un `dividendProcessingExecutor` propio con cola acotada y **`CallerRunsPolicy`** (backpressure: bajo saturación la tarea corre en el hilo llamante, **nunca se descarta**). Separa el accrual del best-effort de íconos. Elimina el drop silencioso con cambio mínimo.
-- **F2 — Cola durable + retry:** mover sync/replay/accrual a un patrón **Postgres-as-queue + backoff** (el mismo que `statement-import` ya usa), para sobrevivir reinicios y reintentar fallos transitorios. Reemplaza el fire-and-forget en memoria.
+- **F2 — Cola durable + retry [HECHA]:** tabla `dividend_sync_job` (Postgres-as-queue, como `statement_import_job`). El listener de registro ya solo ENCOLA (dedup por símbolo activo); `DividendSyncJobWorker` (`@Scheduled`, `FOR UPDATE SKIP LOCKED` multi-instancia) drena: `sync` + `replayForAccrual`, con `DividendSyncJobLifecycleService` para claim/completed/failed (backoff exponencial 30s→15m, DEAD_LETTER a `max-attempts`). Sobrevive reinicios y reintenta. Gateado por `dividends.sync-worker.enabled` (off en tests).
 - **F3 — Accrual scoped por usuario sobre proyección de posiciones:** acreditar solo al usuario afectado en la registración (no re-escanear a todos), y resolver la tenencia como lookup `shares-as-of-date` sobre la proyección de portfolio existente, no como fold del historial completo.
-- **F4 — Hardening de concurrencia:** `ON CONFLICT DO NOTHING` (o equivalente) en el insert del catálogo para que dos syncs concurrentes no lancen.
+- **F4 — Hardening de concurrencia [HECHA]:** la fuente principal de syncs concurrentes del mismo símbolo en el diseño nuevo es la carrera del `exists`-check al encolar (dos registros → dos jobs → dos workers). Se cierra con un **índice único parcial** `uq_dividend_sync_job_active_symbol (asset_symbol) WHERE status IN ('QUEUED','PROCESSING')`: a lo sumo UN job activo por símbolo; el `enqueue` atrapa la violación y la trata como "ya encolado". El race del insert de `corporate_action` (rutas admin/re-chequeo) ya lo auto-sana el retry/reconcile idempotente de F2 (el perdedor reintenta y encuentra el existente), así que no requiere `ON CONFLICT`.
 - **F5 — Batching del re-chequeo:** paginar el barrido de símbolos (cursor/keyset), con límites por corrida.
 
 ## Options Considered
@@ -65,7 +65,7 @@ El eje es "¿big-bang o por fases, y qué primero?". El riesgo que un exchange n
 ## Action Items
 
 1. [x] (F1) `dividendProcessingExecutor` dedicado (cola acotada + `CallerRunsPolicy`); el disparador de dividendos lo usa. Sin descarte silencioso.
-2. [ ] (F2) Cola durable Postgres + retry/backoff para sync/replay/accrual (patrón statement-import).
+2. [x] (F2) Cola durable Postgres + retry/backoff para sync/replay/accrual (`dividend_sync_job` + worker + lifecycle, patrón statement-import).
 3. [ ] (F3) Accrual scoped por usuario sobre proyección de posiciones (`shares-as-of-date`).
-4. [ ] (F4) `ON CONFLICT DO NOTHING` en el insert del catálogo.
+4. [x] (F4) Dedup atómico de la cola (índice único parcial + catch); el race del catálogo lo cubre el retry de F2.
 5. [ ] (F5) Batching/keyset del barrido de re-chequeo (F4-B).
