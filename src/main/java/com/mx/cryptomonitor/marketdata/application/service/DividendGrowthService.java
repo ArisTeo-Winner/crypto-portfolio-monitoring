@@ -2,9 +2,11 @@ package com.mx.cryptomonitor.marketdata.application.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.Year;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -14,6 +16,13 @@ import com.mx.cryptomonitor.marketdata.application.port.in.GetDividendGrowthUseC
 import com.mx.cryptomonitor.marketdata.domain.dividend.DividendGrowthCalculator;
 import com.mx.cryptomonitor.marketdata.domain.dividend.DividendGrowthCalculator.DatedDps;
 import com.mx.cryptomonitor.marketdata.domain.dividend.DividendGrowthResult;
+import com.mx.cryptomonitor.marketdata.domain.model.AssetDividendStatusEntity;
+import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
+import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionType;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendActionDetailEntity;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendEligibilityStatus;
+import com.mx.cryptomonitor.marketdata.domain.repository.AssetDividendStatusRepository;
+import com.mx.cryptomonitor.marketdata.domain.repository.CorporateActionRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -28,12 +37,19 @@ import lombok.RequiredArgsConstructor;
 public class DividendGrowthService implements GetDividendGrowthUseCase {
 
   private final DividendActionDetailRepository dividendDetailRepository;
+  private final AssetDividendStatusRepository dividendStatusRepository;
+  private final CorporateActionRepository corporateActionRepository;
   private final DividendGrowthCalculator growthCalculator = new DividendGrowthCalculator();
 
   @Override
   public DividendGrowthResponse growthFor(String symbol) {
     if (!StringUtils.hasText(symbol)) {
-      return toResponse(DividendGrowthResult.empty(""), null);
+      return toResponse(
+          DividendGrowthResult.empty(""),
+          null,
+          DividendEligibilityStatus.UNKNOWN.name(),
+          null,
+          null);
     }
     String normalized = symbol.trim().toUpperCase();
     List<Object[]> rows = dividendDetailRepository.findRecurringDpsBySymbol(normalized);
@@ -45,14 +61,61 @@ public class DividendGrowthService implements GetDividendGrowthUseCase {
             .filter(StringUtils::hasText)
             .reduce((first, second) -> second) // ultima no nula (moneda vigente de la seguridad)
             .orElse(null);
-    return toResponse(growthCalculator.compute(normalized, dividends, currentYear()), currency);
+    // ADR-0025 F4: estado de elegibilidad persistido; sin fila = UNKNOWN (aún no verificado).
+    Optional<AssetDividendStatusEntity> status =
+        dividendStatusRepository.findByAssetSymbol(normalized);
+    String eligibility =
+        status.map(e -> e.getStatus().name()).orElse(DividendEligibilityStatus.UNKNOWN.name());
+    OffsetDateTime lastCheckedAt =
+        status.map(AssetDividendStatusEntity::getLastCheckedAt).orElse(null);
+    return toResponse(
+        growthCalculator.compute(normalized, dividends, currentYear()),
+        currency,
+        eligibility,
+        lastCheckedAt,
+        nextDividendFor(normalized));
   }
 
   protected int currentYear() {
     return Year.now(ZoneOffset.UTC).getValue();
   }
 
-  private DividendGrowthResponse toResponse(DividendGrowthResult result, String currency) {
+  protected LocalDate today() {
+    return LocalDate.now(ZoneOffset.UTC);
+  }
+
+  /**
+   * ADR-0026: proximo dividendo anunciado (pago futuro mas cercano, aun no pagado) con su detalle,
+   * o {@code null} si no hay uno.
+   */
+  private DividendGrowthResponse.NextDividend nextDividendFor(String symbol) {
+    return corporateActionRepository
+        .findFirstByAssetSymbolAndActionTypeAndPaymentDateGreaterThanEqualOrderByPaymentDateAsc(
+            symbol, CorporateActionType.DIVIDEND, today())
+        .map(this::toNextDividend)
+        .orElse(null);
+  }
+
+  private DividendGrowthResponse.NextDividend toNextDividend(CorporateActionEntity action) {
+    DividendActionDetailEntity detail =
+        dividendDetailRepository.findById(action.getId()).orElse(null);
+    if (detail == null) {
+      return null;
+    }
+    return new DividendGrowthResponse.NextDividend(
+        action.getPivotalDate(),
+        action.getPaymentDate(),
+        detail.getAmountPerShare(),
+        detail.getCurrency(),
+        detail.getFrequency());
+  }
+
+  private DividendGrowthResponse toResponse(
+      DividendGrowthResult result,
+      String currency,
+      String eligibilityStatus,
+      OffsetDateTime lastCheckedAt,
+      DividendGrowthResponse.NextDividend nextDividend) {
     return new DividendGrowthResponse(
         result.symbol(),
         result.annualDividends().stream()
@@ -62,6 +125,9 @@ public class DividendGrowthService implements GetDividendGrowthUseCase {
         result.cagr3y(),
         result.cagr5y(),
         result.cagr10y(),
-        currency);
+        currency,
+        eligibilityStatus,
+        lastCheckedAt,
+        nextDividend);
   }
 }

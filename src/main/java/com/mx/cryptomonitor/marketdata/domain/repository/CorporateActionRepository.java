@@ -29,4 +29,12 @@ public interface CorporateActionRepository extends JpaRepository<CorporateAction
    */
   Optional<CorporateActionEntity> findByAssetSymbolAndActionTypeAndPivotalDate(
       String assetSymbol, CorporateActionType actionType, LocalDate pivotalDate);
+
+  /**
+   * Proximo dividendo anunciado de una seguridad (ADR-0026): el evento DIVIDEND con fecha de pago
+   * aun en el futuro mas cercana (pago no realizado). Vacio si no hay uno.
+   */
+  Optional<CorporateActionEntity>
+      findFirstByAssetSymbolAndActionTypeAndPaymentDateGreaterThanEqualOrderByPaymentDateAsc(
+          String assetSymbol, CorporateActionType actionType, LocalDate paymentDate);
 }

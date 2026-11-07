@@ -86,7 +86,9 @@ El eje es **"¿basta con descubrir, o hay que recordar el desenlace?"**. Option 
 - **Fase 1 — Estado persistido (`UNKNOWN`/`PAYS`/`NONE`):** tabla `asset_dividend_status` + enum + repo + migración Flyway; `DividendSyncService` fija el estado tras cada sync (PAYS si el proveedor devolvió eventos, NONE si vacío). `ERROR` se difiere a la Fase 2. Sin cambio de contrato.
 - **Fase 2 — `ERROR` vs `NONE` (robustez) [HECHA]:** los adapters reales (Massive, FMP, AlphaVantage, DataBursatil) lanzan `DividendProviderUnavailableException` en su ruta de fallo (antes lo tragaban a vacío); AlphaVantage también ante el envelope de cuota/error. EODHD queda NEUTRAL (sigue devolviendo vacío) porque su 403 es una limitación esperada de su plan, no un fallo transitorio, y lanzaría falsos ERROR en símbolos US que no pagan. El orquestador agrega: devuelve el primer no-vacío; si nadie trajo datos pero al menos uno falló, relanza. `DividendSyncService` traduce a `ERROR`, con regla anti-degradación (un ERROR nunca sobre-escribe un PAYS/NONE ya concluyente).
 - **Fase 3 — Ruteo por mercado/moneda [HECHA]:** `AssetCatalogQueryPort.findCurrencyBySymbol` (lee del catálogo cacheado) expone la moneda; el orquestador elige el orden: `MXN` → DataBursatil primero (US de respaldo, EODHD último); cualquier otra o desconocida → orden US por defecto. Nuevo edge acíclico `marketdata→asset` (validado por Modulith).
-- **Fase 4 — Re-chequeo programado + exponer en contrato:** job `@Scheduled` con cadencia por estado + badge "paga/—/verificando" para el front.
+- **Fase 4 — Re-chequeo programado + exponer en contrato:**
+  - *Parte A (exponer) [HECHA]:* `DividendGrowthResponse` gana `eligibilityStatus` ({@code PAYS|NONE|ERROR|UNKNOWN}) + `lastCheckedAt`, leídos de `asset_dividend_status` por `DividendGrowthService`. Aditivo, sin romper el contrato existente; habilita el badge "paga / no paga / verificando" en el mismo call que el front ya hace por holding. Sin fila = `UNKNOWN`.
+  - *Parte B (re-chequeo) [HECHA]:* `DividendRecheckService` con `@Scheduled` (cron diario por defecto) re-sincroniza los símbolos vencidos por cadencia según estado (`NONE`~30d, `ERROR`~6h, `PAYS`~7d), acotado por `batch-size` (ADR-0028 F5). Cada `sync` refresca el estado y, al descubrir pagos nuevos, los acredita a todos los tenedores. Gateado por `dividends.recheck.enabled` (default true, off en tests).
 
 ## Action Items
 
@@ -94,5 +96,5 @@ El eje es **"¿basta con descubrir, o hay que recordar el desenlace?"**. Option 
 2. [x] (F1) `DividendSyncService` fija `PAYS`/`NONE` tras cada sync; símbolo nunca visto = `UNKNOWN` (sin fila).
 3. [x] (F2) Adapters/orquestador señalan fallo → sync marca `ERROR` (no degradar a `NONE`). EODHD neutral (403 esperado).
 4. [x] (F3) Ruteo del orquestador por `currency` del catálogo (MXN→DataBursatil primero).
-5. [ ] (F4) Job `@Scheduled` de re-chequeo con cadencia por estado.
-6. [ ] (F4) Exponer el estado en el contrato que consume el front (badge).
+5. [x] (F4-B) Job `@Scheduled` de re-chequeo con cadencia por estado (`DividendRecheckService`, batching, flag).
+6. [x] (F4-A) Exponer el estado en el contrato que consume el front (badge): `eligibilityStatus` + `lastCheckedAt` en `/growth`.
