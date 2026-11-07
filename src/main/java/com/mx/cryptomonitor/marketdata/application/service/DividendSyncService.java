@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.mx.cryptomonitor.marketdata.application.port.in.ReplayDividendAccrualUseCase;
 import com.mx.cryptomonitor.marketdata.application.port.in.SyncDividendsUseCase;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
@@ -47,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class DividendSyncService implements SyncDividendsUseCase {
+public class DividendSyncService implements SyncDividendsUseCase, ReplayDividendAccrualUseCase {
 
   private static final String PROVIDER = "MASSIVE";
 
@@ -136,6 +137,46 @@ public class DividendSyncService implements SyncDividendsUseCase {
     entity.setStatus(newStatus);
     entity.setLastCheckedAt(OffsetDateTime.now(ZoneOffset.UTC));
     dividendStatusRepository.save(entity);
+  }
+
+  /**
+   * ADR-0027: re-emite los dividendos ya persistidos del símbolo como {@link DividendDetectedEvent}
+   * para que el accrual (idempotente) acredite al "late joiner" sin re-acreditar a los demás. En
+   * transacción para que los listeners corran en AFTER_COMMIT.
+   */
+  @Override
+  @Transactional
+  public int replayForAccrual(String ticker) {
+    if (!StringUtils.hasText(ticker)) {
+      return 0;
+    }
+    String symbol = ticker.trim().toUpperCase();
+    int republished = 0;
+    for (CorporateActionEntity action :
+        corporateActionRepository.findByAssetSymbolOrderByPivotalDateDesc(symbol)) {
+      if (action.getActionType() != CorporateActionType.DIVIDEND) {
+        continue;
+      }
+      DividendActionDetailEntity detail =
+          dividendDetailRepository.findById(action.getId()).orElse(null);
+      if (detail == null
+          || detail.getAmountPerShare() == null
+          || detail.getAmountPerShare().signum() <= 0) {
+        continue;
+      }
+      eventPublisher.publishEvent(
+          new DividendDetectedEvent(
+              symbol,
+              action.getPivotalDate(),
+              action.getPaymentDate(),
+              detail.getAmountPerShare(),
+              detail.getCurrency() == null ? "USD" : detail.getCurrency()));
+      republished++;
+    }
+    if (republished > 0) {
+      log.info("Replay de accrual {}: {} dividendo(s) re-emitido(s)", symbol, republished);
+    }
+    return republished;
   }
 
   private Optional<CorporateActionEntity> findExisting(String symbol, DividendEventData event) {

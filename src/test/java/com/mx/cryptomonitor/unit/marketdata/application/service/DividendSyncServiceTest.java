@@ -357,4 +357,34 @@ class DividendSyncServiceTest {
     assertThat(created).isZero();
     verifyNoInteractions(provider, corporateActionRepository, detailRepository);
   }
+
+  /** ADR-0027: replay re-emite un DividendDetectedEvent por cada dividendo ya persistido. */
+  @Test
+  void replayForAccrualRepublishesExistingDividends() {
+    CorporateActionEntity action =
+        storedDividend(
+            LocalDate.of(2024, 6, 10),
+            LocalDate.of(2024, 6, 17),
+            CorporateActionStatus.COMPLETED,
+            "E1");
+    when(corporateActionRepository.findByAssetSymbolOrderByPivotalDateDesc("GOOGL"))
+        .thenReturn(List.of(action));
+    when(detailRepository.findById(action.getId()))
+        .thenReturn(
+            Optional.of(
+                DividendActionDetailEntity.builder()
+                    .amountPerShare(new BigDecimal("0.20"))
+                    .currency("USD")
+                    .build()));
+
+    int republished = service().replayForAccrual("googl");
+
+    assertThat(republished).isEqualTo(1);
+    ArgumentCaptor<DividendDetectedEvent> captor =
+        ArgumentCaptor.forClass(DividendDetectedEvent.class);
+    verify(eventPublisher).publishEvent(captor.capture());
+    assertThat(captor.getValue().assetSymbol()).isEqualTo("GOOGL");
+    assertThat(captor.getValue().exDividendDate()).isEqualTo(LocalDate.of(2024, 6, 10));
+    assertThat(captor.getValue().dividendPerShare()).isEqualByComparingTo("0.20");
+  }
 }
