@@ -29,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
@@ -74,6 +75,7 @@ class TransactionServiceTest {
   @Mock private DividendDetailRepository dividendDetailRepository;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
+  @Mock private ApplicationEventPublisher eventPublisher;
 
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
@@ -97,7 +99,8 @@ class TransactionServiceTest {
             dividendDetailRepository,
             assetCatalogQueryPort,
             new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator(),
-            assetCatalogRefreshPort);
+            assetCatalogRefreshPort,
+            eventPublisher);
     lenient()
         .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
         .thenReturn(Optional.empty());

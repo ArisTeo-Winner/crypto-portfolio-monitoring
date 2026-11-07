@@ -8,10 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort.AssetDisplay;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
+import com.mx.cryptomonitor.shared.event.TransactionRegisteredEvent;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.ImportedStockTransactionRequest;
@@ -65,6 +68,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private static final String CREATE_BUY_SCOPE = "transactions:buy";
   private static final String CREATE_SELL_SCOPE = "transactions:sell";
   private static final String CREATE_TRANSFER_SCOPE = "transactions:transfer";
+  // ADR-0024: tipos de activo que pagan dividendos/distribuciones -> disparan el auto-poblado.
+  private static final Set<String> DIVIDEND_ELIGIBLE_ASSET_TYPES = Set.of("STOCK", "ETF");
 
   private final TransactionRepository transactionRepository;
   private final TransactionRegistrationPort transactionRegistrationPort;
@@ -77,6 +82,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final AssetCatalogQueryPort assetCatalogQueryPort;
   private final GbmFrictionCalculator frictionCalculator;
   private final AssetCatalogRefreshPort assetCatalogRefreshPort;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Value("${catalog.icon.pull-once.enabled:true}")
   private boolean iconPullOnceEnabled;
@@ -728,6 +734,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
               assetCatalogRefreshPort.ensureIconCatalogued(
                   response.assetSymbol(), response.assetType());
             }
+            // ADR-0024: auto-poblado de dividendos. Publicado dentro de la transaccion para que el
+            // listener de marketdata corra AFTER_COMMIT (async): no bloquea el registro ni lo
+            // revierte si el proveedor falla.
+            publishDividendSyncTriggerIfEligible(response);
             return response;
           } catch (RuntimeException ex) {
             log.error("Error creating transaction for user {}: {}", userId, ex.getMessage(), ex);
@@ -741,6 +751,23 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             throw ex;
           }
         });
+  }
+
+  /**
+   * ADR-0024: si la operación recién registrada es una COMPRA de un activo que paga dividendos
+   * (STOCK/ETF), publica {@link TransactionRegisteredEvent} para que marketdata pueble su historial
+   * de dividendos automáticamente. Idempotente aguas abajo; se omite en cualquier otro caso.
+   */
+  private void publishDividendSyncTriggerIfEligible(TransactionResponse response) {
+    if (!"BUY".equalsIgnoreCase(response.transactionType())) {
+      return;
+    }
+    String assetType = response.assetType();
+    if (assetType == null
+        || !DIVIDEND_ELIGIBLE_ASSET_TYPES.contains(assetType.toUpperCase(Locale.ROOT))) {
+      return;
+    }
+    eventPublisher.publishEvent(new TransactionRegisteredEvent(response.assetSymbol(), assetType));
   }
 
   private void validateUpdateRequest(String transactionType, UpdateTransactionRequest request) {
