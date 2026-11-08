@@ -52,6 +52,9 @@ public class DividendDetail {
   @Column(name = "tax_withheld", precision = 18, scale = 8)
   private BigDecimal taxWithheld;
 
+  @Column(name = "amount_per_share", precision = 18, scale = 8)
+  private BigDecimal amountPerShare;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 }

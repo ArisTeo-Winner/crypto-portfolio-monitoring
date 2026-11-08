@@ -287,9 +287,10 @@ public class TransactionController {
         Devuelve las transacciones del usuario autenticado.
 
         Todos los filtros son opcionales:
-        - Sin filtros: devuelve todas las transacciones del usuario.
-        - Con un filtro: devuelve las transacciones que cumplan ese criterio.
-        - Con múltiples filtros: devuelve las transacciones que cumplan todos los criterios enviados.
+        - Sin filtros: devuelve solo OPERACIONES (BUY/SELL/TRANSFER); los ingresos (DIVIDEND) se
+          excluyen para que la vista de transacciones no mezcle operaciones con dividendos.
+        - Para ver los ingresos (dividendos), pedir explícitamente ?transactionType=DIVIDEND.
+        - Con otros filtros: devuelve las transacciones que cumplan todos los criterios enviados.
         """)
   @ApiResponses(
       value = {

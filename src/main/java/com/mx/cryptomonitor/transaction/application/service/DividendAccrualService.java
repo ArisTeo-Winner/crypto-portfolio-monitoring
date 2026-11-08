@@ -103,7 +103,8 @@ public class DividendAccrualService implements DividendAccrualUseCase {
                 tax.totalWithheld(),
                 null,
                 currency,
-                exchange);
+                exchange,
+                dividendPerShare);
         transactionCommand.registerDividendTransaction(
             userId, request, idempotencyKey(symbol, exDividendDate, userId));
         created++;

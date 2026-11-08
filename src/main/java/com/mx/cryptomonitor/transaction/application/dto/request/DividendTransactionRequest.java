@@ -19,4 +19,5 @@ public record DividendTransactionRequest(
     BigDecimal taxWithheld,
     String broker,
     String currency,
-    String exchange) {}
+    String exchange,
+    BigDecimal amountPerShare) {}

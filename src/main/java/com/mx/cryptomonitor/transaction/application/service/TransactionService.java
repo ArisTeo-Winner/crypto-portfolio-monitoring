@@ -64,6 +64,15 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
   private static final Sort RECENT_FIRST_SORT =
       Sort.by(Sort.Order.desc("transactionDate"), Sort.Order.desc("createdAt"));
+
+  /**
+   * Tipos de transacción que NO son operaciones bursátiles sino ingresos (el accrual registra el
+   * dividendo como una transacción DIVIDEND). El listado de transacciones los excluye por defecto
+   * para que la vista muestre solo operaciones (compra/venta/transfer), como la pestaña "Trades" de
+   * Snowball; los ingresos se consultan explícitamente con {@code ?transactionType=DIVIDEND}.
+   */
+  private static final Set<String> INCOME_TRANSACTION_TYPES = Set.of("DIVIDEND");
+
   private static final String CREATE_TRANSACTION_SCOPE = "transactions:create";
   private static final String CREATE_BUY_SCOPE = "transactions:buy";
   private static final String CREATE_SELL_SCOPE = "transactions:sell";
@@ -357,6 +366,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                     .exDividendDate(request.exDividendDate())
                     .dividendType(dtype)
                     .taxWithheld(request.taxWithheld())
+                    .amountPerShare(request.amountPerShare())
                     .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
                     .build();
             dividendDetailRepository.save(detail);
@@ -562,28 +572,40 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
       transactionType = null;
     }
 
+    List<Transaction> transactions;
     if (assetSymbol != null && assetType != null && transactionType != null) {
-      AssetType normalizedAssetType = normalizedAssetType(assetType);
-      return toResponsesWithLogos(
+      transactions =
           transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
-              userId, assetSymbol, normalizedAssetType, transactionType));
-    }
-    if (assetSymbol != null) {
-      return toResponsesWithLogos(
-          transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT));
-    }
-    if (assetType != null) {
-      return toResponsesWithLogos(
+              userId, assetSymbol, normalizedAssetType(assetType), transactionType);
+    } else if (assetSymbol != null) {
+      transactions =
+          transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT);
+    } else if (assetType != null) {
+      transactions =
           transactionRepository.findByUserIdAndAssetType(
-              userId, normalizedAssetType(assetType), RECENT_FIRST_SORT));
+              userId, normalizedAssetType(assetType), RECENT_FIRST_SORT);
+    } else if (transactionType != null) {
+      transactions =
+          transactionRepository.findByUserIdAndTransactionType(
+              userId, transactionType, RECENT_FIRST_SORT);
+    } else {
+      transactions = transactionRepository.findByUserId(userId, RECENT_FIRST_SORT);
     }
 
-    if (transactionType != null) {
-      return toResponsesWithLogos(
-          transactionRepository.findByUserIdAndTransactionType(
-              userId, transactionType, RECENT_FIRST_SORT));
+    // Sin filtro explícito de transactionType, el listado es SOLO operaciones: los ingresos (p. ej.
+    // DIVIDEND, que el accrual registra como transacción) se excluyen para que la vista muestre
+    // compra/venta/transfer y no dividendos. Los ingresos se piden con ?transactionType=DIVIDEND.
+    if (transactionType == null) {
+      transactions =
+          transactions.stream()
+              .filter(
+                  t ->
+                      !INCOME_TRANSACTION_TYPES.contains(
+                          normalizeTransactionType(t.getTransactionType())))
+              .toList();
     }
-    return toResponsesWithLogos(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT));
+
+    return toResponsesWithLogos(transactions);
   }
 
   /**

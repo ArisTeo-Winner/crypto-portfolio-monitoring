@@ -461,15 +461,58 @@ class TransactionServiceTest {
   }
 
   @Test
-  @DisplayName("getTransactionsUser: no filters returns all")
-  void getTransactionsUserNoFilters() {
+  @DisplayName("getTransactionsUser: sin filtros devuelve solo operaciones, excluye DIVIDEND")
+  void getTransactionsUserNoFiltersExcludesIncome() {
+    Transaction dividend = new Transaction();
+    dividend.setTransactionId(UUID.randomUUID());
+    dividend.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
+    dividend.setAssetSymbol("GOOGL");
+    dividend.setAssetType(AssetType.STOCK);
+    dividend.setTransactionType("DIVIDEND");
+    dividend.setQuantity(BigDecimal.ZERO);
+    dividend.setPricePerUnit(BigDecimal.ZERO);
+    dividend.setTotalValue(new BigDecimal("0.22"));
+    dividend.setFee(BigDecimal.ZERO);
+    dividend.setTransactionDate(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setCreatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setUpdatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+
     when(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT))
-        .thenReturn(Collections.singletonList(transaction));
+        .thenReturn(List.of(transaction, dividend));
 
     List<TransactionResponse> result =
         transactionService.getTransactionsUser(userId, null, null, null);
 
     assertThat(result).hasSize(1);
+    assertThat(result.get(0).transactionType()).isEqualTo("BUY");
+  }
+
+  @Test
+  @DisplayName("getTransactionsUser: transactionType=DIVIDEND explícito sí devuelve ingresos")
+  void getTransactionsUserExplicitDividendReturnsIncome() {
+    Transaction dividend = new Transaction();
+    dividend.setTransactionId(UUID.randomUUID());
+    dividend.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
+    dividend.setAssetSymbol("GOOGL");
+    dividend.setAssetType(AssetType.STOCK);
+    dividend.setTransactionType("DIVIDEND");
+    dividend.setQuantity(BigDecimal.ZERO);
+    dividend.setPricePerUnit(BigDecimal.ZERO);
+    dividend.setTotalValue(new BigDecimal("0.22"));
+    dividend.setFee(BigDecimal.ZERO);
+    dividend.setTransactionDate(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setCreatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setUpdatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+
+    when(transactionRepository.findByUserIdAndTransactionType(
+            userId, "DIVIDEND", RECENT_FIRST_SORT))
+        .thenReturn(List.of(dividend));
+
+    List<TransactionResponse> result =
+        transactionService.getTransactionsUser(userId, null, null, "DIVIDEND");
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).transactionType()).isEqualTo("DIVIDEND");
   }
 
   @Test

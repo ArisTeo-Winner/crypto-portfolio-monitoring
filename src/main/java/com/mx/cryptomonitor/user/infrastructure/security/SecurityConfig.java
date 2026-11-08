@@ -145,6 +145,7 @@ public class SecurityConfig {
               authorizeRequests.requestMatchers("/api/v1/users/me").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/portfolio/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/transactions/**").hasRole("USER");
+              authorizeRequests.requestMatchers("/api/v1/me/dividends/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/sessions/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/me/broker/**").hasRole("USER");
               authorizeRequests.requestMatchers("/api/v1/portfolio/cetes/**").hasRole("USER");
