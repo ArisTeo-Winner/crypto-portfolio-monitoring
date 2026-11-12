@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.mx.cryptomonitor.transaction.application.service.DividendReconciliationService;
+import com.mx.cryptomonitor.transaction.application.service.TransactionIdempotencyService;
 import com.mx.cryptomonitor.transaction.domain.dividend.DividendEntitlementCalculator;
 import com.mx.cryptomonitor.transaction.domain.dividend.DividendTaxCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
@@ -35,6 +36,7 @@ class DividendReconciliationServiceTest {
 
   @Mock private DividendDetailRepository dividendDetailRepository;
   @Mock private TransactionRepository transactionRepository;
+  @Mock private TransactionIdempotencyService idempotencyService;
 
   private DividendReconciliationService service;
   private final UUID userId = UUID.randomUUID();
@@ -47,7 +49,8 @@ class DividendReconciliationServiceTest {
             dividendDetailRepository,
             transactionRepository,
             new DividendEntitlementCalculator(),
-            new DividendTaxCalculator());
+            new DividendTaxCalculator(),
+            idempotencyService);
   }
 
   private DividendDetail accruedDividend(UUID dividendTxId, BigDecimal gross, BigDecimal dps) {
@@ -88,6 +91,9 @@ class DividendReconciliationServiceTest {
     service.reconcileAccruedDividends(userId, "googl");
 
     verify(transactionRepository).deleteById(divId);
+    // Al borrar el dividendo ACCRUED, olvida su llave de idempotencia (evita huérfano que
+    // bloquearia la re-acreditacion al re-registrar el activo).
+    verify(idempotencyService).forgetByResultTransactionId(divId);
     verify(transactionRepository, never()).save(any());
   }
 

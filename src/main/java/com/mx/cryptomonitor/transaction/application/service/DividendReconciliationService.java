@@ -31,6 +31,13 @@ import lombok.extern.slf4j.Slf4j;
  * <p>Servicio aparte (no depende de {@code TransactionCommandUseCase}) a propósito: lo invoca el
  * borrado en {@code TransactionService}, y {@code DividendAccrualService} ya depende de este último
  * — ponerlo aquí evita el ciclo de beans.
+ *
+ * <p>Al eliminar un dividendo ACCRUED SIEMPRE se olvida también su registro de idempotencia (llave
+ * {@code accrual:dividend:...}, vía {@link
+ * TransactionIdempotencyService#forgetByResultTransactionId}). Si no, el registro huérfano (apunta
+ * a una transacción ya borrada, TTL 7 días) bloquea la re-acreditación: al re-registrar el activo
+ * el accrual intenta reutilizar la respuesta vieja, no la encuentra y falla silenciosamente — el
+ * usuario deja de ver dividendos que sí le corresponden.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,6 +48,7 @@ public class DividendReconciliationService implements DividendReconciliationUseC
   private final TransactionRepository transactionRepository;
   private final DividendEntitlementCalculator entitlementCalculator;
   private final DividendTaxCalculator taxCalculator;
+  private final TransactionIdempotencyService idempotencyService;
 
   @Override
   @Transactional
@@ -67,7 +75,9 @@ public class DividendReconciliationService implements DividendReconciliationUseC
                   .entitledQuantityByUser(userHistory, exDate)
                   .getOrDefault(userId, BigDecimal.ZERO);
       if (entitled.signum() <= 0) {
-        transactionRepository.deleteById(detail.getTransaction().getTransactionId());
+        UUID dividendTxId = detail.getTransaction().getTransactionId();
+        transactionRepository.deleteById(dividendTxId);
+        idempotencyService.forgetByResultTransactionId(dividendTxId);
         removed++;
       } else if (detail.getAmountPerShare() != null) {
         DividendTaxBreakdown tax =
