@@ -3,6 +3,7 @@ package com.mx.cryptomonitor.unit.marketdata.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -19,11 +20,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.mx.cryptomonitor.marketdata.application.dto.response.DividendGrowthResponse;
 import com.mx.cryptomonitor.marketdata.application.service.DividendGrowthService;
+import com.mx.cryptomonitor.marketdata.application.service.HybridQuoteService;
 import com.mx.cryptomonitor.marketdata.domain.model.AssetDividendStatusEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionType;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendActionDetailEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendEligibilityStatus;
+import com.mx.cryptomonitor.marketdata.domain.model.HybridPriceQuote;
 import com.mx.cryptomonitor.marketdata.domain.repository.AssetDividendStatusRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.CorporateActionRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRepository;
@@ -34,16 +37,25 @@ class DividendGrowthServiceTest {
   @Mock private DividendActionDetailRepository dividendDetailRepository;
   @Mock private AssetDividendStatusRepository dividendStatusRepository;
   @Mock private CorporateActionRepository corporateActionRepository;
+  @Mock private HybridQuoteService hybridQuoteService;
 
   /** Fija el anio en curso para una CAGR determinista. */
   private DividendGrowthService serviceAtYear(int year) {
     return new DividendGrowthService(
-        dividendDetailRepository, dividendStatusRepository, corporateActionRepository) {
+        dividendDetailRepository,
+        dividendStatusRepository,
+        corporateActionRepository,
+        hybridQuoteService) {
       @Override
       protected int currentYear() {
         return year;
       }
     };
+  }
+
+  private HybridPriceQuote quote(String symbol, String price, String currency) {
+    return new HybridPriceQuote(
+        symbol, new BigDecimal(price), currency, "orchestrator", OffsetDateTime.now());
   }
 
   private Object[] row(int year, String dps) {
@@ -151,5 +163,50 @@ class DividendGrowthServiceTest {
     DividendGrowthResponse response = serviceAtYear(2026).growthFor("NODIV");
 
     assertThat(response.nextDividend()).isNull();
+  }
+
+  /**
+   * ADR-0031: yield en moneda nativa = DPS del último año completo ÷ precio actual pedido en esa
+   * misma moneda. 2.20 USD ÷ 60.00 USD = 0.036667. priceBasis refleja el precio usado.
+   */
+  @Test
+  void computesNativeCurrencyYieldFromLastCompleteYear() {
+    when(dividendDetailRepository.findRecurringDpsBySymbol("KO"))
+        .thenReturn(List.of(row(2022, "2.00"), row(2023, "2.20"), row(2024, "0.60")));
+    when(hybridQuoteService.getCurrentPrice(eq("KO"), eq("USD"), isNull()))
+        .thenReturn(quote("KO", "60.00", "USD"));
+
+    DividendGrowthResponse response = serviceAtYear(2024).growthFor("ko");
+
+    assertThat(response.yieldPct()).isEqualByComparingTo("0.036667");
+    assertThat(response.priceBasis()).isNotNull();
+    assertThat(response.priceBasis().price()).isEqualByComparingTo("60.00");
+    assertThat(response.priceBasis().currency()).isEqualTo("USD");
+  }
+
+  /** Un fallo del proveedor de precio deja el yield nulo sin tumbar el endpoint. */
+  @Test
+  void yieldIsNullWhenPriceProviderFails() {
+    when(dividendDetailRepository.findRecurringDpsBySymbol("KO"))
+        .thenReturn(List.of(row(2022, "2.00"), row(2023, "2.20")));
+    when(hybridQuoteService.getCurrentPrice(eq("KO"), eq("USD"), isNull()))
+        .thenThrow(new RuntimeException("proveedor caído"));
+
+    DividendGrowthResponse response = serviceAtYear(2024).growthFor("ko");
+
+    assertThat(response.yieldPct()).isNull();
+    assertThat(response.priceBasis()).isNull();
+    assertThat(response.currency()).isEqualTo("USD"); // el resto de la respuesta intacto
+  }
+
+  /** Sin historia de dividendos no se intenta calcular yield (no se pide precio). */
+  @Test
+  void noYieldWithoutDividendHistory() {
+    when(dividendDetailRepository.findRecurringDpsBySymbol("NODIV")).thenReturn(List.of());
+
+    DividendGrowthResponse response = serviceAtYear(2024).growthFor("NODIV");
+
+    assertThat(response.yieldPct()).isNull();
+    assertThat(response.priceBasis()).isNull();
   }
 }

@@ -19,6 +19,14 @@ import java.util.List;
  * <p>ADR-0026: {@code nextDividend} = el próximo dividendo anunciado (pago futuro), o {@code null}
  * si no hay uno. Consolida la fila de la tabla "Dividends" (próximo pago / ex-date / monto por
  * acción) en la misma llamada por holding.
+ *
+ * <p>ADR-0031: {@code yieldPct} = rendimiento por dividendo como fracción (0.0189 = 1.89%),
+ * calculado en el backend en la <b>moneda nativa</b> del activo — DPS anual (último año completo) ÷
+ * precio actual en esa misma moneda. Al computarse en moneda nativa, el porcentaje es invariante al
+ * tipo de cambio y no depende de la {@code preferredCurrency} del usuario; esto disuelve el
+ * problema cross-currency que tenía el front al dividir dividendo y valor en monedas distintas.
+ * {@code priceBasis} expone el precio y la moneda con que se calculó. Ambos son {@code null} si no
+ * hay historia de dividendos o no se pudo obtener precio (el porcentaje no se inventa).
  */
 public record DividendGrowthResponse(
     String symbol,
@@ -30,9 +38,17 @@ public record DividendGrowthResponse(
     String currency,
     String eligibilityStatus,
     OffsetDateTime lastCheckedAt,
-    NextDividend nextDividend) {
+    NextDividend nextDividend,
+    BigDecimal yieldPct,
+    PriceBasis priceBasis) {
 
   public record AnnualDividendPoint(int year, BigDecimal totalDps) {}
+
+  /**
+   * ADR-0031: precio con el que se calculó {@link #yieldPct}. {@code currency} coincide con la
+   * moneda del dividendo (cálculo en moneda nativa); {@code asOf} es la marca de tiempo del precio.
+   */
+  public record PriceBasis(BigDecimal price, String currency, OffsetDateTime asOf) {}
 
   /** Próximo dividendo anunciado (ADR-0026): pago aún no realizado. */
   public record NextDividend(
