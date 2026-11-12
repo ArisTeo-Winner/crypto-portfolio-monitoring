@@ -34,6 +34,7 @@ import com.mx.cryptomonitor.transaction.application.dto.response.FrictionBreakdo
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionDetailsResponse;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
+import com.mx.cryptomonitor.transaction.application.port.in.DividendReconciliationUseCase;
 import com.mx.cryptomonitor.transaction.application.port.in.TransactionCommandUseCase;
 import com.mx.cryptomonitor.transaction.application.port.in.TransactionQueryUseCase;
 import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjectionSyncPort;
@@ -47,6 +48,7 @@ import com.mx.cryptomonitor.transaction.domain.friction.FrictionSide;
 import com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
+import com.mx.cryptomonitor.transaction.domain.model.DividendOrigin;
 import com.mx.cryptomonitor.transaction.domain.model.DividendType;
 import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
 import com.mx.cryptomonitor.transaction.domain.model.OperationTimestamps;
@@ -92,6 +94,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final GbmFrictionCalculator frictionCalculator;
   private final AssetCatalogRefreshPort assetCatalogRefreshPort;
   private final ApplicationEventPublisher eventPublisher;
+  private final DividendReconciliationUseCase dividendReconciliationUseCase;
 
   @Value("${catalog.icon.pull-once.enabled:true}")
   private boolean iconPullOnceEnabled;
@@ -314,9 +317,18 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   }
 
   @Override
-  @Transactional
   public TransactionResponse registerDividendTransaction(
       UUID userId, DividendTransactionRequest request, String idempotencyKey) {
+    return registerDividendTransaction(userId, request, idempotencyKey, DividendOrigin.MANUAL);
+  }
+
+  @Override
+  @Transactional
+  public TransactionResponse registerDividendTransaction(
+      UUID userId,
+      DividendTransactionRequest request,
+      String idempotencyKey,
+      DividendOrigin origin) {
     return transactionIdempotencyService.executeForTransactionResponse(
         userId,
         "transactions:dividend",
@@ -367,6 +379,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                     .dividendType(dtype)
                     .taxWithheld(request.taxWithheld())
                     .amountPerShare(request.amountPerShare())
+                    .origin(origin)
                     .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
                     .build();
             dividendDetailRepository.save(detail);
@@ -705,6 +718,13 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             transactionRepository.deleteById(transaction.getTransactionId());
             transactionIdempotencyService.forgetByResultTransactionId(
                 transaction.getTransactionId());
+            // SPEC reconciliación: si se borró una operación que afecta tenencia (no un dividendo),
+            // re-derivar los dividendos auto-acreditados del símbolo (elimina huérfanos /
+            // recalcula).
+            if (!"DIVIDEND".equalsIgnoreCase(transaction.getTransactionType())) {
+              dividendReconciliationUseCase.reconcileAccruedDividends(
+                  userId, transaction.getAssetSymbol());
+            }
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
             transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
             portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);

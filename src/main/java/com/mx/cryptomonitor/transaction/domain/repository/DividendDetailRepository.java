@@ -40,4 +40,16 @@ public interface DividendDetailRepository extends JpaRepository<DividendDetail, 
           + " ORDER BY t.transactionDate DESC")
   List<DividendDetail> findUserDividends(
       @Param("userId") UUID userId, @Param("cutoff") OffsetDateTime cutoff);
+
+  /**
+   * Dividendos AUTO-acreditados de un usuario para un símbolo (SPEC reconciliación al borrar). JOIN
+   * FETCH de la transacción para re-derivar/eliminar sin N+1. Solo {@code origin}=ACCRUED: los
+   * manuales nunca se reconcilian.
+   */
+  @Query(
+      "SELECT d FROM DividendDetail d JOIN FETCH d.transaction t"
+          + " WHERE t.user.id = :userId AND t.assetSymbol = :symbol"
+          + " AND d.origin = com.mx.cryptomonitor.transaction.domain.model.DividendOrigin.ACCRUED")
+  List<DividendDetail> findAccruedByUserAndSymbol(
+      @Param("userId") UUID userId, @Param("symbol") String symbol);
 }

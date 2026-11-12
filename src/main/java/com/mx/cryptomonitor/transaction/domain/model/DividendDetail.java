@@ -55,6 +55,11 @@ public class DividendDetail {
   @Column(name = "amount_per_share", precision = 18, scale = 8)
   private BigDecimal amountPerShare;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "origin", nullable = false, length = 10)
+  @Builder.Default
+  private DividendOrigin origin = DividendOrigin.ACCRUED;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 }

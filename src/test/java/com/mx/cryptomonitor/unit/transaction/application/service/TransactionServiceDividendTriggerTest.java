@@ -55,6 +55,10 @@ class TransactionServiceDividendTriggerTest {
   @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
   @Mock private ApplicationEventPublisher eventPublisher;
 
+  @Mock
+  private com.mx.cryptomonitor.transaction.application.port.in.DividendReconciliationUseCase
+      dividendReconciliationUseCase;
+
   private TransactionService service;
 
   private static final UUID USER_ID = UUID.randomUUID();
@@ -74,7 +78,8 @@ class TransactionServiceDividendTriggerTest {
             assetCatalogQueryPort,
             frictionCalculator,
             assetCatalogRefreshPort,
-            eventPublisher);
+            eventPublisher,
+            dividendReconciliationUseCase);
 
     // Ejecuta el supplier real del registro (lo que haría la transacción de idempotencia).
     when(transactionIdempotencyService.executeForTransactionResponse(

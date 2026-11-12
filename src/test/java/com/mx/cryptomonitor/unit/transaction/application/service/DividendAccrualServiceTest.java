@@ -77,7 +77,11 @@ class DividendAccrualServiceTest {
     ArgumentCaptor<DividendTransactionRequest> captor =
         ArgumentCaptor.forClass(DividendTransactionRequest.class);
     verify(transactionCommand)
-        .registerDividendTransaction(eq(userA), captor.capture(), any(String.class));
+        .registerDividendTransaction(
+            eq(userA),
+            captor.capture(),
+            any(String.class),
+            eq(com.mx.cryptomonitor.transaction.domain.model.DividendOrigin.ACCRUED));
     DividendTransactionRequest request = captor.getValue();
     assertThat(request.assetSymbol()).isEqualTo("GOOGL");
     assertThat(request.amount()).isEqualByComparingTo("20"); // 100 x 0.20 bruto
@@ -104,7 +108,7 @@ class DividendAccrualServiceTest {
         service.accrue("GOOGL", "STOCK", EX_DATE, PAY_DATE, new BigDecimal("0.20"), "USD", null);
 
     assertThat(created).isZero();
-    verify(transactionCommand, never()).registerDividendTransaction(any(), any(), any());
+    verify(transactionCommand, never()).registerDividendTransaction(any(), any(), any(), any());
   }
 
   @Test
@@ -117,7 +121,7 @@ class DividendAccrualServiceTest {
         service.accrue("GOOGL", "STOCK", EX_DATE, PAY_DATE, new BigDecimal("0.20"), "USD", null);
 
     assertThat(created).isZero();
-    verify(transactionCommand, never()).registerDividendTransaction(any(), any(), any());
+    verify(transactionCommand, never()).registerDividendTransaction(any(), any(), any(), any());
   }
 
   @Test

@@ -77,6 +77,10 @@ class TransactionServiceTest {
   @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
   @Mock private ApplicationEventPublisher eventPublisher;
 
+  @Mock
+  private com.mx.cryptomonitor.transaction.application.port.in.DividendReconciliationUseCase
+      dividendReconciliationUseCase;
+
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
   @InjectMocks private TransactionService transactionService;
@@ -100,7 +104,8 @@ class TransactionServiceTest {
             assetCatalogQueryPort,
             new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator(),
             assetCatalogRefreshPort,
-            eventPublisher);
+            eventPublisher,
+            dividendReconciliationUseCase);
     lenient()
         .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
         .thenReturn(Optional.empty());
