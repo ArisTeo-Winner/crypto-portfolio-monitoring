@@ -23,4 +23,36 @@ public record UpdateTransactionRequest(
     @Pattern(
             regexp = "TRANSFER_IN|TRANSFER_OUT",
             message = "El tipo de transferencia debe ser TRANSFER_IN o TRANSFER_OUT")
-        String transferType) {}
+        String transferType,
+    // Desglose de friccion GBM (paridad con el alta, ADR-0005): absolutos leidos del comprobante.
+    // Mutuamente excluyentes con fee: si viene cualquiera, el backend deriva fee e ignora fee
+    // plano.
+    @PositiveOrZero(message = "La comision del broker no puede ser negativa")
+        BigDecimal brokerCommission,
+    @PositiveOrZero(message = "El IVA no puede ser negativo") BigDecimal brokerIva,
+    @PositiveOrZero(message = "Otros cargos no pueden ser negativos") BigDecimal otherFees) {
+
+  /** Forma sin desglose (fee plano): delega al canonico con split nulo. */
+  public UpdateTransactionRequest(
+      String assetSymbol,
+      String assetType,
+      BigDecimal quantity,
+      BigDecimal pricePerUnit,
+      OffsetDateTime transactionDate,
+      BigDecimal fee,
+      String notes,
+      String transferType) {
+    this(
+        assetSymbol,
+        assetType,
+        quantity,
+        pricePerUnit,
+        transactionDate,
+        fee,
+        notes,
+        transferType,
+        null,
+        null,
+        null);
+  }
+}

@@ -187,6 +187,48 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     return normalizedFee(commission).add(normalizedFee(iva)).add(normalizedFee(otherFees));
   }
 
+  /**
+   * Paridad de edicion con el alta (ADR-0005). Si el request trae desglose (comision/IVA/otros),
+   * deriva {@code fee} = comision + IVA + otros, refresca el breakdown fino e ignora {@code fee}
+   * plano. Si solo trae {@code fee}: cuando el monto cambio respecto al guardado, limpia el
+   * desglose fino viejo (ya no cuadra); cuando es igual, lo conserva (edicion ajena a costos). El
+   * desglose solo aplica a BUY/SELL.
+   */
+  private void applyFrictionOnUpdate(
+      Transaction transaction, String transactionType, UpdateTransactionRequest request) {
+    boolean hasSplit =
+        request.brokerCommission() != null
+            || request.brokerIva() != null
+            || request.otherFees() != null;
+    FrictionSide side = frictionSideFor(transactionType);
+    if (hasSplit && side != null) {
+      transaction.applyFriction(
+          frictionCalculator.manual(
+              side,
+              request.quantity(),
+              transaction.getPricePerUnit(),
+              request.brokerCommission(),
+              request.brokerIva(),
+              request.otherFees(),
+              null));
+      return;
+    }
+    BigDecimal newFee = normalizedFee(request.fee());
+    BigDecimal storedFee = transaction.getFee() != null ? transaction.getFee() : BigDecimal.ZERO;
+    if (storedFee.compareTo(newFee) != 0) {
+      transaction.clearFrictionBreakdown();
+    }
+    transaction.setFee(newFee);
+  }
+
+  private FrictionSide frictionSideFor(String transactionType) {
+    return switch (transactionType) {
+      case "BUY" -> FrictionSide.BUY;
+      case "SELL" -> FrictionSide.SELL;
+      default -> null;
+    };
+  }
+
   private static boolean isImported(ImportSource source) {
     return source != null && source != ImportSource.MANUAL;
   }
@@ -199,7 +241,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             || numberChanged(stored.getQuantity(), request.quantity())
             || numberChanged(stored.getPricePerUnit(), request.pricePerUnit())
             || instantChanged(stored.getTransactionDate(), request.transactionDate())
-            || numberChanged(stored.getFee(), request.fee());
+            || numberChanged(stored.getFee(), request.fee())
+            || numberChanged(stored.getBrokerCommission(), request.brokerCommission())
+            || numberChanged(stored.getBrokerIva(), request.brokerIva())
+            || numberChanged(stored.getOtherFees(), request.otherFees());
     if (financialChange) {
       throw new ImportedTransactionNotEditableException(
           "La transaccion fue importada de "
@@ -454,7 +499,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                 calculateTotalValue(
                     transactionType, request.quantity(), transaction.getPricePerUnit()));
             transaction.setTransactionDate(request.transactionDate());
-            transaction.setFee(normalizedFee(request.fee()));
+            applyFrictionOnUpdate(transaction, transactionType, request);
             transaction.setNotes(request.notes());
             transaction.setTransferType(
                 resolveTransferType(transactionType, request.transferType()));
@@ -813,6 +858,14 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   }
 
   private void validateUpdateRequest(String transactionType, UpdateTransactionRequest request) {
+    boolean hasSplit =
+        request.brokerCommission() != null
+            || request.brokerIva() != null
+            || request.otherFees() != null;
+    if (hasSplit && !("BUY".equals(transactionType) || "SELL".equals(transactionType))) {
+      throw new InvalidTransactionException(
+          "El desglose de comision/IVA solo aplica a transacciones BUY o SELL");
+    }
     if ("TRANSFER".equals(transactionType)) {
       if (request.transferType() == null || request.transferType().isBlank()) {
         throw new InvalidTransactionException(

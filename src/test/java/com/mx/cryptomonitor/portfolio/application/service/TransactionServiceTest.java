@@ -671,6 +671,184 @@ class TransactionServiceTest {
   }
 
   @Test
+  @DisplayName("updateTransaction: split desglosado deriva fee y persiste comision/IVA (ADR-0005)")
+  void updateTransactionWithSplitDerivesFeeAndPersistsBreakdown() {
+    UUID txId = transaction.getTransactionId();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+    when(transactionRepository.save(any(Transaction.class)))
+        .thenAnswer(inv -> inv.getArgument(0, Transaction.class));
+    when(portfolioProjectionSyncPort.resolvePortfolioEntryId(userId, "NVDA"))
+        .thenReturn(Optional.of(UUID.randomUUID()));
+
+    UpdateTransactionRequest withSplit =
+        new UpdateTransactionRequest(
+            "NVDA",
+            "STOCK",
+            new BigDecimal("2"),
+            new BigDecimal("3307.00"),
+            OffsetDateTime.of(2025, 11, 21, 15, 31, 0, 0, ZoneOffset.UTC),
+            null,
+            "GBM",
+            null,
+            new BigDecimal("16.53"),
+            new BigDecimal("2.64"),
+            null);
+
+    transactionService.updateTransaction(userId, txId, withSplit, IDEMPOTENCY_KEY);
+
+    assertThat(transaction.getFee()).isEqualByComparingTo("19.17");
+    assertThat(transaction.getBrokerCommission()).isEqualByComparingTo("16.53");
+    assertThat(transaction.getBrokerIva()).isEqualByComparingTo("2.64");
+    assertThat(transaction.getOtherFees()).isEqualByComparingTo("0.00");
+  }
+
+  @Test
+  @DisplayName("updateTransaction: solo fee y el monto cambio -> limpia el desglose viejo")
+  void updateTransactionFeeOnlyChangedClearsStaleSplit() {
+    UUID txId = transaction.getTransactionId();
+    transaction.setFee(new BigDecimal("19.17"));
+    transaction.setBrokerCommission(new BigDecimal("16.53"));
+    transaction.setBrokerIva(new BigDecimal("2.64"));
+    transaction.setOtherFees(new BigDecimal("0.00"));
+    transaction.setReviewStatus(com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK);
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+    when(transactionRepository.save(any(Transaction.class)))
+        .thenAnswer(inv -> inv.getArgument(0, Transaction.class));
+    when(portfolioProjectionSyncPort.resolvePortfolioEntryId(userId, "BTC"))
+        .thenReturn(Optional.of(UUID.randomUUID()));
+
+    UpdateTransactionRequest feeOnly =
+        new UpdateTransactionRequest(
+            "BTC",
+            "CRYPTO",
+            new BigDecimal("0.50"),
+            new BigDecimal("95000.00"),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("25.00"),
+            "nota",
+            null);
+
+    transactionService.updateTransaction(userId, txId, feeOnly, IDEMPOTENCY_KEY);
+
+    assertThat(transaction.getFee()).isEqualByComparingTo("25.00");
+    assertThat(transaction.getBrokerCommission()).isNull();
+    assertThat(transaction.getBrokerIva()).isNull();
+    assertThat(transaction.getOtherFees()).isNull();
+  }
+
+  @Test
+  @DisplayName("updateTransaction: solo fee y el monto NO cambio -> conserva el desglose")
+  void updateTransactionFeeOnlyUnchangedPreservesSplit() {
+    UUID txId = transaction.getTransactionId();
+    transaction.setFee(new BigDecimal("19.17"));
+    transaction.setBrokerCommission(new BigDecimal("16.53"));
+    transaction.setBrokerIva(new BigDecimal("2.64"));
+    transaction.setOtherFees(new BigDecimal("0.00"));
+    transaction.setReviewStatus(com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK);
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+    when(transactionRepository.save(any(Transaction.class)))
+        .thenAnswer(inv -> inv.getArgument(0, Transaction.class));
+    when(portfolioProjectionSyncPort.resolvePortfolioEntryId(userId, "BTC"))
+        .thenReturn(Optional.of(UUID.randomUUID()));
+
+    UpdateTransactionRequest feeUnchanged =
+        new UpdateTransactionRequest(
+            "BTC",
+            "CRYPTO",
+            new BigDecimal("0.50"),
+            new BigDecimal("95000.00"),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("19.17"),
+            "edito solo la cantidad",
+            null);
+
+    transactionService.updateTransaction(userId, txId, feeUnchanged, IDEMPOTENCY_KEY);
+
+    assertThat(transaction.getFee()).isEqualByComparingTo("19.17");
+    assertThat(transaction.getBrokerCommission()).isEqualByComparingTo("16.53");
+    assertThat(transaction.getBrokerIva()).isEqualByComparingTo("2.64");
+  }
+
+  @Test
+  @DisplayName("updateTransaction: importada rechaza cambio de comision/IVA (ADR-0007)")
+  void updateTransactionRejectsSplitChangeOnImported() {
+    UUID txId = UUID.randomUUID();
+    Transaction imported =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("NVDA")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("2"))
+            .pricePerUnit(new BigDecimal("3307.00"))
+            .totalValue(new BigDecimal("6614.00"))
+            .fee(new BigDecimal("19.17"))
+            .brokerCommission(new BigDecimal("16.53"))
+            .brokerIva(new BigDecimal("2.64"))
+            .transactionDate(OffsetDateTime.of(2025, 11, 21, 15, 31, 0, 0, ZoneOffset.UTC))
+            .importSource(ImportSource.GBM_EQUITY)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(imported));
+
+    UpdateTransactionRequest changeSplit =
+        new UpdateTransactionRequest(
+            "NVDA",
+            "STOCK",
+            new BigDecimal("2"),
+            new BigDecimal("3307.00"),
+            OffsetDateTime.of(2025, 11, 21, 15, 31, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("19.17"),
+            "nota",
+            null,
+            new BigDecimal("5.00"),
+            new BigDecimal("0.80"),
+            null);
+
+    assertThatThrownBy(
+            () -> transactionService.updateTransaction(userId, txId, changeSplit, IDEMPOTENCY_KEY))
+        .isInstanceOf(
+            com.mx.cryptomonitor.transaction.domain.exception
+                .ImportedTransactionNotEditableException.class);
+    verify(transactionRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("updateTransaction: rechaza desglose en transaccion no BUY/SELL")
+  void updateTransactionRejectsSplitOnNonBuySell() {
+    UUID txId = transaction.getTransactionId();
+    transaction.setTransactionType("TRANSFER");
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+
+    UpdateTransactionRequest transferWithSplit =
+        new UpdateTransactionRequest(
+            "BTC",
+            "CRYPTO",
+            new BigDecimal("0.50"),
+            null,
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
+            null,
+            "nota",
+            "TRANSFER_OUT",
+            new BigDecimal("1.00"),
+            null,
+            null);
+
+    assertThatThrownBy(
+            () ->
+                transactionService.updateTransaction(
+                    userId, txId, transferWithSplit, IDEMPOTENCY_KEY))
+        .isInstanceOf(
+            com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException.class)
+        .hasMessageContaining("BUY o SELL");
+    verify(transactionRepository, never()).save(any());
+  }
+
+  @Test
   @DisplayName("updateTransaction: transfer keeps zero price and transfer type")
   void updateTransactionTransferUsesZeroPriceAndTotal() {
     UUID txId = transaction.getTransactionId();

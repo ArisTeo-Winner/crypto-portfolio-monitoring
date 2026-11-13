@@ -1,5 +1,6 @@
 package com.mx.cryptomonitor.integration;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -243,6 +245,50 @@ class TransactionControllerCreateTransactionIT {
                 .content(objectMapper.writeValueAsString(validUpdateRequest())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.transactionType").value("BUY"));
+  }
+
+  @Test
+  void updateTransactionBindsCommissionIvaSplitFromJson() throws Exception {
+    UUID userId = UUID.randomUUID();
+    UUID transactionId = UUID.randomUUID();
+
+    when(transactionService.updateTransaction(
+            eq(userId), eq(transactionId), any(UpdateTransactionRequest.class), any(String.class)))
+        .thenReturn(successResponse("BUY", null));
+
+    // El payload que mandara el frontend al editar costos: split sin fee (exclusividad ADR-0005).
+    String body =
+        """
+        {
+          "assetSymbol": "NVDA",
+          "assetType": "STOCK",
+          "quantity": 2,
+          "pricePerUnit": 3307.00,
+          "transactionDate": "2025-11-21T15:31:00Z",
+          "notes": "GBM",
+          "brokerCommission": 16.53,
+          "brokerIva": 2.64
+        }
+        """;
+
+    mockMvc
+        .perform(
+            put("/api/v1/me/transactions/{transactionId}", transactionId)
+                .with(authentication(userAuthentication(userId, "ROLE_USER")))
+                .header("X-Idempotency-Key", idempotencyKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+
+    ArgumentCaptor<UpdateTransactionRequest> captor =
+        ArgumentCaptor.forClass(UpdateTransactionRequest.class);
+    verify(transactionService)
+        .updateTransaction(eq(userId), eq(transactionId), captor.capture(), any(String.class));
+    UpdateTransactionRequest bound = captor.getValue();
+    assertThat(bound.brokerCommission()).isEqualByComparingTo("16.53");
+    assertThat(bound.brokerIva()).isEqualByComparingTo("2.64");
+    assertThat(bound.otherFees()).isNull();
+    assertThat(bound.fee()).isNull();
   }
 
   @Test
