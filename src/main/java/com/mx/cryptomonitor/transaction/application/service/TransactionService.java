@@ -1004,7 +1004,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     if ("TRANSFER".equalsIgnoreCase(transaction.getTransactionType())) {
       return transaction.getAssetSymbol();
     }
-    return "USD";
+    String currency = transaction.getCurrency();
+    return (currency != null && !currency.isBlank()) ? currency : "USD";
   }
 
   private String updateScope(UUID transactionId) {
