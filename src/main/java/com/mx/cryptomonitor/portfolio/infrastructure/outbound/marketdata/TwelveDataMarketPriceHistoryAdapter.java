@@ -17,6 +17,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
@@ -232,24 +233,6 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
                     new UnknownAssetSymbolException(
                         "Simbolo no encontrado en Twelve Data: " + symbol)))
         .onStatus(
-            status ->
-                status.is4xxClientError()
-                    && status.value() != 401
-                    && status.value() != 403
-                    && status.value() != 404
-                    && status.value() != 429,
-            response ->
-                response
-                    .bodyToMono(String.class)
-                    .map(
-                        body ->
-                            new MarketDataServerException(
-                                "Twelve Data HTTP " + response.statusCode().value() + ": " + body))
-                    .switchIfEmpty(
-                        reactor.core.publisher.Mono.just(
-                            new MarketDataServerException(
-                                "Twelve Data HTTP " + response.statusCode().value()))))
-        .onStatus(
             status -> status.is5xxServerError(),
             response ->
                 response
@@ -267,6 +250,9 @@ public class TwelveDataMarketPriceHistoryAdapter implements MarketPriceHistoryPr
                                 "Twelve Data error de servidor (HTTP "
                                     + response.statusCode().value()
                                     + ")"))))
+        .onStatus(
+            HttpStatusCode::isError,
+            response -> MarketDataResponseErrors.recoverable("Twelve Data", response))
         .bodyToMono(Map.class)
         .map(Map.class::cast)
         .onErrorMap(

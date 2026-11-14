@@ -1,0 +1,55 @@
+name: external-providers-smoke
+
+# Smoke test de proveedores externos de datos de cripto (ADR-0021).
+#
+# IMPORTANTE: los runners hospedados de GitHub corren en US (Azure) -> reproducen
+# el geobloqueo 451 real de Binance/Bybit, que desde dev (Mexico) es invisible.
+# El job rompe el pipeline SOLO si un proveedor REQUERIDO (Coinbase/Kraken/CoinGecko,
+# de los que depende prod) no responde 200. Los proveedores gateados-en-US
+# (Binance/Bybit/Futures) se vigilan como canario y su 451 NO rompe nada.
+
+on:
+  # push: corre desde la rama que empujas (usa SU version del archivo), asi que
+  # funciona ya mismo en feature/** sin pasar por master. Filtrado por paths para
+  # no disparar el smoke (flaky, pega a APIs reales) en cada commit irrelevante.
+  push:
+    branches:
+      - "feature/**"
+      - "fix/**"
+      - "test/**"
+      - "chore/**"
+    paths:
+      - "src/main/java/com/mx/cryptomonitor/portfolio/infrastructure/outbound/marketdata/**"
+      - "ci/smoke-external-providers.sh"
+      - ".github/workflows/external-providers-smoke.yml"
+  # pull_request: usa el archivo del HEAD del PR (tu feature), por lo que valida
+  # ANTES de entrar a dev (pre-produccion) y a master (produccion) aunque esas
+  # ramas todavia no tengan este workflow. branches = rama BASE/destino del PR.
+  pull_request:
+    branches:
+      - dev
+      - master
+    paths:
+      - "src/main/java/com/mx/cryptomonitor/portfolio/infrastructure/outbound/marketdata/**"
+      - "ci/smoke-external-providers.sh"
+      - ".github/workflows/external-providers-smoke.yml"
+  # workflow_dispatch + schedule: solo se activan cuando el workflow vive en la
+  # rama default (master). Quedan listos para dispatch manual y el nightly una
+  # vez mergeado; desde feature/** no disparan (limitacion de GitHub).
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 7 * * *" # nightly 07:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest # hospedado = egress US, reproduce el 451 real
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke de proveedores externos
+        run: |
+          chmod +x ci/smoke-external-providers.sh
+          ci/smoke-external-providers.sh

@@ -41,5 +41,11 @@ public interface TransactionCommandUseCase {
   TransactionResponse registerDividendTransaction(
       UUID userId, DividendTransactionRequest request, String idempotencyKey);
 
+  TransactionResponse registerDividendTransaction(
+      UUID userId,
+      DividendTransactionRequest request,
+      String idempotencyKey,
+      com.mx.cryptomonitor.transaction.domain.model.DividendOrigin origin);
+
   void deleteTransactionById(UUID userId, UUID transactionId, String idempotencyKey);
 }

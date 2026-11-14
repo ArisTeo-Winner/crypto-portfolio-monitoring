@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPort;
@@ -11,11 +12,14 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
+import com.mx.cryptomonitor.portfolio.domain.exception.NoMarketDataProviderException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.PricePoint;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
@@ -28,11 +32,21 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
 
   private final PriceHistoryCachePort priceHistoryCachePort;
   private final List<MarketPriceHistoryProvider> providers;
+  private final MeterRegistry meterRegistry;
+
+  @Autowired
+  public CachedMarketPriceHistoryAdapter(
+      PriceHistoryCachePort priceHistoryCachePort,
+      List<MarketPriceHistoryProvider> providers,
+      MeterRegistry meterRegistry) {
+    this.priceHistoryCachePort = priceHistoryCachePort;
+    this.providers = providers;
+    this.meterRegistry = meterRegistry;
+  }
 
   public CachedMarketPriceHistoryAdapter(
       PriceHistoryCachePort priceHistoryCachePort, List<MarketPriceHistoryProvider> providers) {
-    this.priceHistoryCachePort = priceHistoryCachePort;
-    this.providers = providers;
+    this(priceHistoryCachePort, providers, new SimpleMeterRegistry());
   }
 
   @Override
@@ -77,62 +91,98 @@ public class CachedMarketPriceHistoryAdapter implements MarketPriceHistoryPort {
 
   // Tries providers in @Order sequence; falls back to the next on any recoverable provider error
   // (unknown symbol, rate limit, upstream/server error), so a symbol missing or failing on the
-  // primary provider (e.g. Binance) is still served by the secondary (e.g. CoinGecko).
+  // primary provider (e.g. Coinbase) is still served by the secondary (e.g. Kraken/CoinGecko).
   private List<PricePoint> fetchWithFallback(
       AssetType assetType, String symbol, ChartResolution chartResolution) {
-    RuntimeException lastError = null;
-    for (MarketPriceHistoryProvider provider : providers) {
-      if (!provider.supports(assetType)) {
-        continue;
-      }
-      try {
-        return provider.fetchPriceHistory(assetType, symbol, chartResolution).stream()
-            .sorted(Comparator.comparing(PricePoint::time))
-            .toList();
-      } catch (UnknownAssetSymbolException
-          | MarketDataRateLimitException
-          | MarketDataServerException e) {
-        lastError = logAndCarry(provider, symbol, e);
-      }
-    }
-    return failAfterFallback(assetType, lastError);
+    return fetchWithFallback(
+        assetType,
+        symbol,
+        provider -> provider.fetchPriceHistory(assetType, symbol, chartResolution));
   }
 
   private List<PricePoint> fetchWithFallback(
       AssetType assetType, String symbol, HoldingsHistoryRange range) {
+    return fetchWithFallback(
+        assetType, symbol, provider -> provider.fetchPriceHistory(assetType, symbol, range));
+  }
+
+  // Observabilidad (ADR-0021/ADR-0022 F3): cada intento emite el counter
+  // marketdata.pricehistory.fetch{provider,asset_type,outcome} (tags de baja cardinalidad, sin
+  // symbol) y el proveedor ganador se registra con el símbolo en un log INFO. El outcome
+  // server_error de un provider Coinbase cubre la alerta de credencial 401/403 (ADR-0023).
+  private List<PricePoint> fetchWithFallback(
+      AssetType assetType, String symbol, ProviderFetch fetch) {
     RuntimeException lastError = null;
     for (MarketPriceHistoryProvider provider : providers) {
       if (!provider.supports(assetType)) {
         continue;
       }
       try {
-        return provider.fetchPriceHistory(assetType, symbol, range).stream()
-            .sorted(Comparator.comparing(PricePoint::time))
-            .toList();
-      } catch (UnknownAssetSymbolException
-          | MarketDataRateLimitException
-          | MarketDataServerException e) {
-        lastError = logAndCarry(provider, symbol, e);
+        List<PricePoint> prices =
+            fetch.apply(provider).stream().sorted(Comparator.comparing(PricePoint::time)).toList();
+        recordOutcome(provider, assetType, "success");
+        log.info(
+            "price history for {} [{}] served by {} ({} points)",
+            symbol,
+            assetType,
+            provider.getClass().getSimpleName(),
+            prices.size());
+        return prices;
+      } catch (UnknownAssetSymbolException e) {
+        lastError = carry(provider, symbol, assetType, e, "unknown_symbol");
+      } catch (MarketDataRateLimitException e) {
+        lastError = carry(provider, symbol, assetType, e, "rate_limit");
+      } catch (MarketDataServerException e) {
+        lastError = carry(provider, symbol, assetType, e, "server_error");
       }
     }
     return failAfterFallback(assetType, lastError);
   }
 
-  private RuntimeException logAndCarry(
-      MarketPriceHistoryProvider provider, String symbol, RuntimeException error) {
+  private RuntimeException carry(
+      MarketPriceHistoryProvider provider,
+      String symbol,
+      AssetType assetType,
+      RuntimeException error,
+      String outcome) {
+    recordOutcome(provider, assetType, outcome);
     log.debug(
-        "Provider {} failed for {} ({}), trying next",
+        "Provider {} failed for {} [{}] ({}:{}), trying next",
         provider.getClass().getSimpleName(),
         symbol,
+        assetType,
+        outcome,
         error.getClass().getSimpleName());
     return error;
+  }
+
+  private void recordOutcome(
+      MarketPriceHistoryProvider provider, AssetType assetType, String outcome) {
+    meterRegistry
+        .counter(
+            "marketdata.pricehistory.fetch",
+            "provider",
+            provider.getClass().getSimpleName(),
+            "asset_type",
+            assetType.name(),
+            "outcome",
+            outcome)
+        .increment();
+  }
+
+  @FunctionalInterface
+  private interface ProviderFetch {
+    List<PricePoint> apply(MarketPriceHistoryProvider provider);
   }
 
   private List<PricePoint> failAfterFallback(AssetType assetType, RuntimeException lastError) {
     if (lastError != null) {
       throw lastError;
     }
-    throw new IllegalStateException("No market price history provider configured for " + assetType);
+    // Ningun proveedor soporta este AssetType (p.ej. GOVERNMENT_BOND). Excepcion recuperable por
+    // activo (ADR-0018): el caller la degrada a "no disponible" (respuesta parcial) en vez de 500.
+    throw new NoMarketDataProviderException(
+        "No market price history provider configured for " + assetType);
   }
 
   private List<PricePoint> getCachedByKey(AssetType assetType, String symbol, String key) {

@@ -32,4 +32,22 @@ public class AsyncConfig {
     executor.initialize();
     return executor;
   }
+
+  /**
+   * ADR-0028 F1: executor dedicado para el procesamiento de dividendos (auto-poblado + accrual del
+   * late joiner). A diferencia del de íconos, usa {@link ThreadPoolExecutor.CallerRunsPolicy}: bajo
+   * saturación la tarea corre en el hilo llamante (backpressure) — <b>nunca se descarta</b>, porque
+   * perder una acreditación de dividendo es un error de corrección, no una tarea best-effort.
+   */
+  @Bean(name = "dividendProcessingExecutor")
+  public Executor dividendProcessingExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(2);
+    executor.setMaxPoolSize(4);
+    executor.setQueueCapacity(1000);
+    executor.setThreadNamePrefix("dividend-proc-");
+    executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+    executor.initialize();
+    return executor;
+  }
 }

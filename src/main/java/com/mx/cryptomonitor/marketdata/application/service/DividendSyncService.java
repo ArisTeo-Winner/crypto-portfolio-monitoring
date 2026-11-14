@@ -13,15 +13,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.mx.cryptomonitor.marketdata.application.port.in.ReplayDividendAccrualUseCase;
+import com.mx.cryptomonitor.marketdata.application.port.in.SyncDividendsUseCase;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendDetectedEvent;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendEventData;
 import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderPort;
+import com.mx.cryptomonitor.marketdata.application.port.out.DividendProviderUnavailableException;
 import com.mx.cryptomonitor.marketdata.domain.corporateaction.CorporateActionLifecycle;
+import com.mx.cryptomonitor.marketdata.domain.model.AssetDividendStatusEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionStatus;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionType;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendActionDetailEntity;
 import com.mx.cryptomonitor.marketdata.domain.model.DividendDistributionType;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendEligibilityStatus;
+import com.mx.cryptomonitor.marketdata.domain.repository.AssetDividendStatusRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.CorporateActionRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRepository;
 
@@ -29,11 +35,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Ingesta de dividendos (ADR-0014 F3b + ADR-0018): trae el historico del proveedor y lo persiste
+ * Ingesta de dividendos (ADR-0014 F3b + ADR-0020): trae el historico del proveedor y lo persiste
  * como eventos DIVIDEND en {@code corporate_action} + {@code dividend_action_detail}. Idempotente:
  * dedup por {@code provider_event_id} (fuerte) y por la llave natural (simbolo+tipo+ex-date).
  *
- * <p>ADR-0018 (freeze-al-pago): un evento ya {@code COMPLETED} (pagado) es INMUTABLE — nunca se
+ * <p>ADR-0020 (freeze-al-pago): un evento ya {@code COMPLETED} (pagado) es INMUTABLE — nunca se
  * re-escriben sus montos ni fechas; a lo sumo se sincroniza la etiqueta de estado. Un evento
  * provisional ({@code ANNOUNCED}/{@code EFFECTIVE}) SI se actualiza si el emisor lo revisa. El
  * estado se deriva de las fechas, no se congela al sync-time. Solo DETECTA (puebla el catalogo); el
@@ -42,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class DividendSyncService {
+public class DividendSyncService implements SyncDividendsUseCase, ReplayDividendAccrualUseCase {
 
   private static final String PROVIDER = "MASSIVE";
 
@@ -50,15 +56,25 @@ public class DividendSyncService {
   private final CorporateActionRepository corporateActionRepository;
   private final DividendActionDetailRepository dividendDetailRepository;
   private final ApplicationEventPublisher eventPublisher;
+  private final AssetDividendStatusRepository dividendStatusRepository;
 
   /** Sincroniza los dividendos de un ticker. Devuelve cuantos eventos NUEVOS se insertaron. */
+  @Override
   @Transactional
   public int sync(String ticker) {
     if (!StringUtils.hasText(ticker)) {
       return 0;
     }
     String symbol = ticker.trim().toUpperCase();
-    List<DividendEventData> events = dividendProvider.fetchDividends(symbol);
+    boolean providerError = false;
+    List<DividendEventData> events;
+    try {
+      events = dividendProvider.fetchDividends(symbol);
+    } catch (DividendProviderUnavailableException ex) {
+      log.warn("Descubrimiento de dividendos no concluyente para {}: {}", symbol, ex.getMessage());
+      events = List.of();
+      providerError = true;
+    }
     LocalDate today = LocalDate.now(ZoneOffset.UTC);
     int created = 0;
     int updated = 0;
@@ -86,9 +102,81 @@ public class DividendSyncService {
       created++;
     }
     if (created > 0 || updated > 0) {
-      log.info("Dividend sync {}: {} evento(s) nuevo(s), {} actualizado(s)", symbol, created, updated);
+      log.info(
+          "Dividend sync {}: {} evento(s) nuevo(s), {} actualizado(s)", symbol, created, updated);
     }
+    recordEligibility(symbol, !events.isEmpty(), providerError);
     return created;
+  }
+
+  /**
+   * ADR-0025: persiste el desenlace del descubrimiento como estado de elegibilidad. {@code PAYS} si
+   * el proveedor devolvió eventos; {@code NONE} si respondió OK y vacío; {@code ERROR} (F2) si
+   * ningún proveedor concluyó (caído/sin cuota) — NO concluyente. Regla anti-degradación: un {@code
+   * ERROR} nunca sobre-escribe un veredicto ya concluyente ({@code PAYS}/{@code NONE}); solo
+   * refresca el {@code lastCheckedAt} se omite para no borrar lo conocido. Upsert por símbolo.
+   */
+  private void recordEligibility(String symbol, boolean pays, boolean providerError) {
+    DividendEligibilityStatus newStatus =
+        pays
+            ? DividendEligibilityStatus.PAYS
+            : (providerError ? DividendEligibilityStatus.ERROR : DividendEligibilityStatus.NONE);
+    Optional<AssetDividendStatusEntity> existing =
+        dividendStatusRepository.findByAssetSymbol(symbol);
+    if (newStatus == DividendEligibilityStatus.ERROR
+        && existing
+            .filter(
+                e ->
+                    e.getStatus() == DividendEligibilityStatus.PAYS
+                        || e.getStatus() == DividendEligibilityStatus.NONE)
+            .isPresent()) {
+      return;
+    }
+    AssetDividendStatusEntity entity =
+        existing.orElseGet(() -> AssetDividendStatusEntity.builder().assetSymbol(symbol).build());
+    entity.setStatus(newStatus);
+    entity.setLastCheckedAt(OffsetDateTime.now(ZoneOffset.UTC));
+    dividendStatusRepository.save(entity);
+  }
+
+  /**
+   * ADR-0027: re-emite los dividendos ya persistidos del símbolo como {@link DividendDetectedEvent}
+   * para que el accrual (idempotente) acredite al "late joiner" sin re-acreditar a los demás. En
+   * transacción para que los listeners corran en AFTER_COMMIT.
+   */
+  @Override
+  @Transactional
+  public int replayForAccrual(String ticker) {
+    if (!StringUtils.hasText(ticker)) {
+      return 0;
+    }
+    String symbol = ticker.trim().toUpperCase();
+    int republished = 0;
+    for (CorporateActionEntity action :
+        corporateActionRepository.findByAssetSymbolOrderByPivotalDateDesc(symbol)) {
+      if (action.getActionType() != CorporateActionType.DIVIDEND) {
+        continue;
+      }
+      DividendActionDetailEntity detail =
+          dividendDetailRepository.findById(action.getId()).orElse(null);
+      if (detail == null
+          || detail.getAmountPerShare() == null
+          || detail.getAmountPerShare().signum() <= 0) {
+        continue;
+      }
+      eventPublisher.publishEvent(
+          new DividendDetectedEvent(
+              symbol,
+              action.getPivotalDate(),
+              action.getPaymentDate(),
+              detail.getAmountPerShare(),
+              detail.getCurrency() == null ? "USD" : detail.getCurrency()));
+      republished++;
+    }
+    if (republished > 0) {
+      log.info("Replay de accrual {}: {} dividendo(s) re-emitido(s)", symbol, republished);
+    }
+    return republished;
   }
 
   private Optional<CorporateActionEntity> findExisting(String symbol, DividendEventData event) {
@@ -104,7 +192,7 @@ public class DividendSyncService {
   }
 
   /**
-   * Reconcilia un evento ya almacenado (ADR-0018). Congelado (pagado) => inmutable: no se tocan
+   * Reconcilia un evento ya almacenado (ADR-0020). Congelado (pagado) => inmutable: no se tocan
    * montos ni fechas, solo se sincroniza la etiqueta de estado si quedo vieja. Provisional => se
    * actualiza si el emisor reviso monto o fechas. Devuelve {@code true} si hubo cambios de datos.
    */
@@ -207,8 +295,7 @@ public class DividendSyncService {
         .assetSymbol(symbol)
         .actionType(CorporateActionType.DIVIDEND)
         .status(
-            CorporateActionLifecycle.statusFor(
-                event.exDividendDate(), event.paymentDate(), today))
+            CorporateActionLifecycle.statusFor(event.exDividendDate(), event.paymentDate(), today))
         .pivotalDate(event.exDividendDate())
         .declarationDate(event.declarationDate())
         .recordDate(event.recordDate())

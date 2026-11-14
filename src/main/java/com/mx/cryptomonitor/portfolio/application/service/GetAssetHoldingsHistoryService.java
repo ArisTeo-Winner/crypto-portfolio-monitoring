@@ -18,6 +18,9 @@ import com.mx.cryptomonitor.portfolio.application.port.out.MarketPriceHistoryPor
 import com.mx.cryptomonitor.portfolio.application.port.out.PortfolioTransactionSnapshot;
 import com.mx.cryptomonitor.portfolio.domain.engine.HoldingsValueCalculator;
 import com.mx.cryptomonitor.portfolio.domain.engine.PortfolioQuantityTimelineEngine;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
+import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
+import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolutionStrategy;
@@ -37,6 +40,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
   private final PortfolioQuantityTimelineEngine quantityTimelineEngine;
   private final HoldingsValueCalculator holdingsValueCalculator;
   private final ChartResolutionStrategy chartResolutionStrategy;
+  private final FixedIncomeSeriesBuilder fixedIncomeSeriesBuilder;
   private final Clock clock;
 
   @Autowired
@@ -71,6 +75,7 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
     this.quantityTimelineEngine = new PortfolioQuantityTimelineEngine();
     this.holdingsValueCalculator = new HoldingsValueCalculator();
     this.chartResolutionStrategy = new ChartResolutionStrategy();
+    this.fixedIncomeSeriesBuilder = new FixedIncomeSeriesBuilder();
     this.clock = clock;
   }
 
@@ -87,7 +92,10 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
     AssetType assetType = AssetType.from(snapshots.get(snapshots.size() - 1).assetType());
     Instant end = Instant.now(clock);
     Instant start = determineStart(parsedRange, snapshots, end);
-    List<PricePoint> prices = fetchPrices(assetType, symbol, parsedRange, start, end);
+    List<PricePoint> prices =
+        FixedIncomeSeriesBuilder.isAccrualValued(assetType)
+            ? fixedIncomeSeriesBuilder.build(snapshots, start, end)
+            : fetchPrices(assetType, symbol, parsedRange, start, end);
     // Un solo simbolo: resolver splitsFor(symbol) una vez y reutilizar en serie y markers.
     List<com.mx.cryptomonitor.marketdata.application.port.out.StockSplitData> splits =
         SplitFactors.splitsOf(stockSplitPort, symbol);
@@ -106,11 +114,19 @@ public class GetAssetHoldingsHistoryService implements GetAssetHoldingsHistoryUs
 
   private List<PricePoint> fetchPrices(
       AssetType assetType, String symbol, HoldingsHistoryRange range, Instant start, Instant end) {
-    if (!range.isAll()) {
-      return marketPriceHistoryPort.getPriceHistory(assetType, symbol, range.value());
+    try {
+      if (!range.isAll()) {
+        return marketPriceHistoryPort.getPriceHistory(assetType, symbol, range.value());
+      }
+      ChartResolution chartResolution = chartResolutionStrategy.resolve(start, end);
+      return marketPriceHistoryPort.getPriceHistory(assetType, symbol, chartResolution);
+    } catch (UnknownAssetSymbolException
+        | MarketDataRateLimitException
+        | MarketDataServerException e) {
+      // Un símbolo sin proveedor o cuyo proveedor falla no debe tumbar la gráfica del activo: se
+      // devuelve serie vacía (gráfica vacía) en lugar de propagar un 500/502.
+      return List.of();
     }
-    ChartResolution chartResolution = chartResolutionStrategy.resolve(start, end);
-    return marketPriceHistoryPort.getPriceHistory(assetType, symbol, chartResolution);
   }
 
   private Instant determineStart(

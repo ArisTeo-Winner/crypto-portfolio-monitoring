@@ -25,8 +25,16 @@ public interface CorporateActionRepository extends JpaRepository<CorporateAction
 
   /**
    * Lookup natural (simbolo + tipo + fecha pivote) para reconciliar un evento ya almacenado sin id
-   * de proveedor (ADR-0018): decide si esta congelado (skip) o es provisional (actualizable).
+   * de proveedor (ADR-0020): decide si esta congelado (skip) o es provisional (actualizable).
    */
   Optional<CorporateActionEntity> findByAssetSymbolAndActionTypeAndPivotalDate(
       String assetSymbol, CorporateActionType actionType, LocalDate pivotalDate);
+
+  /**
+   * Proximo dividendo anunciado de una seguridad (ADR-0026): el evento DIVIDEND con fecha de pago
+   * aun en el futuro mas cercana (pago no realizado). Vacio si no hay uno.
+   */
+  Optional<CorporateActionEntity>
+      findFirstByAssetSymbolAndActionTypeAndPaymentDateGreaterThanEqualOrderByPaymentDateAsc(
+          String assetSymbol, CorporateActionType actionType, LocalDate paymentDate);
 }

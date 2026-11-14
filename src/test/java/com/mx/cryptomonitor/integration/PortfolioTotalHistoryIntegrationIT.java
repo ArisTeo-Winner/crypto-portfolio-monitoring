@@ -70,16 +70,18 @@ class PortfolioTotalHistoryIntegrationIT extends InfraIntegrationTest {
   static void registerCoinGecko(DynamicPropertyRegistry registry) {
     registry.add("external.providers.coingecko.base-url", coinGecko::baseUrl);
     registry.add("external.providers.coingecko.enabled", () -> "true");
-    // Forzar CoinGecko (stubeado) como ÚNICO proveedor CRYPTO: apagar los de spot/futuros en vivo
-    // (@Order 0,1,2), que si no golpean Binance real y hacen el test dependiente de precios en
-    // vivo.
+    // Forzar CoinGecko (stubeado) como ÚNICO proveedor CRYPTO: apagar los proveedores en vivo
+    // (Coinbase @Order -20, Kraken @Order -10, Binance/Bybit/Futures @Order 0,1,2), que si no
+    // golpean la red real y hacen el test dependiente de precios en vivo.
+    registry.add("external.providers.coinbase.enabled", () -> "false");
+    registry.add("external.providers.kraken.enabled", () -> "false");
     registry.add("external.providers.binance.enabled", () -> "false");
     registry.add("external.providers.bybit.enabled", () -> "false");
     registry.add("external.providers.binance.futures.enabled", () -> "false");
     registry.add("marketdata.alphavantage.base-url", () -> "http://localhost");
     registry.add("marketdata.alphavantage.api-key", () -> "demo");
-    registry.add("polygon.base-url", () -> "");
-    registry.add("polygon.api.key", () -> "");
+    registry.add("marketdata.massive.base-url", () -> "");
+    registry.add("marketdata.massive.api-key", () -> "");
   }
 
   @BeforeEach

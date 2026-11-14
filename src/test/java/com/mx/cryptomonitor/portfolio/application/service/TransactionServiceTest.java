@@ -29,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
@@ -74,6 +75,11 @@ class TransactionServiceTest {
   @Mock private DividendDetailRepository dividendDetailRepository;
   @Mock private AssetCatalogQueryPort assetCatalogQueryPort;
   @Mock private AssetCatalogRefreshPort assetCatalogRefreshPort;
+  @Mock private ApplicationEventPublisher eventPublisher;
+
+  @Mock
+  private com.mx.cryptomonitor.transaction.application.port.in.DividendReconciliationUseCase
+      dividendReconciliationUseCase;
 
   private final TransactionMapper transactionMapper = Mappers.getMapper(TransactionMapper.class);
 
@@ -97,7 +103,9 @@ class TransactionServiceTest {
             dividendDetailRepository,
             assetCatalogQueryPort,
             new com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator(),
-            assetCatalogRefreshPort);
+            assetCatalogRefreshPort,
+            eventPublisher,
+            dividendReconciliationUseCase);
     lenient()
         .when(assetCatalogQueryPort.findNameBySymbol(anyString()))
         .thenReturn(Optional.empty());
@@ -458,15 +466,58 @@ class TransactionServiceTest {
   }
 
   @Test
-  @DisplayName("getTransactionsUser: no filters returns all")
-  void getTransactionsUserNoFilters() {
+  @DisplayName("getTransactionsUser: sin filtros devuelve solo operaciones, excluye DIVIDEND")
+  void getTransactionsUserNoFiltersExcludesIncome() {
+    Transaction dividend = new Transaction();
+    dividend.setTransactionId(UUID.randomUUID());
+    dividend.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
+    dividend.setAssetSymbol("GOOGL");
+    dividend.setAssetType(AssetType.STOCK);
+    dividend.setTransactionType("DIVIDEND");
+    dividend.setQuantity(BigDecimal.ZERO);
+    dividend.setPricePerUnit(BigDecimal.ZERO);
+    dividend.setTotalValue(new BigDecimal("0.22"));
+    dividend.setFee(BigDecimal.ZERO);
+    dividend.setTransactionDate(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setCreatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setUpdatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+
     when(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT))
-        .thenReturn(Collections.singletonList(transaction));
+        .thenReturn(List.of(transaction, dividend));
 
     List<TransactionResponse> result =
         transactionService.getTransactionsUser(userId, null, null, null);
 
     assertThat(result).hasSize(1);
+    assertThat(result.get(0).transactionType()).isEqualTo("BUY");
+  }
+
+  @Test
+  @DisplayName("getTransactionsUser: transactionType=DIVIDEND explícito sí devuelve ingresos")
+  void getTransactionsUserExplicitDividendReturnsIncome() {
+    Transaction dividend = new Transaction();
+    dividend.setTransactionId(UUID.randomUUID());
+    dividend.setUser(com.mx.cryptomonitor.user.domain.model.User.builder().id(userId).build());
+    dividend.setAssetSymbol("GOOGL");
+    dividend.setAssetType(AssetType.STOCK);
+    dividend.setTransactionType("DIVIDEND");
+    dividend.setQuantity(BigDecimal.ZERO);
+    dividend.setPricePerUnit(BigDecimal.ZERO);
+    dividend.setTotalValue(new BigDecimal("0.22"));
+    dividend.setFee(BigDecimal.ZERO);
+    dividend.setTransactionDate(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setCreatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+    dividend.setUpdatedAt(OffsetDateTime.of(2026, 6, 15, 4, 0, 0, 0, ZoneOffset.UTC));
+
+    when(transactionRepository.findByUserIdAndTransactionType(
+            userId, "DIVIDEND", RECENT_FIRST_SORT))
+        .thenReturn(List.of(dividend));
+
+    List<TransactionResponse> result =
+        transactionService.getTransactionsUser(userId, null, null, "DIVIDEND");
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).transactionType()).isEqualTo("DIVIDEND");
   }
 
   @Test
@@ -617,6 +668,184 @@ class TransactionServiceTest {
     verify(transactionRepository).save(imported);
     verify(portfolioProjectionSyncPort, never()).reconcileUserPortfolio(any());
     verify(transactionRealizedPnlService, never()).rebuildUserRealizedPnl(any());
+  }
+
+  @Test
+  @DisplayName("updateTransaction: split desglosado deriva fee y persiste comision/IVA (ADR-0005)")
+  void updateTransactionWithSplitDerivesFeeAndPersistsBreakdown() {
+    UUID txId = transaction.getTransactionId();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+    when(transactionRepository.save(any(Transaction.class)))
+        .thenAnswer(inv -> inv.getArgument(0, Transaction.class));
+    when(portfolioProjectionSyncPort.resolvePortfolioEntryId(userId, "NVDA"))
+        .thenReturn(Optional.of(UUID.randomUUID()));
+
+    UpdateTransactionRequest withSplit =
+        new UpdateTransactionRequest(
+            "NVDA",
+            "STOCK",
+            new BigDecimal("2"),
+            new BigDecimal("3307.00"),
+            OffsetDateTime.of(2025, 11, 21, 15, 31, 0, 0, ZoneOffset.UTC),
+            null,
+            "GBM",
+            null,
+            new BigDecimal("16.53"),
+            new BigDecimal("2.64"),
+            null);
+
+    transactionService.updateTransaction(userId, txId, withSplit, IDEMPOTENCY_KEY);
+
+    assertThat(transaction.getFee()).isEqualByComparingTo("19.17");
+    assertThat(transaction.getBrokerCommission()).isEqualByComparingTo("16.53");
+    assertThat(transaction.getBrokerIva()).isEqualByComparingTo("2.64");
+    assertThat(transaction.getOtherFees()).isEqualByComparingTo("0.00");
+  }
+
+  @Test
+  @DisplayName("updateTransaction: solo fee y el monto cambio -> limpia el desglose viejo")
+  void updateTransactionFeeOnlyChangedClearsStaleSplit() {
+    UUID txId = transaction.getTransactionId();
+    transaction.setFee(new BigDecimal("19.17"));
+    transaction.setBrokerCommission(new BigDecimal("16.53"));
+    transaction.setBrokerIva(new BigDecimal("2.64"));
+    transaction.setOtherFees(new BigDecimal("0.00"));
+    transaction.setReviewStatus(com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK);
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+    when(transactionRepository.save(any(Transaction.class)))
+        .thenAnswer(inv -> inv.getArgument(0, Transaction.class));
+    when(portfolioProjectionSyncPort.resolvePortfolioEntryId(userId, "BTC"))
+        .thenReturn(Optional.of(UUID.randomUUID()));
+
+    UpdateTransactionRequest feeOnly =
+        new UpdateTransactionRequest(
+            "BTC",
+            "CRYPTO",
+            new BigDecimal("0.50"),
+            new BigDecimal("95000.00"),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("25.00"),
+            "nota",
+            null);
+
+    transactionService.updateTransaction(userId, txId, feeOnly, IDEMPOTENCY_KEY);
+
+    assertThat(transaction.getFee()).isEqualByComparingTo("25.00");
+    assertThat(transaction.getBrokerCommission()).isNull();
+    assertThat(transaction.getBrokerIva()).isNull();
+    assertThat(transaction.getOtherFees()).isNull();
+  }
+
+  @Test
+  @DisplayName("updateTransaction: solo fee y el monto NO cambio -> conserva el desglose")
+  void updateTransactionFeeOnlyUnchangedPreservesSplit() {
+    UUID txId = transaction.getTransactionId();
+    transaction.setFee(new BigDecimal("19.17"));
+    transaction.setBrokerCommission(new BigDecimal("16.53"));
+    transaction.setBrokerIva(new BigDecimal("2.64"));
+    transaction.setOtherFees(new BigDecimal("0.00"));
+    transaction.setReviewStatus(com.mx.cryptomonitor.transaction.domain.friction.ReviewStatus.OK);
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+    when(transactionRepository.save(any(Transaction.class)))
+        .thenAnswer(inv -> inv.getArgument(0, Transaction.class));
+    when(portfolioProjectionSyncPort.resolvePortfolioEntryId(userId, "BTC"))
+        .thenReturn(Optional.of(UUID.randomUUID()));
+
+    UpdateTransactionRequest feeUnchanged =
+        new UpdateTransactionRequest(
+            "BTC",
+            "CRYPTO",
+            new BigDecimal("0.50"),
+            new BigDecimal("95000.00"),
+            OffsetDateTime.of(2026, 3, 10, 1, 0, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("19.17"),
+            "edito solo la cantidad",
+            null);
+
+    transactionService.updateTransaction(userId, txId, feeUnchanged, IDEMPOTENCY_KEY);
+
+    assertThat(transaction.getFee()).isEqualByComparingTo("19.17");
+    assertThat(transaction.getBrokerCommission()).isEqualByComparingTo("16.53");
+    assertThat(transaction.getBrokerIva()).isEqualByComparingTo("2.64");
+  }
+
+  @Test
+  @DisplayName("updateTransaction: importada rechaza cambio de comision/IVA (ADR-0007)")
+  void updateTransactionRejectsSplitChangeOnImported() {
+    UUID txId = UUID.randomUUID();
+    Transaction imported =
+        Transaction.builder()
+            .transactionId(txId)
+            .assetSymbol("NVDA")
+            .assetType(AssetType.STOCK)
+            .transactionType("BUY")
+            .quantity(new BigDecimal("2"))
+            .pricePerUnit(new BigDecimal("3307.00"))
+            .totalValue(new BigDecimal("6614.00"))
+            .fee(new BigDecimal("19.17"))
+            .brokerCommission(new BigDecimal("16.53"))
+            .brokerIva(new BigDecimal("2.64"))
+            .transactionDate(OffsetDateTime.of(2025, 11, 21, 15, 31, 0, 0, ZoneOffset.UTC))
+            .importSource(ImportSource.GBM_EQUITY)
+            .build();
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(imported));
+
+    UpdateTransactionRequest changeSplit =
+        new UpdateTransactionRequest(
+            "NVDA",
+            "STOCK",
+            new BigDecimal("2"),
+            new BigDecimal("3307.00"),
+            OffsetDateTime.of(2025, 11, 21, 15, 31, 0, 0, ZoneOffset.UTC),
+            new BigDecimal("19.17"),
+            "nota",
+            null,
+            new BigDecimal("5.00"),
+            new BigDecimal("0.80"),
+            null);
+
+    assertThatThrownBy(
+            () -> transactionService.updateTransaction(userId, txId, changeSplit, IDEMPOTENCY_KEY))
+        .isInstanceOf(
+            com.mx.cryptomonitor.transaction.domain.exception
+                .ImportedTransactionNotEditableException.class);
+    verify(transactionRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("updateTransaction: rechaza desglose en transaccion no BUY/SELL")
+  void updateTransactionRejectsSplitOnNonBuySell() {
+    UUID txId = transaction.getTransactionId();
+    transaction.setTransactionType("TRANSFER");
+    when(transactionRepository.findByTransactionIdAndUserId(txId, userId))
+        .thenReturn(Optional.of(transaction));
+
+    UpdateTransactionRequest transferWithSplit =
+        new UpdateTransactionRequest(
+            "BTC",
+            "CRYPTO",
+            new BigDecimal("0.50"),
+            null,
+            OffsetDateTime.of(2026, 3, 12, 8, 45, 0, 0, ZoneOffset.UTC),
+            null,
+            "nota",
+            "TRANSFER_OUT",
+            new BigDecimal("1.00"),
+            null,
+            null);
+
+    assertThatThrownBy(
+            () ->
+                transactionService.updateTransaction(
+                    userId, txId, transferWithSplit, IDEMPOTENCY_KEY))
+        .isInstanceOf(
+            com.mx.cryptomonitor.transaction.domain.exception.InvalidTransactionException.class)
+        .hasMessageContaining("BUY o SELL");
+    verify(transactionRepository, never()).save(any());
   }
 
   @Test

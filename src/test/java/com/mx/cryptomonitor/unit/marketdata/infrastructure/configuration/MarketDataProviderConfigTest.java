@@ -28,6 +28,7 @@ class MarketDataProviderConfigTest {
 
   @Mock private ObjectProvider<TwelveDataAdapter> twelveDataAdapterProvider;
   @Mock private ObjectProvider<StockQuoteProvider> massiveProvider;
+  @Mock private ObjectProvider<StockQuoteProvider> eodhdProvider;
 
   @Test
   void shouldExposeUniqueTwelveDataAdapterImplementingBothInterfaces() {
@@ -105,7 +106,8 @@ class MarketDataProviderConfigTest {
         .ifAvailable(any());
 
     MarketDataProvider marketDataProvider =
-        config.stockQuoteOrchestrator(twelveDataAdapterProvider, alphaProvider, massiveProvider);
+        config.stockQuoteOrchestrator(
+            eodhdProvider, twelveDataAdapterProvider, alphaProvider, massiveProvider);
 
     assertThat(marketDataProvider).isInstanceOf(StockQuoteOrchestrator.class);
   }
@@ -118,7 +120,8 @@ class MarketDataProviderConfigTest {
             WebClient.builder().build(), "https://www.alphavantage.co", "demo-key");
 
     MarketDataProvider marketDataProvider =
-        config.stockQuoteOrchestrator(twelveDataAdapterProvider, alphaProvider, massiveProvider);
+        config.stockQuoteOrchestrator(
+            eodhdProvider, twelveDataAdapterProvider, alphaProvider, massiveProvider);
 
     assertThat(marketDataProvider).isInstanceOf(StockQuoteOrchestrator.class);
   }

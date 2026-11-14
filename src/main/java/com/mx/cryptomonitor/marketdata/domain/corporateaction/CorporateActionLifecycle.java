@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionStatus;
 
 /**
- * Lifecycle de un corporate action (ADR-0018): el estado se DERIVA de las fechas, no se congela al
+ * Lifecycle de un corporate action (ADR-0020): el estado se DERIVA de las fechas, no se congela al
  * sync-time (asi una fila vieja no queda con estado obsoleto). Con payment_date ya pasado el evento
  * esta {@code COMPLETED} = pagado = inmutable (freeze-al-pago); con ex-date pasada pero sin pago,
  * {@code EFFECTIVE}; si ninguna, {@code ANNOUNCED}. {@code COMPLETED} es terminal: sus montos y

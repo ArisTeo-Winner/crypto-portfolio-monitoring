@@ -359,7 +359,7 @@ class TwelveDataMarketPriceHistoryAdapterTest {
   @Test
   void shouldThrowMarketDataServerExceptionWhenBodyCode400AndNoDataForDates() {
     // "No data is available on the specified dates" → símbolo válido, problema de rango
-    // → debe permitir fallback al siguiente proveedor (Polygon → AlphaVantage)
+    // → debe permitir fallback al siguiente proveedor (Massive → AlphaVantage)
     server.enqueue(
         jsonOk(
             """

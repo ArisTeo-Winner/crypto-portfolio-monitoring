@@ -155,4 +155,16 @@ public class Transaction {
     this.otherFees = breakdown.otherFees();
     this.reviewStatus = breakdown.reviewStatus();
   }
+
+  /**
+   * Descarta el desglose fino de friccion (comision/IVA/otros/estado) dejando solo el {@code fee}
+   * plano. Se usa al editar una MANUAL con fee plano cuyo monto cambio: el desglose viejo ya no
+   * cuadra con el nuevo fee (ver ADR-0005, semantica de edicion).
+   */
+  public void clearFrictionBreakdown() {
+    this.brokerCommission = null;
+    this.brokerIva = null;
+    this.otherFees = null;
+    this.reviewStatus = null;
+  }
 }

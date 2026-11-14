@@ -1,10 +1,13 @@
 package com.mx.cryptomonitor.marketdata.application.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.Year;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -14,9 +17,18 @@ import com.mx.cryptomonitor.marketdata.application.port.in.GetDividendGrowthUseC
 import com.mx.cryptomonitor.marketdata.domain.dividend.DividendGrowthCalculator;
 import com.mx.cryptomonitor.marketdata.domain.dividend.DividendGrowthCalculator.DatedDps;
 import com.mx.cryptomonitor.marketdata.domain.dividend.DividendGrowthResult;
+import com.mx.cryptomonitor.marketdata.domain.model.AssetDividendStatusEntity;
+import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionEntity;
+import com.mx.cryptomonitor.marketdata.domain.model.CorporateActionType;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendActionDetailEntity;
+import com.mx.cryptomonitor.marketdata.domain.model.DividendEligibilityStatus;
+import com.mx.cryptomonitor.marketdata.domain.model.HybridPriceQuote;
+import com.mx.cryptomonitor.marketdata.domain.repository.AssetDividendStatusRepository;
+import com.mx.cryptomonitor.marketdata.domain.repository.CorporateActionRepository;
 import com.mx.cryptomonitor.marketdata.domain.repository.DividendActionDetailRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Crecimiento del dividendo de una seguridad (ADR-0014 F5): lee los DPS recurring detectados,
@@ -25,15 +37,27 @@ import lombok.RequiredArgsConstructor;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DividendGrowthService implements GetDividendGrowthUseCase {
 
+  private static final int YIELD_SCALE = 6;
+
   private final DividendActionDetailRepository dividendDetailRepository;
+  private final AssetDividendStatusRepository dividendStatusRepository;
+  private final CorporateActionRepository corporateActionRepository;
+  private final HybridQuoteService hybridQuoteService;
   private final DividendGrowthCalculator growthCalculator = new DividendGrowthCalculator();
 
   @Override
   public DividendGrowthResponse growthFor(String symbol) {
     if (!StringUtils.hasText(symbol)) {
-      return toResponse(DividendGrowthResult.empty(""), null);
+      return toResponse(
+          DividendGrowthResult.empty(""),
+          null,
+          DividendEligibilityStatus.UNKNOWN.name(),
+          null,
+          null,
+          YieldBasis.empty());
     }
     String normalized = symbol.trim().toUpperCase();
     List<Object[]> rows = dividendDetailRepository.findRecurringDpsBySymbol(normalized);
@@ -45,14 +69,105 @@ public class DividendGrowthService implements GetDividendGrowthUseCase {
             .filter(StringUtils::hasText)
             .reduce((first, second) -> second) // ultima no nula (moneda vigente de la seguridad)
             .orElse(null);
-    return toResponse(growthCalculator.compute(normalized, dividends, currentYear()), currency);
+    // ADR-0025 F4: estado de elegibilidad persistido; sin fila = UNKNOWN (aún no verificado).
+    Optional<AssetDividendStatusEntity> status =
+        dividendStatusRepository.findByAssetSymbol(normalized);
+    String eligibility =
+        status.map(e -> e.getStatus().name()).orElse(DividendEligibilityStatus.UNKNOWN.name());
+    OffsetDateTime lastCheckedAt =
+        status.map(AssetDividendStatusEntity::getLastCheckedAt).orElse(null);
+    DividendGrowthResult result = growthCalculator.compute(normalized, dividends, currentYear());
+    return toResponse(
+        result,
+        currency,
+        eligibility,
+        lastCheckedAt,
+        nextDividendFor(normalized),
+        computeYield(normalized, currency, result));
+  }
+
+  /**
+   * ADR-0031: rendimiento por dividendo en la <b>moneda nativa</b> del activo. DPS anual (último
+   * año completo, split-adjusted) ÷ precio actual pedido en esa misma moneda ⇒ fracción (0.0189 =
+   * 1.89%). Al pedir el precio en la moneda del dividendo, numerador y denominador comparten moneda
+   * y el porcentaje no depende de la {@code preferredCurrency} del usuario (es invariante al FX).
+   * Devuelve vacío (sin inventar) si no hay historia de dividendos o el precio no está disponible;
+   * un fallo del proveedor nunca tumba el endpoint.
+   */
+  private YieldBasis computeYield(String symbol, String currency, DividendGrowthResult result) {
+    if (!StringUtils.hasText(currency) || result.annualDividends().isEmpty()) {
+      return YieldBasis.empty();
+    }
+    BigDecimal annualDps =
+        result.annualDividends().get(result.annualDividends().size() - 1).totalDps();
+    if (annualDps == null || annualDps.signum() <= 0) {
+      return YieldBasis.empty();
+    }
+    try {
+      HybridPriceQuote quote = hybridQuoteService.getCurrentPrice(symbol, currency, null);
+      if (quote == null
+          || quote.price() == null
+          || quote.price().signum() <= 0
+          || !currency.equalsIgnoreCase(quote.currency())) {
+        return YieldBasis.empty();
+      }
+      BigDecimal yieldPct = annualDps.divide(quote.price(), YIELD_SCALE, RoundingMode.HALF_UP);
+      return new YieldBasis(
+          yieldPct,
+          new DividendGrowthResponse.PriceBasis(quote.price(), quote.currency(), quote.asOf()));
+    } catch (RuntimeException ex) {
+      log.debug("No se pudo calcular yield de {}: {}", symbol, ex.getMessage());
+      return YieldBasis.empty();
+    }
+  }
+
+  private record YieldBasis(BigDecimal yieldPct, DividendGrowthResponse.PriceBasis priceBasis) {
+    static YieldBasis empty() {
+      return new YieldBasis(null, null);
+    }
   }
 
   protected int currentYear() {
     return Year.now(ZoneOffset.UTC).getValue();
   }
 
-  private DividendGrowthResponse toResponse(DividendGrowthResult result, String currency) {
+  protected LocalDate today() {
+    return LocalDate.now(ZoneOffset.UTC);
+  }
+
+  /**
+   * ADR-0026: proximo dividendo anunciado (pago futuro mas cercano, aun no pagado) con su detalle,
+   * o {@code null} si no hay uno.
+   */
+  private DividendGrowthResponse.NextDividend nextDividendFor(String symbol) {
+    return corporateActionRepository
+        .findFirstByAssetSymbolAndActionTypeAndPaymentDateGreaterThanEqualOrderByPaymentDateAsc(
+            symbol, CorporateActionType.DIVIDEND, today())
+        .map(this::toNextDividend)
+        .orElse(null);
+  }
+
+  private DividendGrowthResponse.NextDividend toNextDividend(CorporateActionEntity action) {
+    DividendActionDetailEntity detail =
+        dividendDetailRepository.findById(action.getId()).orElse(null);
+    if (detail == null) {
+      return null;
+    }
+    return new DividendGrowthResponse.NextDividend(
+        action.getPivotalDate(),
+        action.getPaymentDate(),
+        detail.getAmountPerShare(),
+        detail.getCurrency(),
+        detail.getFrequency());
+  }
+
+  private DividendGrowthResponse toResponse(
+      DividendGrowthResult result,
+      String currency,
+      String eligibilityStatus,
+      OffsetDateTime lastCheckedAt,
+      DividendGrowthResponse.NextDividend nextDividend,
+      YieldBasis yield) {
     return new DividendGrowthResponse(
         result.symbol(),
         result.annualDividends().stream()
@@ -62,6 +177,11 @@ public class DividendGrowthService implements GetDividendGrowthUseCase {
         result.cagr3y(),
         result.cagr5y(),
         result.cagr10y(),
-        currency);
+        currency,
+        eligibilityStatus,
+        lastCheckedAt,
+        nextDividend,
+        yield.yieldPct(),
+        yield.priceBasis());
   }
 }

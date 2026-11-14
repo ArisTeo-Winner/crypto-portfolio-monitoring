@@ -73,6 +73,11 @@ public class AssetSearchService implements AssetCatalogQueryPort {
   }
 
   @Override
+  public Optional<String> findCurrencyBySymbol(String symbol) {
+    return redisService.findEntry(symbol).map(AssetCatalogDto::currency);
+  }
+
+  @Override
   public Map<String, String> findLogosBySymbols(Collection<String> symbols) {
     if (symbols == null || symbols.isEmpty()) {
       return Map.of();

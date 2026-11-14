@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import com.mx.cryptomonitor.user.application.service.RefreshTokenStoreService;
 import com.mx.cryptomonitor.user.domain.model.Session;
@@ -32,6 +33,7 @@ import com.mx.cryptomonitor.user.domain.model.User;
 import com.mx.cryptomonitor.user.domain.repository.AuditLogRepository;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
 import com.mx.cryptomonitor.user.domain.repository.UserRepository;
+import com.redis.testcontainers.RedisContainer;
 
 import jakarta.servlet.http.Cookie;
 
@@ -51,6 +53,12 @@ class AuthRefreshTokenRotationIT {
           .withUsername("test")
           .withPassword("test");
 
+  // Redis es la fuente de verdad de los refresh tokens (RefreshTokenStoreService); sin un Redis el
+  // contexto no carga en CI (no hay Redis en localhost:6379). Mismo patron que ContainersConfig.
+  @Container
+  static RedisContainer redis =
+      new RedisContainer(DockerImageName.parse("redis:7")).withExposedPorts(6379);
+
   @DynamicPropertySource
   static void registerProps(DynamicPropertyRegistry registry) {
     registry.add("spring.datasource.url", postgres::getJdbcUrl);
@@ -66,6 +74,8 @@ class AuthRefreshTokenRotationIT {
     registry.add("jwt.secret-base64", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
     registry.add("jwt.access-token-expiration", () -> "3600000");
     registry.add("jwt.refresh-token-expiration", () -> "604800000");
+    registry.add("spring.data.redis.host", redis::getHost);
+    registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
 
     logger.info("datasource.url:" + postgres.getJdbcUrl());
   }

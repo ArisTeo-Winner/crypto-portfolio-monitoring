@@ -40,6 +40,27 @@ el frontend.
 `GbmStatementImportService` y los tests que construyen posicionalmente no se rompen, y Jackson
 sigue deserializando por el constructor canónico.
 
+### Paridad en la edición — `PUT /api/v1/me/transactions/{id}` (2026-11-13)
+
+El alta desglosaba, pero **editar mandaba solo un `fee` plano**: `UpdateTransactionRequest`
+no tenía los campos del split y `updateTransaction` hacía solo `setFee(...)`, dejando
+`broker_commission`/`broker_iva` **stale** (ya no sumaban el nuevo `fee`). Se extiende la misma
+política al update:
+
+1. `UpdateTransactionRequest` suma `brokerCommission`/`brokerIva`/`otherFees` opcionales (+
+   constructor de compatibilidad de 8 args que delega con `null`).
+2. **Split presente (cualquier campo)** → deriva `fee` con `GbmFrictionCalculator.manual(...)`,
+   refresca el `FrictionBreakdown` fino e ignora `fee` plano (mismo path del alta).
+3. **Solo `fee`** → semántica **B2** (acordada con frontend): si el `fee` **cambió** respecto
+   al guardado, se **limpia** el split fino (`clearFrictionBreakdown()`, ya no cuadra); si el
+   `fee` **no cambió**, se **conserva** el split (edición ajena a costos — p. ej. cantidad o
+   notas). Evita borrar el desglose cuando el front reenvía el `fee` original.
+4. El split solo aplica a **BUY/SELL** (`InvalidTransactionException` en otros tipos).
+5. **ADR-0007 intacto:** importadas (DriveWealth/GBM) rechazan también cambios al split; los 3
+   campos entran en `guardImportedFinancialFieldsUnchanged`.
+
+Esto además **repara** el bug latente del split stale tras cualquier edición.
+
 ## Options Considered
 
 ### Option A: split opcional en el alta manual (elegida)
@@ -80,5 +101,11 @@ ADR-0003); no cubre USA sin IVA con una sola tasa. **Rechazada.**
 3. [x] `TransactionService`: `resolveManualFee` (deriva fee), `manualBreakdown`,
    `applyManualFriction` en buy y sell.
 4. [x] Tests golden: split con IVA (1554.49) y USA sin IVA (WETO 41.56).
-5. [ ] Frontend: campos Comisión + IVA (autocálculo 16% editable, $0 para USA) que manden el
+5. [x] Frontend: campos Comisión + IVA (autocálculo 16% editable, $0 para USA) que manden el
    split; no mandar `fee` cuando hay split.
+6. [x] **Update (2026-11-13):** `UpdateTransactionRequest` + split; `applyFrictionOnUpdate`
+   (semántica B2) + `Transaction.clearFrictionBreakdown()`; guard ADR-0007 extendido; split
+   solo BUY/SELL. Tests: 5 unit (`TransactionServiceTest`) + 1 binding IT
+   (`TransactionControllerCreateTransactionIT`).
+7. [ ] Despliegue coordinado: el frontend no activa el envío de split en edición hasta que el
+   update lo soporte en **dev** (si no, split sin `fee` llegaría a `fee` null → 0).

@@ -193,8 +193,7 @@ exit /b 1'''
 						'COINGECKO_API_KEY', 'API_COINGECKO_BASE_URL',
 						'ALPHAVANTAGE_API_KEY', 'API_ALPHAVANTAGE_BASE_URL',
 						'MASSIVE_API_KEY', 'API_MASSIVE_BASE_URL',
-						'TWELVEDATA_API_KEY', 'API_TWELVEDATA_BASE_URL',
-						'POLYGON_API_KEY', 'POLYGON_BASE_URL'
+						'TWELVEDATA_API_KEY', 'API_TWELVEDATA_BASE_URL'
 					]
 					List injected = credentialKeys
 						.findAll { key -> runtimeEnv[key]?.trim() }

@@ -161,6 +161,9 @@ public class BinanceMarketPriceHistoryAdapter implements MarketPriceHistoryProvi
                             body ->
                                 Mono.error(
                                     new MarketDataServerException("Binance error: " + body))))
+            .onStatus(
+                HttpStatusCode::isError,
+                resp -> MarketDataResponseErrors.recoverable("Binance", resp))
             .bodyToMono(KLINES_TYPE)
             .timeout(responseTimeout)
             .onErrorMap(

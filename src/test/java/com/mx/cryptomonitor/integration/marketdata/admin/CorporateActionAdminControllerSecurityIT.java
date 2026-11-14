@@ -26,6 +26,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.mx.cryptomonitor.marketdata.application.port.in.RegisterMergerUseCase;
+import com.mx.cryptomonitor.marketdata.application.port.in.SyncDividendsUseCase;
 import com.mx.cryptomonitor.marketdata.infrastructure.inbound.rest.CorporateActionAdminController;
 import com.mx.cryptomonitor.user.application.service.JwtUserDetailsService;
 import com.mx.cryptomonitor.user.domain.repository.SessionRepository;
@@ -90,6 +91,7 @@ class CorporateActionAdminControllerSecurityIT {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private RegisterMergerUseCase registerMergerUseCase;
+  @MockitoBean private SyncDividendsUseCase syncDividendsUseCase;
 
   // Dependencias de SecurityConfig (mockeadas para no escanear infraestructura no relacionada).
   @MockitoBean private JwtUserDetailsService jwtUserDetailsService;
@@ -146,6 +148,48 @@ class CorporateActionAdminControllerSecurityIT {
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(BODY))
+        .andExpect(status().isAccepted());
+  }
+
+  private static final String DIVIDENDS_BODY =
+      """
+      { "symbols": ["BIMBOA.MX", "GOOGL"] }
+      """;
+
+  @Test
+  void dividendsSyncUnauthenticatedReturns401() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/admin/corporate-actions/dividends/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(DIVIDENDS_BODY))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @WithMockUser(username = "user@test.com", roles = "USER")
+  void dividendsSyncUserRoleReturns403() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/admin/corporate-actions/dividends/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(DIVIDENDS_BODY))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+  void dividendsSyncAdminRoleReturns202() throws Exception {
+    when(syncDividendsUseCase.sync(any())).thenReturn(1);
+
+    mockMvc
+        .perform(
+            post("/api/v1/admin/corporate-actions/dividends/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(DIVIDENDS_BODY))
         .andExpect(status().isAccepted());
   }
 }

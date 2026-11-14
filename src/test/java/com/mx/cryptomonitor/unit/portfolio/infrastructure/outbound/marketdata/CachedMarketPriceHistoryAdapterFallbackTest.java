@@ -1,6 +1,7 @@
 package com.mx.cryptomonitor.unit.portfolio.infrastructure.outbound.marketdata;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -23,6 +24,7 @@ import com.mx.cryptomonitor.portfolio.application.port.out.PriceHistoryCachePort
 import com.mx.cryptomonitor.portfolio.application.service.HoldingsHistoryRange;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataRateLimitException;
 import com.mx.cryptomonitor.portfolio.domain.exception.MarketDataServerException;
+import com.mx.cryptomonitor.portfolio.domain.exception.NoMarketDataProviderException;
 import com.mx.cryptomonitor.portfolio.domain.exception.UnknownAssetSymbolException;
 import com.mx.cryptomonitor.portfolio.domain.model.AssetType;
 import com.mx.cryptomonitor.portfolio.domain.model.ChartResolution;
@@ -185,6 +187,27 @@ class CachedMarketPriceHistoryAdapterFallbackTest {
     InOrder order = inOrder(provider1, provider2);
     order.verify(provider1).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
     order.verify(provider2).fetchPriceHistory(CRYPTO, SYMBOL, chartResolution);
+  }
+
+  @Test
+  void shouldThrowNoProviderExceptionWhenNoProviderSupportsAssetType() {
+    // GOVERNMENT_BOND (p.ej. CETES) no lo soporta ningun proveedor de precio: se valua por devengo
+    // (ADR-0018). El adapter debe lanzar NoMarketDataProviderException (subtipo de
+    // MarketDataServerException) para que el caller degrade a respuesta parcial en vez de 500. El
+    // lock debe liberarse igual.
+    AssetType govBond = AssetType.GOVERNMENT_BOND;
+    String bondSymbol = "CETES91";
+    String bondKey = HoldingsHistoryRange.parse(RANGE).value();
+    when(cache.getPriceHistory(govBond, bondSymbol, bondKey)).thenReturn(List.of());
+    when(cache.acquireLoadLock(eq(govBond), eq(bondSymbol), eq(bondKey), any())).thenReturn(true);
+
+    assertThatThrownBy(() -> adapter.getPriceHistory(govBond, bondSymbol, RANGE))
+        .isInstanceOf(NoMarketDataProviderException.class)
+        .isInstanceOf(MarketDataServerException.class);
+
+    verify(provider1, never()).fetchPriceHistory(eq(govBond), any(), (HoldingsHistoryRange) any());
+    verify(provider2, never()).fetchPriceHistory(eq(govBond), any(), (HoldingsHistoryRange) any());
+    verify(cache).releaseLoadLock(govBond, bondSymbol, bondKey);
   }
 
   private String dynamicKey(ChartResolution chartResolution) {

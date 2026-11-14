@@ -44,13 +44,22 @@ jobs:
       - name: Build Docker image (hardened)
         run: docker build -f Dockerfile.secure -t "$IMAGE_REF" .
 
-      - name: Install Trivy
-        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
+      # Trivy se ejecuta como contenedor (imagen oficial desde Docker Hub, anclada por
+      # digest). Evita descargar el binario desde GitHub Releases, que fallaba de forma
+      # intermitente con `exit 6` (couldn't resolve host) tanto con `curl | sh` como
+      # dentro de aquasecurity/trivy-action (su setup-trivy hace la misma descarga).
+      # Docker Hub si resuelve en el runner (la build de la imagen hardened lo prueba).
+      # El socket deja que Trivy lea la imagen local; /tmp/trivy-cache comparte la DB de
+      # vulns entre los dos pasos para no descargarla dos veces.
       - name: Trivy scan → SARIF (reporte, no bloquea)
         run: |
-          trivy image --scanners vuln,secret,misconfig --no-progress \
-            --format sarif --output trivy-results.sarif --exit-code 0 \
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e \
+            image --scanners vuln,secret,misconfig --no-progress \
+            --format sarif --output /work/trivy-results.sarif --exit-code 0 \
             "$IMAGE_REF"
 
       - name: Upload Trivy SARIF a Code Scanning (best-effort)
@@ -62,6 +71,10 @@ jobs:
 
       - name: Trivy gate (rompe ante HIGH/CRITICAL con fix)
         run: |
-          trivy image --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e \
+            image --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
             --ignore-unfixed --no-progress --exit-code 1 \
             "$IMAGE_REF"

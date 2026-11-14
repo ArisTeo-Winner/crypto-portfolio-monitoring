@@ -66,6 +66,9 @@ public class TransactionHistoryAdapter
         transaction.getRealizedPnl(),
         transaction.getTransactionDate(),
         transaction.getCurrency(),
-        taxByTransaction.get(transaction.getTransactionId()));
+        taxByTransaction.get(transaction.getTransactionId()),
+        transaction.getMaturityDate(),
+        transaction.getFaceValue(),
+        transaction.getCouponRate());
   }
 }

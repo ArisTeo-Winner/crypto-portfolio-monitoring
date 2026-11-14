@@ -8,10 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogQueryPort.AssetDisplay;
 import com.mx.cryptomonitor.asset.application.port.in.AssetCatalogRefreshPort;
+import com.mx.cryptomonitor.shared.event.TransactionRegisteredEvent;
 import com.mx.cryptomonitor.transaction.application.dto.request.BuyTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.DividendTransactionRequest;
 import com.mx.cryptomonitor.transaction.application.dto.request.ImportedStockTransactionRequest;
@@ -31,6 +34,7 @@ import com.mx.cryptomonitor.transaction.application.dto.response.FrictionBreakdo
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionDetailsResponse;
 import com.mx.cryptomonitor.transaction.application.dto.response.TransactionResponse;
 import com.mx.cryptomonitor.transaction.application.mapper.TransactionMapper;
+import com.mx.cryptomonitor.transaction.application.port.in.DividendReconciliationUseCase;
 import com.mx.cryptomonitor.transaction.application.port.in.TransactionCommandUseCase;
 import com.mx.cryptomonitor.transaction.application.port.in.TransactionQueryUseCase;
 import com.mx.cryptomonitor.transaction.application.port.out.PortfolioProjectionSyncPort;
@@ -44,6 +48,7 @@ import com.mx.cryptomonitor.transaction.domain.friction.FrictionSide;
 import com.mx.cryptomonitor.transaction.domain.friction.GbmFrictionCalculator;
 import com.mx.cryptomonitor.transaction.domain.model.AssetType;
 import com.mx.cryptomonitor.transaction.domain.model.DividendDetail;
+import com.mx.cryptomonitor.transaction.domain.model.DividendOrigin;
 import com.mx.cryptomonitor.transaction.domain.model.DividendType;
 import com.mx.cryptomonitor.transaction.domain.model.ImportSource;
 import com.mx.cryptomonitor.transaction.domain.model.OperationTimestamps;
@@ -61,10 +66,21 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
 
   private static final Sort RECENT_FIRST_SORT =
       Sort.by(Sort.Order.desc("transactionDate"), Sort.Order.desc("createdAt"));
+
+  /**
+   * Tipos de transacción que NO son operaciones bursátiles sino ingresos (el accrual registra el
+   * dividendo como una transacción DIVIDEND). El listado de transacciones los excluye por defecto
+   * para que la vista muestre solo operaciones (compra/venta/transfer), como la pestaña "Trades" de
+   * Snowball; los ingresos se consultan explícitamente con {@code ?transactionType=DIVIDEND}.
+   */
+  private static final Set<String> INCOME_TRANSACTION_TYPES = Set.of("DIVIDEND");
+
   private static final String CREATE_TRANSACTION_SCOPE = "transactions:create";
   private static final String CREATE_BUY_SCOPE = "transactions:buy";
   private static final String CREATE_SELL_SCOPE = "transactions:sell";
   private static final String CREATE_TRANSFER_SCOPE = "transactions:transfer";
+  // ADR-0024: tipos de activo que pagan dividendos/distribuciones -> disparan el auto-poblado.
+  private static final Set<String> DIVIDEND_ELIGIBLE_ASSET_TYPES = Set.of("STOCK", "ETF");
 
   private final TransactionRepository transactionRepository;
   private final TransactionRegistrationPort transactionRegistrationPort;
@@ -77,6 +93,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   private final AssetCatalogQueryPort assetCatalogQueryPort;
   private final GbmFrictionCalculator frictionCalculator;
   private final AssetCatalogRefreshPort assetCatalogRefreshPort;
+  private final ApplicationEventPublisher eventPublisher;
+  private final DividendReconciliationUseCase dividendReconciliationUseCase;
 
   @Value("${catalog.icon.pull-once.enabled:true}")
   private boolean iconPullOnceEnabled;
@@ -169,6 +187,48 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     return normalizedFee(commission).add(normalizedFee(iva)).add(normalizedFee(otherFees));
   }
 
+  /**
+   * Paridad de edicion con el alta (ADR-0005). Si el request trae desglose (comision/IVA/otros),
+   * deriva {@code fee} = comision + IVA + otros, refresca el breakdown fino e ignora {@code fee}
+   * plano. Si solo trae {@code fee}: cuando el monto cambio respecto al guardado, limpia el
+   * desglose fino viejo (ya no cuadra); cuando es igual, lo conserva (edicion ajena a costos). El
+   * desglose solo aplica a BUY/SELL.
+   */
+  private void applyFrictionOnUpdate(
+      Transaction transaction, String transactionType, UpdateTransactionRequest request) {
+    boolean hasSplit =
+        request.brokerCommission() != null
+            || request.brokerIva() != null
+            || request.otherFees() != null;
+    FrictionSide side = frictionSideFor(transactionType);
+    if (hasSplit && side != null) {
+      transaction.applyFriction(
+          frictionCalculator.manual(
+              side,
+              request.quantity(),
+              transaction.getPricePerUnit(),
+              request.brokerCommission(),
+              request.brokerIva(),
+              request.otherFees(),
+              null));
+      return;
+    }
+    BigDecimal newFee = normalizedFee(request.fee());
+    BigDecimal storedFee = transaction.getFee() != null ? transaction.getFee() : BigDecimal.ZERO;
+    if (storedFee.compareTo(newFee) != 0) {
+      transaction.clearFrictionBreakdown();
+    }
+    transaction.setFee(newFee);
+  }
+
+  private FrictionSide frictionSideFor(String transactionType) {
+    return switch (transactionType) {
+      case "BUY" -> FrictionSide.BUY;
+      case "SELL" -> FrictionSide.SELL;
+      default -> null;
+    };
+  }
+
   private static boolean isImported(ImportSource source) {
     return source != null && source != ImportSource.MANUAL;
   }
@@ -181,7 +241,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             || numberChanged(stored.getQuantity(), request.quantity())
             || numberChanged(stored.getPricePerUnit(), request.pricePerUnit())
             || instantChanged(stored.getTransactionDate(), request.transactionDate())
-            || numberChanged(stored.getFee(), request.fee());
+            || numberChanged(stored.getFee(), request.fee())
+            || numberChanged(stored.getBrokerCommission(), request.brokerCommission())
+            || numberChanged(stored.getBrokerIva(), request.brokerIva())
+            || numberChanged(stored.getOtherFees(), request.otherFees());
     if (financialChange) {
       throw new ImportedTransactionNotEditableException(
           "La transaccion fue importada de "
@@ -299,9 +362,18 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
   }
 
   @Override
-  @Transactional
   public TransactionResponse registerDividendTransaction(
       UUID userId, DividendTransactionRequest request, String idempotencyKey) {
+    return registerDividendTransaction(userId, request, idempotencyKey, DividendOrigin.MANUAL);
+  }
+
+  @Override
+  @Transactional
+  public TransactionResponse registerDividendTransaction(
+      UUID userId,
+      DividendTransactionRequest request,
+      String idempotencyKey,
+      DividendOrigin origin) {
     return transactionIdempotencyService.executeForTransactionResponse(
         userId,
         "transactions:dividend",
@@ -351,6 +423,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                     .exDividendDate(request.exDividendDate())
                     .dividendType(dtype)
                     .taxWithheld(request.taxWithheld())
+                    .amountPerShare(request.amountPerShare())
+                    .origin(origin)
                     .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
                     .build();
             dividendDetailRepository.save(detail);
@@ -425,7 +499,7 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
                 calculateTotalValue(
                     transactionType, request.quantity(), transaction.getPricePerUnit()));
             transaction.setTransactionDate(request.transactionDate());
-            transaction.setFee(normalizedFee(request.fee()));
+            applyFrictionOnUpdate(transaction, transactionType, request);
             transaction.setNotes(request.notes());
             transaction.setTransferType(
                 resolveTransferType(transactionType, request.transferType()));
@@ -556,28 +630,40 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
       transactionType = null;
     }
 
+    List<Transaction> transactions;
     if (assetSymbol != null && assetType != null && transactionType != null) {
-      AssetType normalizedAssetType = normalizedAssetType(assetType);
-      return toResponsesWithLogos(
+      transactions =
           transactionRepository.findByUserIdAndAssetSymbolAndAssetTypeAndTransactionType(
-              userId, assetSymbol, normalizedAssetType, transactionType));
-    }
-    if (assetSymbol != null) {
-      return toResponsesWithLogos(
-          transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT));
-    }
-    if (assetType != null) {
-      return toResponsesWithLogos(
+              userId, assetSymbol, normalizedAssetType(assetType), transactionType);
+    } else if (assetSymbol != null) {
+      transactions =
+          transactionRepository.findByUserIdAndAssetSymbol(userId, assetSymbol, RECENT_FIRST_SORT);
+    } else if (assetType != null) {
+      transactions =
           transactionRepository.findByUserIdAndAssetType(
-              userId, normalizedAssetType(assetType), RECENT_FIRST_SORT));
+              userId, normalizedAssetType(assetType), RECENT_FIRST_SORT);
+    } else if (transactionType != null) {
+      transactions =
+          transactionRepository.findByUserIdAndTransactionType(
+              userId, transactionType, RECENT_FIRST_SORT);
+    } else {
+      transactions = transactionRepository.findByUserId(userId, RECENT_FIRST_SORT);
     }
 
-    if (transactionType != null) {
-      return toResponsesWithLogos(
-          transactionRepository.findByUserIdAndTransactionType(
-              userId, transactionType, RECENT_FIRST_SORT));
+    // Sin filtro explícito de transactionType, el listado es SOLO operaciones: los ingresos (p. ej.
+    // DIVIDEND, que el accrual registra como transacción) se excluyen para que la vista muestre
+    // compra/venta/transfer y no dividendos. Los ingresos se piden con ?transactionType=DIVIDEND.
+    if (transactionType == null) {
+      transactions =
+          transactions.stream()
+              .filter(
+                  t ->
+                      !INCOME_TRANSACTION_TYPES.contains(
+                          normalizeTransactionType(t.getTransactionType())))
+              .toList();
     }
-    return toResponsesWithLogos(transactionRepository.findByUserId(userId, RECENT_FIRST_SORT));
+
+    return toResponsesWithLogos(transactions);
   }
 
   /**
@@ -677,6 +763,13 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
             transactionRepository.deleteById(transaction.getTransactionId());
             transactionIdempotencyService.forgetByResultTransactionId(
                 transaction.getTransactionId());
+            // SPEC reconciliación: si se borró una operación que afecta tenencia (no un dividendo),
+            // re-derivar los dividendos auto-acreditados del símbolo (elimina huérfanos /
+            // recalcula).
+            if (!"DIVIDEND".equalsIgnoreCase(transaction.getTransactionType())) {
+              dividendReconciliationUseCase.reconcileAccruedDividends(
+                  userId, transaction.getAssetSymbol());
+            }
             portfolioProjectionSyncPort.reconcileUserPortfolio(userId);
             transactionRealizedPnlService.rebuildUserRealizedPnl(userId);
             portfolioProjectionSyncPort.recordUserPortfolioSnapshot(userId);
@@ -728,6 +821,10 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
               assetCatalogRefreshPort.ensureIconCatalogued(
                   response.assetSymbol(), response.assetType());
             }
+            // ADR-0024: auto-poblado de dividendos. Publicado dentro de la transaccion para que el
+            // listener de marketdata corra AFTER_COMMIT (async): no bloquea el registro ni lo
+            // revierte si el proveedor falla.
+            publishDividendSyncTriggerIfEligible(response);
             return response;
           } catch (RuntimeException ex) {
             log.error("Error creating transaction for user {}: {}", userId, ex.getMessage(), ex);
@@ -743,7 +840,32 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
         });
   }
 
+  /**
+   * ADR-0024: si la operación recién registrada es una COMPRA de un activo que paga dividendos
+   * (STOCK/ETF), publica {@link TransactionRegisteredEvent} para que marketdata pueble su historial
+   * de dividendos automáticamente. Idempotente aguas abajo; se omite en cualquier otro caso.
+   */
+  private void publishDividendSyncTriggerIfEligible(TransactionResponse response) {
+    if (!"BUY".equalsIgnoreCase(response.transactionType())) {
+      return;
+    }
+    String assetType = response.assetType();
+    if (assetType == null
+        || !DIVIDEND_ELIGIBLE_ASSET_TYPES.contains(assetType.toUpperCase(Locale.ROOT))) {
+      return;
+    }
+    eventPublisher.publishEvent(new TransactionRegisteredEvent(response.assetSymbol(), assetType));
+  }
+
   private void validateUpdateRequest(String transactionType, UpdateTransactionRequest request) {
+    boolean hasSplit =
+        request.brokerCommission() != null
+            || request.brokerIva() != null
+            || request.otherFees() != null;
+    if (hasSplit && !("BUY".equals(transactionType) || "SELL".equals(transactionType))) {
+      throw new InvalidTransactionException(
+          "El desglose de comision/IVA solo aplica a transacciones BUY o SELL");
+    }
     if ("TRANSFER".equals(transactionType)) {
       if (request.transferType() == null || request.transferType().isBlank()) {
         throw new InvalidTransactionException(
@@ -882,7 +1004,8 @@ public class TransactionService implements TransactionCommandUseCase, Transactio
     if ("TRANSFER".equalsIgnoreCase(transaction.getTransactionType())) {
       return transaction.getAssetSymbol();
     }
-    return "USD";
+    String currency = transaction.getCurrency();
+    return (currency != null && !currency.isBlank()) ? currency : "USD";
   }
 
   private String updateScope(UUID transactionId) {

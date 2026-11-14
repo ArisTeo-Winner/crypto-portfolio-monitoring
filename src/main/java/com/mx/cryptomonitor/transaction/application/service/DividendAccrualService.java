@@ -17,6 +17,7 @@ import com.mx.cryptomonitor.transaction.application.port.in.TransactionCommandUs
 import com.mx.cryptomonitor.transaction.domain.dividend.DividendEntitlementCalculator;
 import com.mx.cryptomonitor.transaction.domain.dividend.DividendTaxBreakdown;
 import com.mx.cryptomonitor.transaction.domain.dividend.DividendTaxCalculator;
+import com.mx.cryptomonitor.transaction.domain.model.DividendOrigin;
 import com.mx.cryptomonitor.transaction.domain.model.Transaction;
 import com.mx.cryptomonitor.transaction.domain.repository.DividendDetailRepository;
 import com.mx.cryptomonitor.transaction.domain.repository.TransactionRepository;
@@ -103,9 +104,13 @@ public class DividendAccrualService implements DividendAccrualUseCase {
                 tax.totalWithheld(),
                 null,
                 currency,
-                exchange);
+                exchange,
+                dividendPerShare);
         transactionCommand.registerDividendTransaction(
-            userId, request, idempotencyKey(symbol, exDividendDate, userId));
+            userId,
+            request,
+            idempotencyKey(symbol, exDividendDate, userId),
+            DividendOrigin.ACCRUED);
         created++;
       } catch (RuntimeException ex) {
         log.error(

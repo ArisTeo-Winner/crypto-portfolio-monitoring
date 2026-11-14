@@ -1,4 +1,4 @@
-# ADR-0018: Almacenamiento inmutable de histórico de dividendos/corporate actions — freeze-al-pago, catálogo compartido y reconciliación multi-fuente
+# ADR-0020: Almacenamiento inmutable de histórico de dividendos/corporate actions — freeze-al-pago, catálogo compartido y reconciliación multi-fuente
 
 **Status:** Accepted
 **Date:** 2026-10-26

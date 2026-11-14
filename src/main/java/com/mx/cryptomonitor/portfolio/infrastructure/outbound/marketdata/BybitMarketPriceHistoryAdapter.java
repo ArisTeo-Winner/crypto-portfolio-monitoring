@@ -169,6 +169,9 @@ public class BybitMarketPriceHistoryAdapter implements MarketPriceHistoryProvide
                     resp.bodyToMono(String.class)
                         .defaultIfEmpty("Bybit server error")
                         .map(body -> new MarketDataServerException("Bybit error: " + body)))
+            .onStatus(
+                HttpStatusCode::isError,
+                resp -> MarketDataResponseErrors.recoverable("Bybit", resp))
             .bodyToMono(BybitKlineResponse.class)
             .timeout(responseTimeout)
             .onErrorMap(
