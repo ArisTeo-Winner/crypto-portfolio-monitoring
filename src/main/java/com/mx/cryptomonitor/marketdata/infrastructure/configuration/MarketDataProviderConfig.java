@@ -1,25 +1,40 @@
 package com.mx.cryptomonitor.marketdata.infrastructure.configuration;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.LastKnownQuotePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.marketdata.application.port.out.MarketStateCachePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.OfficialClosePort;
+import com.mx.cryptomonitor.marketdata.application.port.out.RemoteMarketStatePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockQuoteProvider;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockTimeSeriesPort;
+import com.mx.cryptomonitor.marketdata.application.service.ClosedMarketQuotePolicy;
 import com.mx.cryptomonitor.marketdata.application.service.StockQuoteOrchestrator;
+import com.mx.cryptomonitor.marketdata.application.service.TradingCalendarService;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.alphavantage.AlphaVantageAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.eodhd.EodhdAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.massive.MassiveAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataAdapter;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataEndOfDayAdapter;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataMarketStateAdapter;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @Configuration
 @EnableConfigurationProperties({
@@ -101,12 +116,82 @@ public class MarketDataProviderConfig {
       @Qualifier("alphaVantageStockQuoteProvider")
           StockQuoteProvider alphaVantageStockQuoteProvider,
       @Qualifier("massiveStockQuoteProvider")
-          ObjectProvider<StockQuoteProvider> massiveStockQuoteProvider) {
+          ObjectProvider<StockQuoteProvider> massiveStockQuoteProvider,
+      ObjectProvider<LastKnownQuotePort> lastKnownQuotePort,
+      ObjectProvider<ClosedMarketQuotePolicy> closedMarketQuotePolicy,
+      ObjectProvider<OfficialClosePort> officialClosePort,
+      ObjectProvider<MeterRegistry> meterRegistry,
+      Clock clock) {
     List<StockQuoteProvider> providers = new ArrayList<>();
     eodhdStockQuoteProvider.ifAvailable(providers::add);
     twelveDataAdapter.ifAvailable(providers::add);
     providers.add(alphaVantageStockQuoteProvider);
     massiveStockQuoteProvider.ifAvailable(providers::add);
-    return new StockQuoteOrchestrator(providers);
+    return new StockQuoteOrchestrator(
+        providers,
+        lastKnownQuotePort.getIfAvailable(),
+        closedMarketQuotePolicy.getIfAvailable(),
+        officialClosePort.getIfAvailable(),
+        meterRegistry.getIfAvailable(SimpleMeterRegistry::new),
+        clock);
+  }
+
+  /**
+   * Segunda opinion sobre el estado del mercado (ADR-0033): {@code time_to_open} de Twelve Data.
+   * Sin API key o con {@code marketdata.market-state.remote.enabled=false} decide el calendario
+   * local.
+   */
+  @Bean
+  @ConditionalOnExpression(
+      "'${marketdata.twelvedata.base-url:}' != '' and '${marketdata.twelvedata.api-key:}' != ''"
+          + " and ${marketdata.market-state.remote.enabled:true}")
+  public RemoteMarketStatePort twelveDataMarketStateAdapter(
+      WebClient webClient, TwelveDataProperties twelveDataProperties, Clock clock) {
+    return new TwelveDataMarketStateAdapter(
+        webClient, twelveDataProperties.getBaseUrl(), twelveDataProperties.getApiKey(), clock);
+  }
+
+  /** Cierre con fecha de sesion (ADR-0033, regla R4): {@code /eod} de Twelve Data. */
+  @Bean
+  @ConditionalOnExpression(
+      "'${marketdata.twelvedata.base-url:}' != '' and '${marketdata.twelvedata.api-key:}' != ''"
+          + " and ${marketdata.quote.closed-market-hold.official-close.enabled:true}")
+  public OfficialClosePort twelveDataEndOfDayAdapter(
+      WebClient webClient,
+      TwelveDataProperties twelveDataProperties,
+      Clock clock,
+      @Value("${marketdata.market-state.remote.retry-interval:PT1H}") Duration retryInterval) {
+    return new TwelveDataEndOfDayAdapter(
+        webClient,
+        twelveDataProperties.getBaseUrl(),
+        twelveDataProperties.getApiKey(),
+        clock,
+        retryInterval);
+  }
+
+  /** Regla de retencion con mercado cerrado (ADR-0033). */
+  @Bean
+  @ConditionalOnProperty(
+      name = "marketdata.quote.closed-market-hold.enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  public ClosedMarketQuotePolicy closedMarketQuotePolicy(
+      TradingCalendarService tradingCalendarService,
+      ObjectProvider<RemoteMarketStatePort> remoteMarketStatePort,
+      MarketStateCachePort marketStateCachePort,
+      ObjectProvider<MeterRegistry> meterRegistry,
+      Clock clock,
+      @Value("${marketdata.quote.closed-market-hold.settle-delay:PT4H}") Duration settleDelay,
+      @Value("${marketdata.quote.closed-market-hold.max-hold:P5D}") Duration maxHold,
+      @Value("${marketdata.market-state.remote.retry-interval:PT1H}") Duration retryInterval) {
+    return new ClosedMarketQuotePolicy(
+        tradingCalendarService,
+        remoteMarketStatePort.getIfAvailable(),
+        marketStateCachePort,
+        clock,
+        settleDelay,
+        maxHold,
+        retryInterval,
+        meterRegistry.getIfAvailable(SimpleMeterRegistry::new));
   }
 }
