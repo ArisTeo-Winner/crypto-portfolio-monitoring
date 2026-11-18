@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 
+import java.time.Clock;
+import java.time.Duration;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -11,9 +14,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.mx.cryptomonitor.marketdata.application.port.out.LastKnownQuotePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.MarketDataProvider;
+import com.mx.cryptomonitor.marketdata.application.port.out.OfficialClosePort;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockQuoteProvider;
 import com.mx.cryptomonitor.marketdata.application.port.out.StockTimeSeriesPort;
+import com.mx.cryptomonitor.marketdata.application.service.ClosedMarketQuotePolicy;
 import com.mx.cryptomonitor.marketdata.application.service.StockQuoteOrchestrator;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.AlphaVantageProperties;
 import com.mx.cryptomonitor.marketdata.infrastructure.configuration.MarketDataProviderConfig;
@@ -22,6 +28,10 @@ import com.mx.cryptomonitor.marketdata.infrastructure.configuration.TwelveDataPr
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.alphavantage.AlphaVantageAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.massive.MassiveAdapter;
 import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataAdapter;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataEndOfDayAdapter;
+import com.mx.cryptomonitor.marketdata.infrastructure.outbound.twelvedata.TwelveDataMarketStateAdapter;
+
+import io.micrometer.core.instrument.MeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class MarketDataProviderConfigTest {
@@ -29,6 +39,10 @@ class MarketDataProviderConfigTest {
   @Mock private ObjectProvider<TwelveDataAdapter> twelveDataAdapterProvider;
   @Mock private ObjectProvider<StockQuoteProvider> massiveProvider;
   @Mock private ObjectProvider<StockQuoteProvider> eodhdProvider;
+  @Mock private ObjectProvider<LastKnownQuotePort> lastKnownQuotePort;
+  @Mock private ObjectProvider<ClosedMarketQuotePolicy> closedMarketQuotePolicy;
+  @Mock private ObjectProvider<OfficialClosePort> officialClosePort;
+  @Mock private ObjectProvider<MeterRegistry> meterRegistry;
 
   @Test
   void shouldExposeUniqueTwelveDataAdapterImplementingBothInterfaces() {
@@ -107,7 +121,15 @@ class MarketDataProviderConfigTest {
 
     MarketDataProvider marketDataProvider =
         config.stockQuoteOrchestrator(
-            eodhdProvider, twelveDataAdapterProvider, alphaProvider, massiveProvider);
+            eodhdProvider,
+            twelveDataAdapterProvider,
+            alphaProvider,
+            massiveProvider,
+            lastKnownQuotePort,
+            closedMarketQuotePolicy,
+            officialClosePort,
+            meterRegistry,
+            Clock.systemUTC());
 
     assertThat(marketDataProvider).isInstanceOf(StockQuoteOrchestrator.class);
   }
@@ -121,8 +143,33 @@ class MarketDataProviderConfigTest {
 
     MarketDataProvider marketDataProvider =
         config.stockQuoteOrchestrator(
-            eodhdProvider, twelveDataAdapterProvider, alphaProvider, massiveProvider);
+            eodhdProvider,
+            twelveDataAdapterProvider,
+            alphaProvider,
+            massiveProvider,
+            lastKnownQuotePort,
+            closedMarketQuotePolicy,
+            officialClosePort,
+            meterRegistry,
+            Clock.systemUTC());
 
     assertThat(marketDataProvider).isInstanceOf(StockQuoteOrchestrator.class);
+  }
+
+  @Test
+  void shouldExposeTwelveDataMarketStateAndEndOfDayAdapters() {
+    MarketDataProviderConfig config = new MarketDataProviderConfig();
+    TwelveDataProperties properties = new TwelveDataProperties();
+    properties.setBaseUrl("https://api.twelvedata.com");
+    properties.setApiKey("demo-key");
+
+    assertThat(
+            config.twelveDataMarketStateAdapter(
+                WebClient.builder().build(), properties, Clock.systemUTC()))
+        .isInstanceOf(TwelveDataMarketStateAdapter.class);
+    assertThat(
+            config.twelveDataEndOfDayAdapter(
+                WebClient.builder().build(), properties, Clock.systemUTC(), Duration.ofHours(1)))
+        .isInstanceOf(TwelveDataEndOfDayAdapter.class);
   }
 }

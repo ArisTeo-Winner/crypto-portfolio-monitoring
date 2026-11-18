@@ -75,8 +75,15 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
   }
 
   private String buildSuccessRedirect(AuthResult result) {
-    // Solo el accessToken viaja en el fragment — el refreshToken ya fue escrito como cookie.
-    return frontendBaseUrl + "/auth/callback#accessToken=" + urlEncode(result.accessToken());
+    // La cookie de arriba queda en el dominio del backend: el BFF del frontend, en otro dominio,
+    // nunca la recibe en este flujo (es una redireccion del navegador, no una llamada del BFF).
+    // Por eso el refresh token tambien viaja en el fragment, que el navegador no envia a ningun
+    // servidor; /auth/callback lo entrega a /api/auth/session y lo borra de la URL.
+    return frontendBaseUrl
+        + "/auth/callback#accessToken="
+        + urlEncode(result.accessToken())
+        + "&refreshToken="
+        + urlEncode(result.rawRefreshToken());
   }
 
   private void redirectToFailure(HttpServletResponse response, String errorCode)

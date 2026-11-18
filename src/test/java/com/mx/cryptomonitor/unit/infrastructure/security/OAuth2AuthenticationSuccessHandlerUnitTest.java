@@ -47,9 +47,10 @@ class OAuth2AuthenticationSuccessHandlerUnitTest {
     handler.onAuthenticationSuccess(request, response, auth);
 
     assertThat(response.getStatus()).isEqualTo(302);
-    // El refresh token ya NO viaja en la URL — va como cookie HttpOnly en el header Set-Cookie
+    // El BFF del frontend no recibe la cookie del backend en una redireccion: ambos tokens viajan
+    // en el fragment, y la cookie se conserva sin cambios.
     assertThat(response.getRedirectedUrl())
-        .isEqualTo("http://localhost:3000/auth/callback#accessToken=A");
+        .isEqualTo("http://localhost:3000/auth/callback#accessToken=A&refreshToken=R");
     assertThat(response.getHeader("Set-Cookie")).contains("refresh_token=R").contains("HttpOnly");
 
     verify(userRepository).save(savedUserCaptor.capture());

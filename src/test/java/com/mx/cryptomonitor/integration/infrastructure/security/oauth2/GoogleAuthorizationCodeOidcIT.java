@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -249,11 +250,16 @@ class GoogleAuthorizationCodeOidcIT {
     assertThat(callback.getResponse().getHeader("Set-Cookie"))
         .contains("refresh_token=")
         .contains("HttpOnly");
-    String accessToken =
-        URLDecoder.decode(
-            callbackLocation.substring(callbackLocation.indexOf("#accessToken=") + 13),
-            StandardCharsets.UTF_8);
+    Map<String, String> fragment = new HashMap<>();
+    for (String pair : callbackLocation.substring(callbackLocation.indexOf('#') + 1).split("&")) {
+      String[] keyValue = pair.split("=", 2);
+      fragment.put(keyValue[0], URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8));
+    }
+    String accessToken = fragment.get("accessToken");
     assertThat(accessToken).isNotBlank();
+    assertThat(fragment.get("refreshToken"))
+        .as("el BFF del frontend necesita el refresh token del fragment")
+        .isNotBlank();
 
     // 3) API-first verification: internal JWT can call /api/v1/users/me
     mockMvc
